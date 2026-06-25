@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.local
+coverage/
+
+# local blob store / preview scratch
+.collab/
+.blobstore/
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/

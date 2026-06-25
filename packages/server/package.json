@@ -1,0 +1,27 @@
+{
+  "name": "@collab/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@collab/core": "workspace:*",
+    "@collab/db": "workspace:*",
+    "@hono/node-server": "^2.0.6",
+    "hono": "^4.12.26"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.38.2",
+    "postgres": "^3.4.5",
+    "tsx": "^4.19.2"
+  }
+}
