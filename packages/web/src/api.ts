@@ -1,19 +1,31 @@
 // The viewer talks to the REST API over CORS. In dev that's the local server
 // on :8787; in prod it's the app origin. Page content is loaded from the
-// absolute `contentUrl` the API returns (the content origin), not from here.
+// absolute `contentBase` the API returns (the content origin), not from here.
 const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8787").replace(/\/+$/, "");
+
+export interface NavNode {
+  type: "file" | "dir";
+  title: string;
+  urlPath: string;
+  fsPath: string;
+  order: number;
+  children?: NavNode[];
+}
+
+export interface PageMeta {
+  path: string;
+  kind: "markdown" | "html" | "asset";
+  title: string;
+}
 
 export interface SiteMeta {
   slug: string;
   state: "open" | "read_only" | "frozen";
   version: number;
-  page: {
-    path: string;
-    kind: "markdown" | "html" | "asset";
-    title: string;
-    /** Absolute URL of the rendered Page document (the iframe src). */
-    contentUrl: string;
-  };
+  entryPath: string;
+  contentBase: string;
+  nav: NavNode[];
+  pages: PageMeta[];
 }
 
 export class SiteNotFoundError extends Error {

@@ -8,17 +8,17 @@ import { share } from "./share.js";
 
 const cli = cac("collab");
 
-// Share (ADR-0010): `collab share <file.md>` promotes a local file to a hosted,
-// public Site — the explicit step out of local-first Preview. M2 hosts a single
-// Markdown Page.
+// Share (ADR-0010): `collab share <path>` promotes local content to a hosted,
+// public Site — the explicit step out of local-first Preview. M3 accepts a
+// single file, a directory (walked recursively), or a .zip archive.
 cli
-  .command("share <file>", "Upload a markdown file and host it as a public Site")
+  .command("share <path>", "Upload a file, folder, or zip and host it as a public Site")
   .option("--server <url>", "Collab server base URL", {
     default: process.env.COLLAB_SERVER ?? "http://localhost:8787",
   })
-  .action(async (file: string, options: any) => {
+  .action(async (path: string, options: any) => {
     try {
-      await share(file, { server: options.server });
+      await share(path, { server: options.server });
     } catch (err) {
       console.error(`[collab] ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);

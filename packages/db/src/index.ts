@@ -6,10 +6,12 @@ export {
   createSiteWithVersion,
   getSiteBySlug,
   getLatestPage,
+  getLatestManifest,
   type CreateSiteInput,
   type CreatedSite,
   type NewPage,
   type SiteRow,
   type PageEntry,
   type SitePage,
+  type SiteManifest,
 } from "./repos.js";

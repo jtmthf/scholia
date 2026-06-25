@@ -1,38 +1,89 @@
 import { Hono } from "hono";
-import { storeMarkdownPage } from "@collab/core";
-import { createSiteWithVersion, getLatestPage, type Provenance } from "@collab/db";
+import { buildNav, pickEntryPath, storeMarkdownPage } from "@collab/core";
+import {
+  createSiteWithVersion,
+  getLatestManifest,
+  type NewPage,
+  type Provenance,
+} from "@collab/db";
 import type { AppDeps } from "../config.js";
 import { hashToken, mintToken, randomSlug } from "../tokens.js";
 
-interface ShareBody {
-  filename: string;
-  content: string;
+interface FileEntry {
+  path: string;
+  kind: "markdown" | "asset";
+  contentHash: string;
+}
+
+interface SiteBody {
+  contentSource: { kind: "local" };
   provenance?: Provenance;
+  files: FileEntry[];
 }
 
-// Reduce an uploaded filename to a Page path. M2 hosts a single Markdown Page,
-// so this is just the basename (folders/zips become real tree paths in M3).
-function pagePath(filename: string): string {
-  const base = filename.split(/[\\/]/).pop()?.trim();
-  return base && base.length > 0 ? base : "index.md";
+function isFileEntry(v: unknown): v is FileEntry {
+  if (typeof v !== "object" || v === null) return false;
+  const obj = v as Record<string, unknown>;
+  return (
+    typeof obj.path === "string" &&
+    (obj.kind === "markdown" || obj.kind === "asset") &&
+    typeof obj.contentHash === "string"
+  );
 }
 
-// `collab share` and `GET /sites/:slug`. M2: one public Markdown Page per Site.
+// `collab share` and `GET /sites/:slug`. M3: multi-page Sites with blob
+// negotiation — client uploads blobs first, then submits the manifest.
 export function sitesRoutes(getDeps: () => AppDeps) {
   const app = new Hono();
 
-  // Create a Site from a single Markdown file: ingest + store blobs, mint the
-  // Site slug + owner token, persist the first Version. Returns the Share URL
-  // and the one-time owner token (PLAN §5 M2, ADR-0005).
+  // Create a Site from a pre-uploaded manifest. The client must have already
+  // PUT all blob hashes via /blobs before calling this.
   app.post("/sites", async (c) => {
-    const body = (await c.req.json().catch(() => null)) as ShareBody | null;
-    if (!body || typeof body.content !== "string" || typeof body.filename !== "string") {
-      return c.json({ error: "expected JSON { filename, content }" }, 400);
+    const body = (await c.req.json().catch(() => null)) as SiteBody | null;
+    if (
+      !body ||
+      typeof body.contentSource !== "object" ||
+      body.contentSource?.kind !== "local" ||
+      !Array.isArray(body.files) ||
+      body.files.length === 0 ||
+      !body.files.every(isFileEntry)
+    ) {
+      return c.json(
+        { error: "expected JSON { contentSource: {kind:'local'}, files: [{path,kind,contentHash},...] }" },
+        400,
+      );
     }
 
     const { db, store, viewerUrl } = getDeps();
-    const path = pagePath(body.filename);
-    const stored = await storeMarkdownPage(store, body.content);
+
+    // Verify every content hash is already in the store.
+    const missingChecks = await Promise.all(
+      body.files.map(async (f) => ({ path: f.path, has: await store.has(f.contentHash) })),
+    );
+    const missing = missingChecks.filter((c) => !c.has).map((c) => c.path);
+    if (missing.length > 0) {
+      return c.json({ error: "blobs missing; upload them first", missing }, 409);
+    }
+
+    // Process each file into a manifest row.
+    const pages: NewPage[] = await Promise.all(
+      body.files.map(async (f): Promise<NewPage> => {
+        if (f.kind !== "markdown") {
+          return { path: f.path, kind: "asset", contentHash: f.contentHash };
+        }
+        const raw = await store.get(f.contentHash);
+        const source = new TextDecoder().decode(raw!);
+        const stored = await storeMarkdownPage(store, source);
+        return {
+          path: f.path,
+          kind: "markdown",
+          contentHash: f.contentHash,
+          title: stored.title ?? null,
+          renderedHash: stored.renderedHash,
+          sourceMapHash: stored.sourceMapHash,
+        };
+      }),
+    );
 
     const slug = randomSlug();
     const token = mintToken();
@@ -41,47 +92,29 @@ export function sitesRoutes(getDeps: () => AppDeps) {
       ownerTokenHash: hashToken(token),
       contentSource: { kind: "local" },
       provenance: body.provenance ?? null,
-      pages: [
-        {
-          path,
-          kind: "markdown",
-          contentHash: stored.contentHash,
-          title: stored.title ?? null,
-          renderedHash: stored.renderedHash,
-          sourceMapHash: stored.sourceMapHash,
-        },
-      ],
+      pages,
     });
 
-    return c.json(
-      {
-        slug,
-        shareUrl: `${viewerUrl}/s/${slug}`,
-        token,
-        page: { path, title: stored.title ?? path },
-      },
-      201,
-    );
+    const entryPath = pickEntryPath(body.files);
+    return c.json({ slug, shareUrl: `${viewerUrl}/s/${slug}`, token, entryPath }, 201);
   });
 
-  // Site metadata for the viewer: resolves the Entry Page and the absolute URL
-  // its content loads from (the iframe src).
+  // Site metadata: Nav tree, entry path, content base URL, and the full page list.
   app.get("/sites/:slug", async (c) => {
     const { db, publicUrl } = getDeps();
-    const result = await getLatestPage(db, c.req.param("slug"));
-    if (!result) return c.json({ error: "not found" }, 404);
+    const manifest = await getLatestManifest(db, c.req.param("slug"));
+    if (!manifest) return c.json({ error: "not found" }, 404);
 
-    const { site, page } = result;
+    const { site, ordinal, pages } = manifest;
+    const entryPath = pickEntryPath(pages);
     return c.json({
       slug: site.slug,
       state: site.state,
-      version: page.ordinal,
-      page: {
-        path: page.path,
-        kind: page.kind,
-        title: page.title ?? page.path,
-        contentUrl: `${publicUrl}/content/sites/${site.slug}`,
-      },
+      version: ordinal,
+      entryPath,
+      contentBase: `${publicUrl}/content/sites/${site.slug}`,
+      nav: buildNav(pages),
+      pages: pages.map((p) => ({ path: p.path, kind: p.kind, title: p.title ?? p.path })),
     });
   });
 

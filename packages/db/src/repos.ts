@@ -161,3 +161,45 @@ export async function getLatestPage(
   if (!page) return null;
   return { site, page };
 }
+
+export interface SiteManifest {
+  site: SiteRow;
+  ordinal: number;
+  pages: PageEntry[];
+}
+
+// All manifest entries (markdown + asset) for the Latest Version, ordered by
+// path. Used for Site metadata, Nav, and content routing in M3+.
+export async function getLatestManifest(
+  db: Db,
+  slug: string,
+): Promise<SiteManifest | null> {
+  const site = await getSiteBySlug(db, slug);
+  if (!site) return null;
+
+  const [latest] = await db
+    .select({ id: versions.id, ordinal: versions.ordinal })
+    .from(versions)
+    .where(and(eq(versions.siteId, site.id), eq(versions.isLatest, true)))
+    .limit(1);
+  if (!latest) return null;
+
+  const rows = await db
+    .select()
+    .from(manifestEntries)
+    .where(eq(manifestEntries.versionId, latest.id))
+    .orderBy(asc(manifestEntries.path));
+
+  const pages: PageEntry[] = rows.map((r) => ({
+    versionId: r.versionId,
+    ordinal: latest.ordinal,
+    path: r.path,
+    kind: r.kind,
+    contentHash: r.contentHash,
+    title: r.title,
+    renderedHash: r.renderedHash,
+    sourceMapHash: r.sourceMapHash,
+  }));
+
+  return { site, ordinal: latest.ordinal, pages };
+}

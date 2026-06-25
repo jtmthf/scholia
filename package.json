@@ -16,7 +16,9 @@
     "db:migrate": "pnpm --filter @collab/db migrate",
     "dev:server": "pnpm --filter @collab/server dev",
     "dev:web": "pnpm --filter @collab/web dev",
-    "collab": "tsx packages/cli/src/cli.ts"
+    "collab": "tsx packages/cli/src/cli.ts",
+    "e2e": "pnpm --filter @collab/e2e test",
+    "e2e:install": "pnpm --filter @collab/e2e install:browsers"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -11,8 +11,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@collab/core": "workspace:*",
     "@collab/local": "workspace:*",
     "cac": "^7.0.0",
+    "fflate": "^0.8.2",
     "open": "^11.0.0"
   },
   "devDependencies": {

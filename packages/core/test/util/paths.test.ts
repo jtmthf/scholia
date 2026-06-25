@@ -1,6 +1,26 @@
 import { describe, test, expect } from "vitest";
 import { resolve } from "node:path";
-import { isDoc, isMdx, toUrlPath, resolveWithinRoot } from "../../src/util/paths.js";
+import {
+  isDoc,
+  isMdx,
+  toUrlPath,
+  resolveWithinRoot,
+  classifyFile,
+} from "../../src/util/paths.js";
+
+describe("classifyFile (hosted Page vs Asset, M3)", () => {
+  test("only .md/.markdown are Markdown Pages", () => {
+    expect(classifyFile("guide/intro.md")).toBe("markdown");
+    expect(classifyFile("NOTES.MARKDOWN")).toBe("markdown");
+  });
+
+  test(".html, .mdx, and everything else are Assets in M3", () => {
+    expect(classifyFile("index.html")).toBe("asset");
+    expect(classifyFile("page.mdx")).toBe("asset");
+    expect(classifyFile("img/logo.png")).toBe("asset");
+    expect(classifyFile("style.css")).toBe("asset");
+  });
+});
 
 describe("isDoc / isMdx", () => {
   test("recognizes markdown extensions regardless of case", () => {
