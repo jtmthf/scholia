@@ -5,7 +5,7 @@ import { classifyFile, hashBytes } from "@collab/core";
 
 export interface CollectedFile {
   path: string;
-  kind: "markdown" | "asset";
+  kind: "markdown" | "html" | "asset";
   contentHash: string;
   bytes: Uint8Array<ArrayBuffer>;
 }

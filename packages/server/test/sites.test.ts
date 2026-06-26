@@ -55,7 +55,9 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
   });
 
   // Upload files via the blob negotiation flow, then POST /sites.
-  async function uploadSite(files: Array<{ path: string; kind: "markdown" | "asset"; bytes: Uint8Array }>) {
+  async function uploadSite(
+    files: Array<{ path: string; kind: "markdown" | "html" | "asset"; bytes: Uint8Array }>,
+  ) {
     const entries = files.map((f) => ({
       path: f.path,
       kind: f.kind,
@@ -147,6 +149,47 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
     expect(assetRes.status).toBe(200);
     expect(assetRes.headers.get("content-type")).toContain("image/png");
     expect(assetRes.headers.get("x-robots-tag")).toBe("noindex");
+  });
+
+  test("HTML Page — entry precedence, served with CSP + noindex + bridge + data-sm", async () => {
+    const INDEX_HTML =
+      `<!doctype html><html><head><title>HTML Home</title></head>` +
+      `<body><h1>HTML Home</h1><p>Hosted <a href="README.md">markdown</a>.</p>` +
+      `<script>window.__ok=1</script></body></html>`;
+    const res = await uploadSite([
+      { path: "index.html", kind: "html", bytes: enc.encode(INDEX_HTML) },
+      { path: "README.md", kind: "markdown", bytes: enc.encode(README_MD) },
+    ]);
+    expect(res.status).toBe(201);
+    const { slug } = (await res.json()) as any;
+
+    // index.html wins entry precedence (CONTEXT "Entry Page", restored in M4).
+    const meta = (await (await app.request(`/sites/${slug}`)).json()) as any;
+    expect(meta.entryPath).toBe("index.html");
+    expect(meta.pages.find((p: any) => p.path === "index.html")?.kind).toBe("html");
+    // HTML Pages appear in the Nav alongside Markdown Pages.
+    expect(meta.nav.map((n: any) => n.title)).toContain("HTML Home");
+
+    // The HTML Page is served as a document into the iframe.
+    const entryRes = await app.request(`/content/sites/${slug}`);
+    expect(entryRes.status).toBe(200);
+    expect(entryRes.headers.get("content-type")).toContain("text/html");
+    expect(entryRes.headers.get("x-robots-tag")).toBe("noindex");
+    expect(entryRes.headers.get("referrer-policy")).toBe("no-referrer");
+    // CSP: framing pinned to the viewer origin (PLAN §2).
+    const csp = entryRes.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("frame-ancestors http://viewer.test");
+    expect(csp).toContain("default-src 'self'");
+
+    const entryHtml = await entryRes.text();
+    expect(entryHtml).toContain("HTML Home");
+    // Uploaded script preserved (ADR-0003), data-sm stamped, bridge injected.
+    expect(entryHtml).toContain("window.__ok=1");
+    expect(entryHtml).toContain("data-sm=");
+    expect(entryHtml).toContain("collab-bridge");
+    expect(entryHtml).toContain('name="robots"');
+    // Inter-page link to the Markdown Page is rewritten to the viewer route.
+    expect(entryHtml).toContain(`http://viewer.test/s/${slug}/README.md`);
   });
 
   test("POST /sites with a missing blob → 409", async () => {

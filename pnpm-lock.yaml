@@ -30,6 +30,8 @@ importers:
         specifier: ^0.8.2
         version: 0.8.3
 
+  packages/bridge: {}
+
   packages/cli:
     dependencies:
       '@collab/core':
@@ -75,6 +77,9 @@ importers:
       katex:
         specifier: ^0.17.0
         version: 0.17.0
+      parse5:
+        specifier: ^7.2.1
+        version: 7.3.0
       preact:
         specifier: ^10.29.2
         version: 10.29.2
@@ -161,6 +166,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@collab/bridge':
+        specifier: workspace:*
+        version: link:../bridge
       '@collab/core':
         specifier: workspace:*
         version: link:../core
@@ -186,6 +194,9 @@ importers:
 
   packages/web:
     dependencies:
+      '@collab/bridge':
+        specifier: workspace:*
+        version: link:../bridge
       preact:
         specifier: ^10.29.2
         version: 10.29.2

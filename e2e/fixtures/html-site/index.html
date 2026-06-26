@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HTML Home</title>
+  </head>
+  <body>
+    <h1>HTML Home</h1>
+    <p id="lead">An uploaded <strong>HTML Page</strong> hosted by collab.</p>
+    <p>See the <a href="about.md">about page</a>.</p>
+    <button id="counter" type="button" data-count="0">clicks: 0</button>
+    <script>
+      // Proves uploaded JS runs inside the sandboxed iframe (ADR-0003) and is
+      // allowed by the content-origin CSP (self + inline).
+      document.body.setAttribute("data-hydrated", "1");
+      var btn = document.getElementById("counter");
+      btn.addEventListener("click", function () {
+        var n = Number(btn.getAttribute("data-count")) + 1;
+        btn.setAttribute("data-count", String(n));
+        btn.textContent = "clicks: " + n;
+      });
+    </script>
+  </body>
+</html>

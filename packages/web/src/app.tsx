@@ -1,5 +1,6 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { connectBridge, type Theme } from "@collab/bridge";
 import { fetchSite, SiteNotFoundError, type NavNode, type SiteMeta } from "./api";
 
 // /s/:slug or /s/:slug/<path> — path may contain slashes (e.g. guide/intro.md)
@@ -101,20 +102,48 @@ export function App() {
             <NavTree nodes={meta.nav} currentPath={currentPath} slug={meta.slug} onNavigate={navigate} />
           </nav>
         )}
-        {/* Page content runs cross-origin and sandboxed (ADR-0003): allow-scripts
-            for interactivity, but no allow-same-origin, so it's an opaque origin
-            that can't reach the app origin, its storage, or the API.
-            allow-top-navigation-by-user-activation lets inter-page links in the
-            iframe navigate the top frame to the viewer route (keeping chrome). */}
-        <iframe
-          class="content"
-          title={pageTitle}
-          src={`${meta.contentBase}/${currentPath}`}
-          sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation"
-          referrerPolicy="no-referrer"
-        />
+        <ContentFrame src={`${meta.contentBase}/${currentPath}`} title={pageTitle} />
       </div>
     </div>
+  );
+}
+
+function osTheme(): Theme {
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+// The sandboxed cross-origin content iframe (ADR-0003) plus the parent end of
+// the bridge (M4). allow-scripts gives uploaded pages interactivity, but there
+// is no allow-same-origin, so the content is an opaque origin that can't reach
+// the app origin, its storage, or the API.
+// allow-top-navigation-by-user-activation lets rewritten inter-page links
+// navigate the top frame to the viewer route (keeping the chrome). The bridge
+// pushes the chrome's theme into the frame over postMessage.
+function ContentFrame({ src, title }: { src: string; title: string }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const iframe = ref.current;
+    if (!iframe) return;
+    const bridge = connectBridge(iframe, { theme: osTheme() });
+    const mq = matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => bridge.setTheme(mq.matches ? "dark" : "light");
+    mq.addEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+      bridge.dispose();
+    };
+  }, []);
+
+  return (
+    <iframe
+      ref={ref}
+      class="content"
+      title={title}
+      src={src}
+      sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation"
+      referrerPolicy="no-referrer"
+    />
   );
 }
 

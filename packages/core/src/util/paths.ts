@@ -11,11 +11,13 @@ export function isMdx(name: string): boolean {
   return name.toLowerCase().endsWith(".mdx");
 }
 
-// Classify a file within a Site for hosting (PLAN §5 M3). Only `.md`/`.markdown`
-// are Markdown Pages; everything else — including `.html` and `.mdx` — is an
-// Asset in M3 (HTML Pages land in M4; hosted MDX flattening is deferred).
-export function classifyFile(path: string): "markdown" | "asset" {
-  return /\.(md|markdown)$/i.test(path) ? "markdown" : "asset";
+// Classify a file within a Site for hosting (PLAN §5 M3/M4). `.md`/`.markdown`
+// are Markdown Pages; `.html`/`.htm` are HTML Pages (M4); everything else —
+// including `.mdx` — is an Asset (hosted MDX flattening is deferred, ADR-0012).
+export function classifyFile(path: string): "markdown" | "html" | "asset" {
+  if (/\.(md|markdown)$/i.test(path)) return "markdown";
+  if (/\.html?$/i.test(path)) return "html";
+  return "asset";
 }
 
 // Map a filesystem path to a server URL path, relative to the served root.

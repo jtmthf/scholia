@@ -13,10 +13,15 @@ export interface ManifestEntry {
   kind: "markdown" | "html" | "asset";
 }
 
-const INDEX_RE = /^(readme|index)\.(md|markdown)$/i;
+const INDEX_RE = /^(readme|index)\.(md|markdown|html?)$/i;
 
 function stripExt(name: string): string {
-  return name.replace(/\.(md|markdown)$/i, "");
+  return name.replace(/\.(md|markdown|html?)$/i, "");
+}
+
+// A Page (Markdown or HTML) appears in Nav and is entry-eligible; Assets do not.
+function isPage(kind: ManifestEntry["kind"]): boolean {
+  return kind === "markdown" || kind === "html";
 }
 
 // Build the auto-generated Nav tree from a Version's manifest. Only Markdown
@@ -53,7 +58,7 @@ export function buildNav(entries: ManifestEntry[]): NavNode[] {
   }
 
   for (const entry of entries) {
-    if (entry.kind !== "markdown") continue;
+    if (!isPage(entry.kind)) continue;
     const slash = entry.path.lastIndexOf("/");
     const fileName = slash === -1 ? entry.path : entry.path.slice(slash + 1);
     const dirPath = slash === -1 ? "" : entry.path.slice(0, slash);
@@ -85,22 +90,24 @@ function sortTree(nodes: NavNode[]): void {
 }
 
 // Resolve the Entry Page path by precedence with no config (CONTEXT "Entry
-// Page"): top-level `index.md` -> `README.md` -> first top-level Markdown Page
-// alphabetically. `index.html` is an Asset in M3 so it is not an entry
-// candidate. A Site with only nested Markdown Pages falls back to the first
-// Page by path.
+// Page"): top-level `index.html` -> `index.md` -> `README.md` -> otherwise the
+// first top-level Page (Markdown or HTML) alphabetically. M4 restores
+// `index.html` to the front of the precedence now that HTML is a Page kind. A
+// Site with only nested Pages falls back to the first Page by path.
 export function pickEntryPath(entries: ManifestEntry[]): string | undefined {
-  const md = entries.filter((e) => e.kind === "markdown").map((e) => e.path);
-  if (md.length === 0) return undefined;
+  const pages = entries.filter((e) => isPage(e.kind)).map((e) => e.path);
+  if (pages.length === 0) return undefined;
 
-  const topLevel = md.filter((p) => !p.includes("/"));
+  const topLevel = pages.filter((p) => !p.includes("/"));
   const named = (name: string) =>
     topLevel.find((p) => p.toLowerCase() === name);
 
   return (
+    named("index.html") ??
+    named("index.htm") ??
     named("index.md") ??
     named("readme.md") ??
     [...topLevel].sort((a, b) => a.localeCompare(b))[0] ??
-    [...md].sort((a, b) => a.localeCompare(b))[0]
+    [...pages].sort((a, b) => a.localeCompare(b))[0]
   );
 }

@@ -5,6 +5,9 @@ import type { NavNode } from "../../src/types.js";
 function md(path: string, title?: string): ManifestEntry {
   return { path, title, kind: "markdown" };
 }
+function html(path: string, title?: string): ManifestEntry {
+  return { path, title, kind: "html" };
+}
 function asset(path: string): ManifestEntry {
   return { path, kind: "asset" };
 }
@@ -31,22 +34,33 @@ describe("buildNav", () => {
     expect(tree.map((n) => n.title)).toEqual(["Start", "Apple", "Zebra"]);
   });
 
-  test("excludes Assets (including .html) from the tree", () => {
-    const tree = buildNav([md("index.md", "Home"), asset("logo.png"), asset("index.html")]);
-    expect(flatten(tree)).toEqual(["Home"]);
+  test("excludes Assets from the tree but includes HTML Pages (M4)", () => {
+    const tree = buildNav([
+      md("index.md", "Home"),
+      html("api.html", "API"),
+      asset("logo.png"),
+    ]);
+    expect(flatten(tree).sort()).toEqual(["API", "Home"]);
   });
 });
 
 describe("pickEntryPath", () => {
-  test("precedence: index.md > README.md > first top-level .md alphabetically", () => {
+  test("precedence: index.html > index.md > README.md > first top-level Page (M4)", () => {
+    expect(pickEntryPath([html("index.html"), md("index.md"), md("README.md")])).toBe(
+      "index.html",
+    );
     expect(pickEntryPath([md("README.md"), md("index.md"), md("a.md")])).toBe("index.md");
     expect(pickEntryPath([md("README.md"), md("a.md"), md("b.md")])).toBe("README.md");
     expect(pickEntryPath([md("zebra.md"), md("apple.md")])).toBe("apple.md");
   });
 
-  test("ignores index.html (an Asset in M3) and nested index/readme", () => {
-    expect(pickEntryPath([asset("index.html"), md("guide/index.md"), md("top.md")])).toBe(
-      "top.md",
+  test("an HTML Page can be the first-alphabetically entry", () => {
+    expect(pickEntryPath([md("zebra.md"), html("apple.html")])).toBe("apple.html");
+  });
+
+  test("a real index.html Page now wins precedence (was an Asset in M3)", () => {
+    expect(pickEntryPath([html("index.html"), md("guide/index.md"), md("top.md")])).toBe(
+      "index.html",
     );
   });
 
@@ -54,7 +68,7 @@ describe("pickEntryPath", () => {
     expect(pickEntryPath([md("docs/b.md"), md("docs/a.md")])).toBe("docs/a.md");
   });
 
-  test("returns undefined when the Site has no Markdown Pages", () => {
+  test("returns undefined when the Site has no Pages", () => {
     expect(pickEntryPath([asset("logo.png")])).toBeUndefined();
   });
 });

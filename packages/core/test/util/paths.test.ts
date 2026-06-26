@@ -8,14 +8,18 @@ import {
   classifyFile,
 } from "../../src/util/paths.js";
 
-describe("classifyFile (hosted Page vs Asset, M3)", () => {
-  test("only .md/.markdown are Markdown Pages", () => {
+describe("classifyFile (hosted Page vs Asset, M4)", () => {
+  test(".md/.markdown are Markdown Pages", () => {
     expect(classifyFile("guide/intro.md")).toBe("markdown");
     expect(classifyFile("NOTES.MARKDOWN")).toBe("markdown");
   });
 
-  test(".html, .mdx, and everything else are Assets in M3", () => {
-    expect(classifyFile("index.html")).toBe("asset");
+  test(".html/.htm are HTML Pages (M4)", () => {
+    expect(classifyFile("index.html")).toBe("html");
+    expect(classifyFile("guide/page.HTM")).toBe("html");
+  });
+
+  test(".mdx and everything else are Assets", () => {
     expect(classifyFile("page.mdx")).toBe("asset");
     expect(classifyFile("img/logo.png")).toBe("asset");
     expect(classifyFile("style.css")).toBe("asset");

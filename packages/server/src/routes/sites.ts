@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { buildNav, pickEntryPath, storeMarkdownPage } from "@collab/core";
+import { buildNav, pickEntryPath, storeMarkdownPage, storeHtmlPage } from "@collab/core";
 import {
   createSiteWithVersion,
   getLatestManifest,
@@ -7,11 +7,12 @@ import {
   type Provenance,
 } from "@collab/db";
 import type { AppDeps } from "../config.js";
+import { contentBaseFor } from "../content-origin.js";
 import { hashToken, mintToken, randomSlug } from "../tokens.js";
 
 interface FileEntry {
   path: string;
-  kind: "markdown" | "asset";
+  kind: "markdown" | "html" | "asset";
   contentHash: string;
 }
 
@@ -26,7 +27,7 @@ function isFileEntry(v: unknown): v is FileEntry {
   const obj = v as Record<string, unknown>;
   return (
     typeof obj.path === "string" &&
-    (obj.kind === "markdown" || obj.kind === "asset") &&
+    (obj.kind === "markdown" || obj.kind === "html" || obj.kind === "asset") &&
     typeof obj.contentHash === "string"
   );
 }
@@ -65,18 +66,22 @@ export function sitesRoutes(getDeps: () => AppDeps) {
       return c.json({ error: "blobs missing; upload them first", missing }, 409);
     }
 
-    // Process each file into a manifest row.
+    // Process each file into a manifest row. Markdown + HTML are Pages (rendered
+    // + Source Map'd); everything else is a raw Asset.
     const pages: NewPage[] = await Promise.all(
       body.files.map(async (f): Promise<NewPage> => {
-        if (f.kind !== "markdown") {
+        if (f.kind === "asset") {
           return { path: f.path, kind: "asset", contentHash: f.contentHash };
         }
         const raw = await store.get(f.contentHash);
         const source = new TextDecoder().decode(raw!);
-        const stored = await storeMarkdownPage(store, source);
+        const stored =
+          f.kind === "html"
+            ? await storeHtmlPage(store, source)
+            : await storeMarkdownPage(store, source);
         return {
           path: f.path,
-          kind: "markdown",
+          kind: f.kind,
           contentHash: f.contentHash,
           title: stored.title ?? null,
           renderedHash: stored.renderedHash,
@@ -101,8 +106,8 @@ export function sitesRoutes(getDeps: () => AppDeps) {
 
   // Site metadata: Nav tree, entry path, content base URL, and the full page list.
   app.get("/sites/:slug", async (c) => {
-    const { db, publicUrl } = getDeps();
-    const manifest = await getLatestManifest(db, c.req.param("slug"));
+    const deps = getDeps();
+    const manifest = await getLatestManifest(deps.db, c.req.param("slug"));
     if (!manifest) return c.json({ error: "not found" }, 404);
 
     const { site, ordinal, pages } = manifest;
@@ -112,7 +117,7 @@ export function sitesRoutes(getDeps: () => AppDeps) {
       state: site.state,
       version: ordinal,
       entryPath,
-      contentBase: `${publicUrl}/content/sites/${site.slug}`,
+      contentBase: contentBaseFor(site.slug, deps),
       nav: buildNav(pages),
       pages: pages.map((p) => ({ path: p.path, kind: p.kind, title: p.title ?? p.path })),
     });

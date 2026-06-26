@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@collab/bridge": "workspace:*",
     "preact": "^10.29.2"
   },
   "devDependencies": {

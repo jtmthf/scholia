@@ -1,4 +1,5 @@
 import { escapeHtml } from "@collab/core";
+import { iframeBridgeScript } from "@collab/bridge";
 
 // Styles for the content document served into the sandboxed iframe. A trimmed
 // version of Local Preview's reading-view CSS (packages/local app.css) covering
@@ -69,21 +70,11 @@ html.dark .shiki, html.dark .shiki span { color: var(--shiki-dark); }
 .markdown-alert-caution { --alert-color: #cf222e; }
 `.trim();
 
-// Follow the parent viewer's color scheme via the OS preference. The iframe is a
-// sandboxed opaque origin, so this self-contained script is all the theming it
-// gets in M2 (a parent->iframe theme message can arrive with the bridge in M5).
-const THEME_SCRIPT = `
-try {
-  var m = matchMedia("(prefers-color-scheme: dark)");
-  var apply = function () { document.documentElement.classList.toggle("dark", m.matches); };
-  apply();
-  m.addEventListener("change", apply);
-} catch (e) {}
-`.trim();
-
 // Wrap a rendered Markdown Page fragment into a standalone HTML document for the
 // content origin. This is what loads inside the sandboxed cross-origin iframe
-// (ADR-0003); the `data-sm` stamps in the fragment survive for M5 anchoring.
+// (ADR-0003); the `data-sm` stamps in the fragment survive for M5 anchoring. The
+// injected bridge script (M4) performs the handshake, applies the parent's theme
+// (OS preference until then), and reports content height.
 export function renderContentDocument(fragmentHtml: string, title: string): string {
   return `<!doctype html>
 <html lang="en">
@@ -96,7 +87,30 @@ export function renderContentDocument(fragmentHtml: string, title: string): stri
 </head>
 <body>
 <article class="markdown-body">${fragmentHtml}</article>
-<script>${THEME_SCRIPT}</script>
+<script>${iframeBridgeScript()}</script>
 </body>
 </html>`;
+}
+
+// Prepare an HTML Page's served document for the content origin (M4, ADR-0003).
+// The page's own markup/styles/scripts are preserved as-is (already `data-sm`-
+// stamped at ingest); we only inject a `noindex` meta and the iframe bridge
+// script. parse5's serialized output is always a full document, so the
+// `</head>`/`</body>` anchors exist; the fallbacks cover hand-rolled fragments.
+export function prepareHtmlDocument(servedHtml: string): string {
+  let html = servedHtml;
+  const meta = `<meta name="robots" content="noindex" />`;
+  const script = `<script>${iframeBridgeScript()}</script>`;
+
+  if (!/^\s*<!doctype/i.test(html)) html = `<!doctype html>\n${html}`;
+
+  if (/<\/head>/i.test(html)) html = html.replace(/<\/head>/i, `${meta}</head>`);
+  else if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}${meta}`);
+  else if (/<html[^>]*>/i.test(html)) html = html.replace(/<html[^>]*>/i, (m) => `${m}<head>${meta}</head>`);
+  else html = `${meta}${html}`;
+
+  if (/<\/body>/i.test(html)) html = html.replace(/<\/body>/i, `${script}</body>`);
+  else html += script;
+
+  return html;
 }

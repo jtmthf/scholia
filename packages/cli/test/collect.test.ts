@@ -16,7 +16,7 @@ describe("collectFiles — directory", () => {
     expect(paths).toEqual(["README.md", "guide/intro.md", "img/logo.png"]);
   });
 
-  test("classifies .md/.markdown as markdown, everything else as asset", async ({ tmp }) => {
+  test("classifies .md/.markdown as markdown, .html as html, everything else as asset", async ({ tmp }) => {
     await tmp.write("doc.md", "content");
     await tmp.write("notes.MARKDOWN", "notes");
     await tmp.write("page.html", "<html>");
@@ -26,7 +26,7 @@ describe("collectFiles — directory", () => {
     const byPath = Object.fromEntries(files.map((f) => [f.path, f.kind]));
     expect(byPath["doc.md"]).toBe("markdown");
     expect(byPath["notes.MARKDOWN"]).toBe("markdown");
-    expect(byPath["page.html"]).toBe("asset");
+    expect(byPath["page.html"]).toBe("html");
     expect(byPath["logo.png"]).toBe("asset");
   });
 
@@ -107,7 +107,7 @@ describe("collectFiles — zip", () => {
     const byPath = Object.fromEntries(files.map((f) => [f.path, f.kind]));
     expect(byPath["page.md"]).toBe("markdown");
     expect(byPath["asset.png"]).toBe("asset");
-    expect(byPath["page.html"]).toBe("asset");
+    expect(byPath["page.html"]).toBe("html");
   });
 
   test("deduplicates identical content by hash", async ({ tmp }) => {

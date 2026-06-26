@@ -19,6 +19,7 @@
     "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
     "katex": "^0.17.0",
+    "parse5": "^7.2.1",
     "preact": "^10.29.2",
     "preact-render-to-string": "^6.7.0",
     "rehype-autolink-headings": "^7.1.0",

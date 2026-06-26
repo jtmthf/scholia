@@ -36,3 +36,5 @@ export const REPO_ROOT = join(HERE, "..", "..");
 /** Test fixtures (sample Sites to share). */
 export const FIXTURES = join(HERE, "..", "fixtures");
 export const FIXTURE_SITE = join(FIXTURES, "site");
+/** An HTML-Page Site (M4): index.html entry + a Markdown Page it links to. */
+export const FIXTURE_HTML_SITE = join(FIXTURES, "html-site");
