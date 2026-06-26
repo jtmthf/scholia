@@ -1,0 +1,508 @@
+/* ============================================================
+   Comment rail + affordances — M5 comment layer
+   Uses CSS variables defined in styles.css.
+   ============================================================ */
+
+/* Additional variables for the comment layer */
+:root {
+  --rail-width: 320px;
+  --rail-bg: var(--chrome-bg);
+  --comment-bg: var(--bg);
+  --comment-border: var(--border);
+  --comment-radius: 6px;
+  --comment-avatar-size: 28px;
+  --agent-badge-bg: #8250df;
+  --agent-badge-fg: #ffffff;
+  --owner-tier-fg: #cf222e;
+  --resolved-bg: var(--nav-hover);
+  --reaction-active-bg: #ddf4ff;
+  --reaction-active-border: #54aeff;
+  --reaction-active-fg: #0550ae;
+  --floating-btn-bg: #0969da;
+  --floating-btn-fg: #ffffff;
+  --floating-btn-hover-bg: #0550ae;
+  --composer-bg: var(--bg);
+  --tombstone-fg: var(--muted);
+  --outdated-label-fg: #9a6700;
+  --outdated-label-bg: #fff8c5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --agent-badge-bg: #a371f7;
+    --agent-badge-fg: #0d1117;
+    --owner-tier-fg: #ff7b72;
+    --reaction-active-bg: #0c2d6b;
+    --reaction-active-border: #388bfd;
+    --reaction-active-fg: #79c0ff;
+    --floating-btn-bg: #1f6feb;
+    --floating-btn-hover-bg: #388bfd;
+    --outdated-label-fg: #d29922;
+    --outdated-label-bg: #272115;
+  }
+}
+
+/* ── Rail ──────────────────────────────────────────────────── */
+
+.comment-rail {
+  width: var(--rail-width);
+  flex: 0 0 var(--rail-width);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--rail-bg);
+}
+
+.rail-section {
+  padding: 8px 0;
+}
+
+.rail-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 4px 12px 8px;
+  margin: 0;
+}
+
+.rail-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Page-level comment button in chrome */
+.page-comment-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 24px);
+  margin: 8px 12px;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--comment-radius);
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.1s, color 0.1s;
+}
+.page-comment-btn:hover {
+  border-color: var(--nav-active-fg);
+  color: var(--fg);
+}
+
+/* ── Thread card ───────────────────────────────────────────── */
+
+.thread-card {
+  margin: 4px 8px;
+  border: 1px solid var(--comment-border);
+  border-radius: var(--comment-radius);
+  background: var(--comment-bg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+.thread-card:hover {
+  border-color: var(--nav-active-fg);
+}
+.thread-card--active {
+  border-color: var(--nav-active-fg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nav-active-fg) 20%, transparent);
+}
+.thread-card--resolved {
+  opacity: 0.65;
+}
+.thread-card--outdated .thread-anchor-quote {
+  color: var(--outdated-label-fg);
+}
+
+.thread-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.thread-anchor-label {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--outdated-label-bg);
+  color: var(--outdated-label-fg);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.thread-anchor-quote {
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 12px;
+}
+
+.thread-resolved-badge {
+  margin-left: auto;
+  font-size: 11px;
+  background: var(--nav-active-bg);
+  color: var(--nav-active-fg);
+  padding: 1px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.thread-body {
+  padding: 4px 0;
+}
+
+.thread-collapsed-summary {
+  padding: 4px 10px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.thread-collapsed-summary:hover {
+  color: var(--fg);
+}
+
+.thread-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.thread-action-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.thread-action-btn:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+.thread-action-btn--resolve {
+  margin-left: auto;
+}
+
+/* ── Comment ───────────────────────────────────────────────── */
+
+.comment {
+  padding: 6px 10px;
+}
+.comment + .comment {
+  border-top: 1px solid var(--border);
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.identity-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.identity-badge--agent {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--agent-badge-bg);
+  color: var(--agent-badge-fg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.identity-tier--owner {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--owner-tier-fg);
+}
+
+.comment-timestamp {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.comment-edited {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.comment-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.comment-tombstone {
+  font-size: 12px;
+  color: var(--tombstone-fg);
+  font-style: italic;
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.comment-action-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.1s, background 0.1s;
+}
+.comment-action-btn:hover {
+  color: var(--fg);
+  background: var(--nav-hover);
+}
+
+/* ── Reactions ─────────────────────────────────────────────── */
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--nav-hover);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  user-select: none;
+}
+.reaction-chip:hover {
+  border-color: var(--muted);
+}
+.reaction-chip--mine {
+  background: var(--reaction-active-bg);
+  border-color: var(--reaction-active-border);
+  color: var(--reaction-active-fg);
+}
+.reaction-chip__count {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Inline edit ───────────────────────────────────────────── */
+
+.comment-edit-form {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.comment-edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Composer (reply box + new thread) ─────────────────────── */
+
+.composer {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px;
+  background: var(--composer-bg);
+}
+
+.composer-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.composer textarea,
+.comment-edit-form textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+.composer textarea:focus,
+.comment-edit-form textarea:focus {
+  outline: none;
+  border-color: var(--nav-active-fg);
+}
+
+.composer-name-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.composer-name-row label {
+  font-size: 12px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.composer-name-row input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 8px;
+}
+.composer-name-row input:focus {
+  outline: none;
+  border-color: var(--nav-active-fg);
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.btn-primary {
+  background: var(--floating-btn-bg);
+  color: var(--floating-btn-fg);
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.btn-primary:hover {
+  background: var(--floating-btn-hover-bg);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  padding: 4px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s;
+}
+.btn-secondary:hover {
+  border-color: var(--muted);
+  color: var(--muted);
+}
+
+.composer-error {
+  font-size: 11px;
+  color: var(--owner-tier-fg);
+  margin-top: 2px;
+}
+
+/* ── Floating "Comment" button ─────────────────────────────── */
+
+.floating-comment-btn {
+  position: fixed;
+  z-index: 9999;
+  background: var(--floating-btn-bg);
+  color: var(--floating-btn-fg);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: background 0.1s, transform 0.1s;
+  pointer-events: auto;
+}
+.floating-comment-btn:hover {
+  background: var(--floating-btn-hover-bg);
+  transform: translateY(-1px);
+}
+
+/* ── Floating composer panel ───────────────────────────────── */
+
+.floating-composer-panel {
+  position: fixed;
+  z-index: 9998;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--comment-radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  width: 300px;
+  padding: 12px;
+}
+
+.floating-composer-panel .composer {
+  border-top: none;
+  padding: 0;
+}
+
+/* ── Resolved by line ──────────────────────────────────────── */
+
+.resolved-by {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 2px 10px 6px;
+  font-style: italic;
+}

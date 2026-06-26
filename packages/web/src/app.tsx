@@ -1,7 +1,21 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
-import { connectBridge, type Theme } from "@collab/bridge";
-import { fetchSite, SiteNotFoundError, type NavNode, type SiteMeta } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { connectBridge, type Theme, type BridgeHandle } from "@collab/bridge";
+import type { SelectionCandidate } from "@collab/core";
+import {
+  createConversation,
+  fetchSite,
+  listConversations,
+  SiteNotFoundError,
+  type AnchorInput,
+  type ConversationDTO,
+  type NavNode,
+  type SiteMeta,
+} from "./api";
+import { ensureViewer, getViewer, setDisplayName } from "./viewer";
+import { Rail } from "./comments/Rail";
+import { Composer } from "./comments/Composer";
+import "./comments/comments.css";
 
 // /s/:slug or /s/:slug/<path> — path may contain slashes (e.g. guide/intro.md)
 function parseRoute(): { slug: string | null; pagePath: string | null } {
@@ -102,7 +116,7 @@ export function App() {
             <NavTree nodes={meta.nav} currentPath={currentPath} slug={meta.slug} onNavigate={navigate} />
           </nav>
         )}
-        <ContentFrame src={`${meta.contentBase}/${currentPath}`} title={pageTitle} />
+        <PageView meta={meta} currentPath={currentPath} pageTitle={pageTitle} />
       </div>
     </div>
   );
@@ -112,38 +126,199 @@ function osTheme(): Theme {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-// The sandboxed cross-origin content iframe (ADR-0003) plus the parent end of
-// the bridge (M4). allow-scripts gives uploaded pages interactivity, but there
-// is no allow-same-origin, so the content is an opaque origin that can't reach
-// the app origin, its storage, or the API.
-// allow-top-navigation-by-user-activation lets rewritten inter-page links
-// navigate the top frame to the viewer route (keeping the chrome). The bridge
-// pushes the chrome's theme into the frame over postMessage.
-function ContentFrame({ src, title }: { src: string; title: string }) {
-  const ref = useRef<HTMLIFrameElement>(null);
+function candidateToAnchor(candidate: SelectionCandidate): AnchorInput {
+  return {
+    textQuote: candidate.quote,
+    smIds: candidate.smIds,
+    ...(candidate.xpath ? { xpath: candidate.xpath } : {}),
+    ...(candidate.css ? { css: candidate.css } : {}),
+  };
+}
 
+type ComposerState = { anchor: AnchorInput | null; at?: { left: number; top: number } };
+
+// The content view (M5): the sandboxed cross-origin iframe (ADR-0003) plus the
+// comment layer. allow-scripts gives uploaded pages interactivity, but with no
+// allow-same-origin the content is an opaque origin that can't reach the app
+// origin, its storage, or the API. The bridge carries theme (M4) and, in M5, the
+// selection/anchor channel: selections become a floating "Comment" affordance and
+// a new-Thread composer; stored Thread anchors are resolved+highlighted back in
+// the frame; clicking a highlight focuses its Thread in the rail.
+function PageView({
+  meta,
+  currentPath,
+  pageTitle,
+}: {
+  meta: SiteMeta;
+  currentPath: string;
+  pageTitle: string;
+}) {
+  const slug = meta.slug;
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const bridgeRef = useRef<BridgeHandle | null>(null);
+  const [conversations, setConversations] = useState<ConversationDTO[]>([]);
+  const [selection, setSelection] = useState<{ candidate: SelectionCandidate; rect: DOMRectInit } | null>(null);
+  const [composer, setComposer] = useState<ComposerState | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
+
+  const reload = useCallback(() => {
+    const viewer = getViewer(slug);
+    listConversations(slug, currentPath, viewer?.viewerId ?? null)
+      .then(setConversations)
+      .catch(() => setConversations([]));
+  }, [slug, currentPath]);
+
+  const onNeedViewer = useCallback(async () => {
+    const v = await ensureViewer(slug);
+    return { viewerId: v.viewerId, displayName: v.displayName ?? "" };
+  }, [slug]);
+
+  // (Re)load Threads when the page changes.
   useEffect(() => {
-    const iframe = ref.current;
+    setConversations([]);
+    setSelection(null);
+    setComposer(null);
+    setActiveThreadId(null);
+    reload();
+  }, [reload]);
+
+  // Bridge lifecycle — recreated per page (the iframe reloads when src changes).
+  useEffect(() => {
+    const iframe = iframeRef.current;
     if (!iframe) return;
-    const bridge = connectBridge(iframe, { theme: osTheme() });
+    const bridge = connectBridge(iframe, {
+      theme: osTheme(),
+      onSelection: (e) => setSelection({ candidate: e.candidate, rect: e.rect }),
+      onSelectionCleared: () => setSelection(null),
+      onAnchorActivated: (id) => setActiveThreadId(id),
+    });
+    bridgeRef.current = bridge;
     const mq = matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => bridge.setTheme(mq.matches ? "dark" : "light");
     mq.addEventListener("change", onChange);
     return () => {
       mq.removeEventListener("change", onChange);
       bridge.dispose();
+      bridgeRef.current = null;
     };
-  }, []);
+  }, [currentPath, slug]);
+
+  // Resolve + highlight every anchored Thread whenever the set changes. Requests
+  // issued before the iframe handshake are queued by the bridge and flushed on
+  // ready, so this is safe to run immediately after load.
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (!bridge) return;
+    bridge.clearAnchors();
+    for (const c of conversations) {
+      if (c.anchor) bridge.resolveAnchor(c.id, c.anchor.textQuote);
+    }
+  }, [conversations]);
+
+  // Position the floating "Comment" button at the selection: the rect is in
+  // iframe coordinates, so offset it by the iframe's position in the parent.
+  const floatingPos = useMemo(() => {
+    if (!selection) return null;
+    const iframe = iframeRef.current;
+    if (!iframe) return null;
+    const box = iframe.getBoundingClientRect();
+    const r = selection.rect;
+    // DOMRectInit exposes x/y (== left/top for a normalized rect).
+    return {
+      left: box.left + (r.x ?? 0) + (r.width ?? 0) / 2,
+      top: box.top + (r.y ?? 0),
+    };
+  }, [selection]);
+
+  async function submitNewThread(body: string, displayName: string) {
+    setSubmitting(true);
+    setComposerError(null);
+    try {
+      const v = await ensureViewer(slug);
+      if (displayName && !v.displayName) setDisplayName(slug, displayName);
+      await createConversation(slug, {
+        pagePath: currentPath,
+        anchor: composer?.anchor ?? null,
+        body,
+        viewerId: v.viewerId,
+        displayName: displayName || v.displayName || "Anonymous",
+      });
+      setComposer(null);
+      setSelection(null);
+      reload();
+    } catch (err: unknown) {
+      setComposerError(err instanceof Error ? err.message : "Failed to post comment.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const viewerName = getViewer(slug)?.displayName;
 
   return (
-    <iframe
-      ref={ref}
-      class="content"
-      title={title}
-      src={src}
-      sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation"
-      referrerPolicy="no-referrer"
-    />
+    <>
+      <iframe
+        ref={iframeRef}
+        class="content"
+        title={pageTitle}
+        src={`${meta.contentBase}/${currentPath}`}
+        sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation"
+        referrerPolicy="no-referrer"
+      />
+
+      <Rail
+        slug={slug}
+        conversations={conversations}
+        activeThreadId={activeThreadId}
+        onNeedViewer={onNeedViewer}
+        onChanged={reload}
+        onActivateThread={(id) => {
+          setActiveThreadId(id);
+          bridgeRef.current?.scrollToAnchor(id);
+        }}
+        onNewPageComment={() => setComposer({ anchor: null })}
+      />
+
+      {selection && floatingPos && !composer && (
+        <button
+          class="floating-comment-btn"
+          style={{ left: `${floatingPos.left}px`, top: `${floatingPos.top}px`, transform: "translate(-50%, -120%)" }}
+          // Don't let the click steal focus / collapse anything before we read it.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() =>
+            setComposer({ anchor: candidateToAnchor(selection.candidate), at: floatingPos })
+          }
+        >
+          💬 Comment
+        </button>
+      )}
+
+      {composer && (
+        <div
+          class="floating-composer-panel"
+          style={
+            composer.at
+              ? {
+                  left: `${Math.max(8, Math.min(composer.at.left - 150, window.innerWidth - 320))}px`,
+                  top: `${Math.min(composer.at.top + 12, window.innerHeight - 240)}px`,
+                }
+              : { right: "340px", top: "72px" }
+          }
+        >
+          <Composer
+            label={composer.anchor ? "New comment on selection" : "Comment on this page"}
+            needsName={!viewerName}
+            currentName={viewerName}
+            isSubmitting={submitting}
+            error={composerError}
+            onSubmit={submitNewThread}
+            onCancel={() => setComposer(null)}
+          />
+        </div>
+      )}
+    </>
   );
 }
 

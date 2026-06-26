@@ -20,4 +20,6 @@ export {
   connectBridge,
   type ConnectOptions,
   type BridgeHandle,
+  type SelectionEvent,
+  type AnchorResolvedEvent,
 } from "./parent.js";

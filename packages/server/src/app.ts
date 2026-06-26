@@ -4,6 +4,7 @@ import { depsFromEnv, type AppDeps } from "./config.js";
 import { sitesRoutes } from "./routes/sites.js";
 import { contentRoutes } from "./routes/content.js";
 import { blobsRoutes } from "./routes/blobs.js";
+import { conversationsRoutes } from "./routes/conversations.js";
 
 // The hosted REST API + content-origin server (ADR-0011). M2 adds the first
 // hosted tracer bullet: create a Site (`POST /sites`), read its metadata
@@ -42,6 +43,7 @@ export function createApp(deps?: InputDeps) {
   app.route("/", sitesRoutes(getDeps));
   app.route("/", contentRoutes(getDeps));
   app.route("/", blobsRoutes(getDeps));
+  app.route("/", conversationsRoutes(getDeps));
 
   return app;
 }

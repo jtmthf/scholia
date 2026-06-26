@@ -1,13 +1,22 @@
-// The versioned parent <-> iframe postMessage protocol (ADR-0003, PLAN §5 M4).
+// The versioned parent <-> iframe postMessage protocol (ADR-0003, PLAN §5 M4/M5).
 // The Collab chrome (viewer) is the parent document; Page content runs in a
 // sandboxed cross-origin iframe. Because the iframe is an opaque origin, every
 // message is wrapped in a namespaced, versioned envelope so each side can
-// reject foreign or version-skewed messages — and so the M5 selection/anchor
-// messages can be added without breaking M4 clients.
+// reject foreign or version-skewed messages.
 //
-// M4 scope: handshake (`ready`), parent-driven theme (`set-theme`), and
-// content height (`resize`). Selection capture and anchor resolution are
-// reserved for M5 — their message types are sketched below but not implemented.
+// M4 scope: handshake (`ready`), parent-driven theme (`set-theme`), and content
+// height (`resize`). M5 adds the anchoring channel: the iframe reports text
+// selections (`selection`/`selection-cleared`) and the result of resolving an
+// anchor into the DOM (`anchor-resolved`) or the user activating a highlight
+// (`anchor-activated`); the parent asks the iframe to resolve+highlight anchors
+// (`resolve-anchor`), clear them (`clear-anchors`), or scroll one into view
+// (`scroll-to`). The protocol version stays 1 — adding message variants is
+// forward-compatible (unknown variants are dropped by `isEnvelope` consumers).
+//
+// Anchoring wire types (`TextQuote`, `SelectionCandidate`) are imported as
+// TYPE-ONLY from @collab/core so they are erased before the iframe bundle is
+// built (esbuild never pulls core's runtime into the inlined content script).
+import type { TextQuote, SelectionCandidate } from "@collab/core";
 
 export const BRIDGE_NAMESPACE = "collab-bridge" as const;
 export const BRIDGE_PROTOCOL_VERSION = 1 as const;
@@ -19,19 +28,29 @@ export type IframeMessage =
   // Handshake: content document loaded and the bridge is listening.
   | { type: "ready" }
   // Content height changed; lets the parent size the iframe to its content.
-  | { type: "resize"; height: number };
-// Reserved for M5 (kept here so the protocol version is stable across the
-// M4/M5 boundary):
-//   | { type: "selection"; quote: TextQuote; sourceRange?: [number, number]; rect: DOMRectInit }
-//   | { type: "anchor-resolved"; id: string; found: boolean }
+  | { type: "resize"; height: number }
+  // A non-empty text selection was made; carries the captured, uniquely-expanded
+  // anchor candidate and the selection's bounding rect (in iframe coordinates)
+  // so the parent can position the "comment" affordance.
+  | { type: "selection"; candidate: SelectionCandidate; rect: DOMRectInit }
+  // The selection was cleared / collapsed.
+  | { type: "selection-cleared" }
+  // Result of a `resolve-anchor` request: whether the quote matched and, if so,
+  // the matched range's bounding rect (iframe coordinates) for marker placement.
+  | { type: "anchor-resolved"; id: string; found: boolean; rect?: DOMRectInit }
+  // The user clicked an existing anchor highlight.
+  | { type: "anchor-activated"; id: string };
 
 // Messages the parent sends down to the iframe.
 export type ParentMessage =
   // Apply the chrome's current color scheme inside the content document.
-  | { type: "set-theme"; theme: Theme };
-// Reserved for M5:
-//   | { type: "resolve-anchor"; id: string; anchor: Anchor }
-//   | { type: "scroll-to"; id: string }
+  | { type: "set-theme"; theme: Theme }
+  // Resolve a stored anchor's text-quote against the DOM and highlight it.
+  | { type: "resolve-anchor"; id: string; quote: TextQuote }
+  // Remove all anchor highlights (e.g. on page navigation).
+  | { type: "clear-anchors" }
+  // Scroll a previously-resolved anchor highlight into view.
+  | { type: "scroll-to"; id: string };
 
 export type BridgeMessage = IframeMessage | ParentMessage;
 

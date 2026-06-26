@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { schema } from "@collab/db";
 import { FsBlobStore, hashBytes } from "@collab/core";
 import { createApp } from "../src/app.js";
+import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for the M3 Sites milestone: blob negotiation + manifest
 // upload + multi-page content serving. Needs a Postgres (DATABASE_URL); the
@@ -39,7 +39,7 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
   beforeAll(async () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrate(db, { migrationsFolder: MIGRATIONS });
+    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m3-"));
     app = createApp({
       db,

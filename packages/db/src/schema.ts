@@ -169,6 +169,12 @@ export const comments = pgTable("comments", {
   editedAt: timestamp("edited_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }), // tombstone
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // M5 deviation from PLAN §3: authorViewerId mirrors conversations.ownerViewerId,
+  // enabling anonymous Viewers (localStorage-grade identity, CONTEXT "Viewer") to
+  // edit/delete their OWN comments. Null for future agent/owner-token authors.
+  authorViewerId: uuid("author_viewer_id").references(() => viewers.id, {
+    onDelete: "set null",
+  }),
 });
 
 // Outbound mirror state + dedup map (M10). external_id <-> comment_id prevents
@@ -197,6 +203,12 @@ export const reactions = pgTable("reactions", {
     .references(() => comments.id, { onDelete: "cascade" }),
   author: jsonb("author").$type<Identity>().notNull(),
   emoji: text("emoji").notNull(),
+  // M5 deviation from PLAN §3: authorViewerId enables reaction TOGGLE keyed by
+  // (commentId, emoji, viewerId) for anonymous Viewer identity (CONTEXT "Viewer").
+  // Null for future agent/owner-token authors.
+  authorViewerId: uuid("author_viewer_id").references(() => viewers.id, {
+    onDelete: "set null",
+  }),
 });
 
 // An @-reference to an existing Identity on the Site, used to route feedback.

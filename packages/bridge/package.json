@@ -9,6 +9,15 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
+    "build:iframe": "node scripts/build-iframe.mjs",
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "dom-anchor-text-position": "^5.0.0",
+    "dom-anchor-text-quote": "^4.0.2"
+  },
+  "devDependencies": {
+    "@collab/core": "workspace:*",
+    "esbuild": "^0.24.2"
   }
 }

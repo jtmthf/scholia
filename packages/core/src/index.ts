@@ -31,6 +31,16 @@ export {
   type SourceMapEntry,
 } from "./ingest/source-map.js";
 
+// Anchoring (M5): text-quote primary, source-range secondary (ADR-0002).
+export {
+  searchQuote,
+  mapSmIdsToSourceRange,
+  type TextQuote,
+  type SourceRange,
+  type Anchor,
+  type SelectionCandidate,
+} from "./anchor/index.js";
+
 // Search
 export { createSearchIndex, type SearchIndex, type SearchHit } from "./search/index.js";
 

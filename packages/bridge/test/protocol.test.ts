@@ -27,18 +27,27 @@ describe("bridge envelope (M4)", () => {
   });
 });
 
-describe("iframeBridgeScript (M4)", () => {
+describe("iframeBridgeScript (bundled iframe script)", () => {
+  // Now an esbuild-minified IIFE (M5): the protocol constants are inlined as
+  // literals rather than `var NS=...`/`V=...`, so assert on the surviving
+  // string literals (the namespace + the message `type` values), not on source
+  // syntax. Behavior is exercised end-to-end by the Playwright smoke test.
   const script = iframeBridgeScript();
 
-  test("is self-contained and carries the protocol namespace + version", () => {
-    expect(script).toContain(JSON.stringify(BRIDGE_NAMESPACE));
-    expect(script).toContain(`V=${BRIDGE_PROTOCOL_VERSION}`);
+  test("is a non-empty self-contained script carrying the protocol namespace", () => {
+    expect(script.length).toBeGreaterThan(0);
+    // The namespace string is inlined into the postMessage envelopes.
+    expect(script).toContain(BRIDGE_NAMESPACE);
   });
 
-  test("performs the handshake and handles theme + height", () => {
-    expect(script).toContain(`{type:"ready"}`);
-    expect(script).toContain(`set-theme`);
-    expect(script).toContain(`type:"resize"`);
+  test("wires the M4 handshake/theme/height and the M5 anchoring messages", () => {
+    expect(script).toContain("ready");
+    expect(script).toContain("set-theme");
+    expect(script).toContain("resize");
+    // M5: selection capture + anchor resolution.
+    expect(script).toContain("selection");
+    expect(script).toContain("anchor-resolved");
+    expect(script).toContain("resolve-anchor");
   });
 
   test("contains no </script> sequence that would break inlining", () => {
