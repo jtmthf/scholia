@@ -5,25 +5,34 @@ import type { SelectionCandidate } from "@collab/core";
 import {
   createConversation,
   fetchSite,
+  fetchSummary,
   listConversations,
+  recordLastSeen,
   SiteNotFoundError,
   type AnchorInput,
   type ConversationDTO,
   type NavNode,
   type SiteMeta,
+  type ViewerSummary,
 } from "./api";
 import { ensureViewer, getViewer, setDisplayName } from "./viewer";
 import { Rail } from "./comments/Rail";
 import { Composer } from "./comments/Composer";
+import { DiffPanel } from "./versioning/DiffPanel";
 import "./comments/comments.css";
+import "./versioning/versioning.css";
 
-// /s/:slug or /s/:slug/<path> — path may contain slashes (e.g. guide/intro.md)
-function parseRoute(): { slug: string | null; pagePath: string | null } {
+// /s/:slug or /s/:slug/<path> — path may contain slashes (e.g. guide/intro.md).
+// `?v=<ordinal>` pins a historical Version (read-only permalink, CONTEXT "Latest").
+function parseRoute(): { slug: string | null; pagePath: string | null; version: number | null } {
   const m = window.location.pathname.match(/^\/s\/([^/]+)(?:\/(.*))?$/);
-  if (!m) return { slug: null, pagePath: null };
+  if (!m) return { slug: null, pagePath: null, version: null };
+  const vRaw = new URLSearchParams(window.location.search).get("v");
+  const v = vRaw !== null ? Number(vRaw) : NaN;
   return {
     slug: decodeURIComponent(m[1]!),
     pagePath: m[2] ? m[2].split("/").map(decodeURIComponent).join("/") : null,
+    version: Number.isInteger(v) && v >= 1 ? v : null,
   };
 }
 
@@ -43,7 +52,7 @@ type SiteState =
 export function App() {
   const [route, setRoute] = useState(parseRoute);
   const [siteState, setSiteState] = useState<SiteState>({ status: "loading" });
-  const { slug, pagePath } = route;
+  const { slug, pagePath, version } = route;
 
   useEffect(() => {
     const onPop = () => setRoute(parseRoute());
@@ -58,7 +67,7 @@ export function App() {
     }
     setSiteState({ status: "loading" });
     let active = true;
-    fetchSite(slug)
+    fetchSite(slug, version ?? undefined)
       .then((meta) => active && setSiteState({ status: "ready", meta }))
       .catch((err: unknown) => {
         if (!active) return;
@@ -72,7 +81,33 @@ export function App() {
     return () => {
       active = false;
     };
-  }, [slug]);
+  }, [slug, version]);
+
+  // "New since last visit" (CONTEXT "Last Seen Version") — site-level, so it
+  // lives here (full-width banner) rather than in the per-Page view. Only for a
+  // Viewer that already exists (never minted eagerly, viewer.ts contract) and only
+  // on the Latest view (`?v=` pins skip it). After capturing counts against the
+  // OLD Last Seen, advance it to Latest (server defaults to Latest).
+  const [summary, setSummary] = useState<ViewerSummary | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
+  useEffect(() => {
+    setSummary(null);
+    setShowDiff(false);
+    if (!slug || version !== null) return;
+    const viewer = getViewer(slug);
+    if (!viewer) return;
+    let active = true;
+    fetchSummary(slug, viewer.viewerId)
+      .then((s) => {
+        if (!active) return;
+        setSummary(s);
+        return recordLastSeen(slug, viewer.viewerId);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [slug, version]);
 
   if (siteState.status === "loading") return <Centered>Loading…</Centered>;
   if (siteState.status === "missing")
@@ -95,10 +130,24 @@ export function App() {
   const currentPage = meta.pages.find((p) => p.path === currentPath);
   const pageTitle = currentPage?.title ?? currentPath;
   const showNav = countFiles(meta.nav) > 1;
+  const readOnly = !meta.isLatest;
+  // Preserve a pinned `?v=` across in-Site navigation (permalink stays historical).
+  const vSuffix = readOnly ? `?v=${meta.version}` : "";
+  const diffFrom = summary?.lastSeenVersion ?? null;
+  const hasNews =
+    !readOnly &&
+    summary !== null &&
+    diffFrom !== null &&
+    (summary.newVersions > 0 || summary.newComments > 0);
 
   function navigate(path: string) {
-    history.pushState(null, "", `/s/${encodeURIComponent(meta.slug)}/${path}`);
-    setRoute({ slug: meta.slug, pagePath: path });
+    history.pushState(null, "", `/s/${encodeURIComponent(meta.slug)}/${path}${vSuffix}`);
+    setRoute({ slug: meta.slug, pagePath: path, version: readOnly ? meta.version : null });
+  }
+
+  function goLatest() {
+    history.pushState(null, "", `/s/${encodeURIComponent(meta.slug)}/${currentPath}`);
+    setRoute({ slug: meta.slug, pagePath: currentPath, version: null });
   }
 
   return (
@@ -108,15 +157,65 @@ export function App() {
         <span class="doc-title" title={pageTitle}>
           {pageTitle}
         </span>
-        <span class="version">v{meta.version}</span>
+        <span class={`version${readOnly ? " version--pinned" : ""}`}>
+          v{meta.version}
+          {readOnly ? ` of ${meta.latestVersion}` : ""}
+        </span>
       </header>
+      {readOnly && (
+        <div class="version-banner version-banner--historical">
+          <span>
+            You're viewing <strong>Version {meta.version}</strong> — not the Latest (v
+            {meta.latestVersion}). This is a read-only snapshot.
+          </span>
+          <button class="version-banner-action" onClick={goLatest}>
+            Go to Latest
+          </button>
+        </div>
+      )}
+      {hasNews && summary && (
+        <div class="version-banner version-banner--news">
+          <span>
+            {summary.newVersions > 0 && (
+              <strong>
+                {summary.newVersions} new Version{summary.newVersions === 1 ? "" : "s"}
+              </strong>
+            )}
+            {summary.newVersions > 0 && summary.newComments > 0 && " · "}
+            {summary.newComments > 0 && (
+              <strong>
+                {summary.newComments} new comment{summary.newComments === 1 ? "" : "s"}
+              </strong>
+            )}{" "}
+            since your last visit.
+          </span>
+          {summary.newVersions > 0 && (
+            <button class="version-banner-action" onClick={() => setShowDiff(true)}>
+              View changes
+            </button>
+          )}
+        </div>
+      )}
+      {showDiff && diffFrom !== null && (
+        <DiffPanel
+          slug={meta.slug}
+          from={diffFrom}
+          to={meta.latestVersion}
+          onClose={() => setShowDiff(false)}
+        />
+      )}
       <div class="body">
         {showNav && (
           <nav class="nav">
             <NavTree nodes={meta.nav} currentPath={currentPath} slug={meta.slug} onNavigate={navigate} />
           </nav>
         )}
-        <PageView meta={meta} currentPath={currentPath} pageTitle={pageTitle} />
+        <PageView
+          meta={meta}
+          currentPath={currentPath}
+          pageTitle={pageTitle}
+          readOnly={readOnly}
+        />
       </div>
     </div>
   );
@@ -148,10 +247,12 @@ function PageView({
   meta,
   currentPath,
   pageTitle,
+  readOnly,
 }: {
   meta: SiteMeta;
   currentPath: string;
   pageTitle: string;
+  readOnly: boolean;
 }) {
   const slug = meta.slug;
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -164,11 +265,12 @@ function PageView({
   const [composerError, setComposerError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
+    if (readOnly) return;
     const viewer = getViewer(slug);
     listConversations(slug, currentPath, viewer?.viewerId ?? null)
       .then(setConversations)
       .catch(() => setConversations([]));
-  }, [slug, currentPath]);
+  }, [slug, currentPath, readOnly]);
 
   const onNeedViewer = useCallback(async () => {
     const v = await ensureViewer(slug);
@@ -185,12 +287,13 @@ function PageView({
   }, [reload]);
 
   // Bridge lifecycle — recreated per page (the iframe reloads when src changes).
+  // A read-only historical view still gets theme, but no selection→comment channel.
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
     const bridge = connectBridge(iframe, {
       theme: osTheme(),
-      onSelection: (e) => setSelection({ candidate: e.candidate, rect: e.rect }),
+      onSelection: (e) => !readOnly && setSelection({ candidate: e.candidate, rect: e.rect }),
       onSelectionCleared: () => setSelection(null),
       onAnchorActivated: (id) => setActiveThreadId(id),
     });
@@ -203,7 +306,7 @@ function PageView({
       bridge.dispose();
       bridgeRef.current = null;
     };
-  }, [currentPath, slug]);
+  }, [currentPath, slug, readOnly]);
 
   // Resolve + highlight every anchored Thread whenever the set changes. Requests
   // issued before the iframe handshake are queued by the bridge and flushed on
@@ -213,7 +316,9 @@ function PageView({
     if (!bridge) return;
     bridge.clearAnchors();
     for (const c of conversations) {
-      if (c.anchor) bridge.resolveAnchor(c.id, c.anchor.textQuote);
+      // Only live anchors resolve against the current Version; Outdated Threads
+      // live in the rail with a permalink instead (CONTEXT "Outdated").
+      if (c.anchor && c.anchorStatus === "live") bridge.resolveAnchor(c.id, c.anchor.textQuote);
     }
   }, [conversations]);
 
@@ -256,6 +361,21 @@ function PageView({
   }
 
   const viewerName = getViewer(slug)?.displayName;
+
+  // A read-only historical Version: content only, no comment layer (comments live
+  // on Latest). The banner + "Go to Latest" affordance is rendered by App.
+  if (readOnly) {
+    return (
+      <iframe
+        ref={iframeRef}
+        class="content"
+        title={pageTitle}
+        src={`${meta.contentBase}/${currentPath}`}
+        sandbox="allow-scripts allow-popups allow-top-navigation-by-user-activation"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
 
   return (
     <>

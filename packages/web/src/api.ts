@@ -21,7 +21,10 @@ export interface PageMeta {
 export interface SiteMeta {
   slug: string;
   state: "open" | "read_only" | "frozen";
+  /** The Version being viewed (== latestVersion unless a `?v=` permalink). */
   version: number;
+  latestVersion: number;
+  isLatest: boolean;
   entryPath: string;
   contentBase: string;
   nav: NavNode[];
@@ -35,11 +38,110 @@ export class SiteNotFoundError extends Error {
   }
 }
 
-export async function fetchSite(slug: string): Promise<SiteMeta> {
-  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}`);
+// Load Site metadata. Pass a `version` ordinal for a per-Version permalink
+// (read-only historical view, CONTEXT "Latest"); omit for Latest.
+export async function fetchSite(slug: string, version?: number): Promise<SiteMeta> {
+  const qs = version !== undefined ? `?v=${version}` : "";
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}${qs}`);
   if (res.status === 404) throw new SiteNotFoundError(slug);
   if (!res.ok) throw new Error(`Failed to load Site (${res.status}).`);
   return (await res.json()) as SiteMeta;
+}
+
+// ----------------------------------------------------------------------------
+// M6 — Versioning UX: Version list, Diff, Last Seen, "new since" summary.
+// ----------------------------------------------------------------------------
+
+export interface VersionSummary {
+  ordinal: number;
+  createdAt: string;
+  provenance: { remote?: string; sha?: string; branch?: string; dirty?: boolean } | null;
+  isLatest: boolean;
+}
+
+export interface ViewerSummary {
+  latestVersion: number;
+  lastSeenVersion: number | null;
+  newVersions: number;
+  newComments: number;
+}
+
+export type PageChange = "added" | "removed" | "modified" | "unchanged";
+
+export interface ChangedPage {
+  path: string;
+  kind: "markdown" | "html" | "asset";
+  status: PageChange;
+}
+
+export type DiffLineType = "context" | "add" | "del";
+
+export interface DiffLine {
+  type: DiffLineType;
+  oldLine?: number;
+  newLine?: number;
+  text: string;
+}
+
+export interface LineDiff {
+  lines: DiffLine[];
+  added: number;
+  removed: number;
+  unchanged: boolean;
+}
+
+export async function listVersions(slug: string): Promise<VersionSummary[]> {
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/versions`);
+  const { versions } = await jsonOrThrow<{ versions: VersionSummary[] }>(res, "List versions");
+  return versions;
+}
+
+export async function fetchSummary(
+  slug: string,
+  viewerId: string | null,
+): Promise<ViewerSummary> {
+  const qs = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : "";
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/summary${qs}`);
+  return jsonOrThrow(res, "Fetch summary");
+}
+
+// Record the Viewer's Last Seen Version (defaults to Latest server-side).
+export async function recordLastSeen(
+  slug: string,
+  viewerId: string,
+  version?: number,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/last-seen`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ viewerId, ...(version !== undefined ? { version } : {}) }),
+  });
+  if (!res.ok) throw new Error(`Record last-seen failed (${res.status}).`);
+}
+
+// The changed-Pages summary between two Versions (no per-line hunks).
+export async function fetchChangedPages(
+  slug: string,
+  from: number,
+  to: number,
+): Promise<{ from: number; to: number; pages: ChangedPage[] }> {
+  const res = await fetch(
+    `${API_BASE}/sites/${encodeURIComponent(slug)}/diff?from=${from}&to=${to}`,
+  );
+  return jsonOrThrow(res, "Fetch diff");
+}
+
+// The source-level line diff for one Page between two Versions.
+export async function fetchPageDiff(
+  slug: string,
+  from: number,
+  to: number,
+  path: string,
+): Promise<{ from: number; to: number; path: string; status: PageChange; diff: LineDiff }> {
+  const res = await fetch(
+    `${API_BASE}/sites/${encodeURIComponent(slug)}/diff?from=${from}&to=${to}&path=${encodeURIComponent(path)}`,
+  );
+  return jsonOrThrow(res, "Fetch page diff");
 }
 
 // ----------------------------------------------------------------------------
@@ -100,6 +202,8 @@ export interface ConversationDTO {
   /** Anchored span; null for a page-level Thread (no highlight). */
   anchor: Anchor | null;
   anchorStatus: "live" | "outdated";
+  /** Ordinal of the Version this Thread was created on (Outdated permalink). */
+  createdOrdinal: number;
   resolved: boolean;
   resolvedBy: string | null;
   comments: CommentDTO[];

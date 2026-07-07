@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { contentType, pickEntryPath, rewriteInterPageLinks } from "@collab/core";
-import { getLatestManifest, type PageEntry } from "@collab/db";
+import { getLatestManifest, getManifestByOrdinal, type PageEntry } from "@collab/db";
 import type { AppDeps } from "../config.js";
 import { renderContentDocument, prepareHtmlDocument } from "../content.js";
 import { contentCsp } from "../content-origin.js";
@@ -10,54 +10,54 @@ const decoder = new TextDecoder();
 
 // The content origin (ADR-0003). Serves Markdown Pages and HTML Pages as
 // standalone documents into the sandboxed cross-origin iframe, and Assets as raw
-// bytes. M4: HTML Pages render alongside Markdown in the same iframe, documents
-// carry a `Content-Security-Policy` (frame-ancestors pinned to the viewer +
-// locked-down outbound), and all responses keep noindex + no-referrer (PLAN §2).
+// bytes. M4: HTML Pages render alongside Markdown, CSP + noindex + no-referrer.
+// M6: `/v/:ordinal/...` routes serve a historical Version (read-only permalink,
+// CONTEXT "Latest"); the un-versioned routes always serve Latest.
 export function contentRoutes(getDeps: () => AppDeps) {
   const app = new Hono();
 
-  // Entry page: resolve via pickEntryPath over the full manifest.
+  // ---- Version-pinned (registered first; static `v` segment wins over `*`) ----
+
+  app.get("/content/sites/:slug/v/:ordinal", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const ordinal = Number(c.req.param("ordinal"));
+    if (!Number.isInteger(ordinal) || ordinal < 1) return c.notFound();
+    const manifest = await getManifestByOrdinal(deps.db, slug, ordinal);
+    if (!manifest) return c.notFound();
+    return serveEntry(c, deps, slug, manifest.pages);
+  });
+
+  app.get("/content/sites/:slug/v/:ordinal/*", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const ordinal = Number(c.req.param("ordinal"));
+    if (!Number.isInteger(ordinal) || ordinal < 1) return c.notFound();
+    const manifest = await getManifestByOrdinal(deps.db, slug, ordinal);
+    if (!manifest) return c.notFound();
+    const prefix = `/content/sites/${slug}/v/${ordinal}/`;
+    const pagePath = c.req.path.startsWith(prefix) ? c.req.path.slice(prefix.length) : "";
+    return servePath(c, deps, slug, manifest.pages, pagePath);
+  });
+
+  // ---- Latest ----
+
   app.get("/content/sites/:slug", async (c) => {
     const deps = getDeps();
     const slug = c.req.param("slug");
     const manifest = await getLatestManifest(deps.db, slug);
     if (!manifest) return c.notFound();
-
-    const entryPath = pickEntryPath(manifest.pages);
-    if (!entryPath) return c.notFound();
-
-    const page = manifest.pages.find((p) => p.path === entryPath);
-    if (!page || !page.renderedHash) return c.notFound();
-
-    return servePage(c, deps, slug, manifest.pages, page as PageEntry & { renderedHash: string });
+    return serveEntry(c, deps, slug, manifest.pages);
   });
 
-  // Specific page or asset by Site-relative path.
   app.get("/content/sites/:slug/*", async (c) => {
     const deps = getDeps();
     const slug = c.req.param("slug");
     const manifest = await getLatestManifest(deps.db, slug);
     if (!manifest) return c.notFound();
-
-    // Strip the fixed prefix to get the Site-relative path.
     const prefix = `/content/sites/${slug}/`;
     const pagePath = c.req.path.startsWith(prefix) ? c.req.path.slice(prefix.length) : "";
-    if (!pagePath) return c.notFound();
-
-    const page = manifest.pages.find((p) => p.path === pagePath);
-    if (!page) return c.notFound();
-
-    if (page.kind === "asset") {
-      const bytes = await deps.store.get(page.contentHash);
-      if (!bytes) return c.notFound();
-      return c.body(bytes as unknown as Uint8Array<ArrayBuffer>, 200, {
-        "Content-Type": contentType(pagePath),
-        ...baseHeaders(),
-      });
-    }
-
-    if (!page.renderedHash) return c.notFound();
-    return servePage(c, deps, slug, manifest.pages, page as PageEntry & { renderedHash: string });
+    return servePath(c, deps, slug, manifest.pages, pagePath);
   });
 
   return app;
@@ -68,6 +68,40 @@ function baseHeaders() {
     "X-Robots-Tag": "noindex",
     "Referrer-Policy": "no-referrer",
   } as const;
+}
+
+// Resolve the Entry Page for a manifest and serve it.
+async function serveEntry(c: Context, deps: AppDeps, slug: string, pages: PageEntry[]) {
+  const entryPath = pickEntryPath(pages);
+  if (!entryPath) return c.notFound();
+  const page = pages.find((p) => p.path === entryPath);
+  if (!page || !page.renderedHash) return c.notFound();
+  return servePage(c, deps, slug, pages, page as PageEntry & { renderedHash: string });
+}
+
+// Serve a specific Site-relative path (Page or Asset) within a manifest.
+async function servePath(
+  c: Context,
+  deps: AppDeps,
+  slug: string,
+  pages: PageEntry[],
+  pagePath: string,
+) {
+  if (!pagePath) return c.notFound();
+  const page = pages.find((p) => p.path === pagePath);
+  if (!page) return c.notFound();
+
+  if (page.kind === "asset") {
+    const bytes = await deps.store.get(page.contentHash);
+    if (!bytes) return c.notFound();
+    return c.body(bytes as unknown as Uint8Array<ArrayBuffer>, 200, {
+      "Content-Type": contentType(pagePath),
+      ...baseHeaders(),
+    });
+  }
+
+  if (!page.renderedHash) return c.notFound();
+  return servePage(c, deps, slug, pages, page as PageEntry & { renderedHash: string });
 }
 
 // Serve a Page (Markdown or HTML) as a document into the sandboxed iframe. Both

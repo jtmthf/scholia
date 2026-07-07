@@ -5,11 +5,12 @@ and AI agents collaborate on them through anchored comment threads. See
 [`CONTEXT.md`](./CONTEXT.md) for the domain language and [`PLAN.md`](./PLAN.md)
 for the build sequence.
 
-This repo is at **M2**: the monorepo skeleton, the shared `@collab/core`
-render/Nav/search engine (folded in from `mdttp`), the `collab <path>` Local
-Preview spine, and the first hosted tracer bullet — `collab share <file.md>`
-uploads a single Markdown Page to the server, which content-addresses and stores
-it, and the viewer renders it inside a sandboxed iframe.
+This repo is at **M6 (Versioning UX)**: the monorepo skeleton, the shared
+`@collab/core` render/Nav/search engine (folded in from `mdttp`), the
+`collab <path>` Local Preview spine, hosted multi-Page Sites (`collab share`),
+anchored public comment Threads — and now **re-upload → new Version** with
+best-effort text-quote comment migration, an Outdated rail, per-Version
+permalinks, a source-level Diff, and viewer Last Seen tracking.
 
 ## Quick start
 
@@ -38,10 +39,16 @@ pnpm dev:web                         # viewer SPA on :5173 (separate terminal)
 
 # Upload a markdown file; prints a Share URL and saves the owner token.
 pnpm collab share ./path/to/page.md
+
+# Re-run in the same place to publish a NEW Version (comments migrate forward).
+pnpm collab share ./path/to/page.md          # uses the .collab marker + owner token
+pnpm collab share ./path/to/page.md --new    # force a brand-new Site instead
 ```
 
 Open the printed Share URL (`http://localhost:5173/s/<slug>`) to read the hosted
-Page. No comments yet — those arrive in M5.
+Page, select text to leave anchored comment Threads, and — after a re-upload —
+see the "what changed" banner, per-Version permalinks (`?v=<n>`), the source Diff,
+and Outdated Threads whose anchors no longer match Latest.
 
 ## Packages
 

@@ -27,8 +27,17 @@ export function Rail({
   onActivateThread,
   onNewPageComment,
 }: RailProps) {
-  const anchored = conversations.filter((c) => c.anchor !== null);
-  const pageLevel = conversations.filter((c) => c.anchor === null);
+  // Outdated Threads (anchor no longer matches the Latest Version, CONTEXT
+  // "Outdated") are pulled out of the live sections into their own collapsed rail,
+  // each linking back to the Version it was made on. Everything else splits into
+  // live anchored vs page-level.
+  const outdated = conversations.filter((c) => c.anchorStatus === "outdated");
+  const anchored = conversations.filter(
+    (c) => c.anchor !== null && c.anchorStatus === "live",
+  );
+  const pageLevel = conversations.filter(
+    (c) => c.anchor === null && c.anchorStatus === "live",
+  );
 
   const renderThread = (c: ConversationDTO) => (
     <Thread
@@ -66,6 +75,28 @@ export function Rail({
         <div class="rail-section">
           <h3 class="rail-section-title">Page comments ({pageLevel.length})</h3>
           {pageLevel.map(renderThread)}
+        </div>
+      )}
+
+      {outdated.length > 0 && (
+        <div class="rail-section rail-section--outdated">
+          <h3 class="rail-section-title">Outdated ({outdated.length})</h3>
+          <p class="rail-outdated-note">
+            These Threads no longer match the Latest Version.
+          </p>
+          {outdated.map((c) => (
+            <div key={c.id} class="outdated-thread">
+              <a
+                class="outdated-origin"
+                href={`/s/${encodeURIComponent(slug)}${
+                  c.pagePath ? `/${c.pagePath}` : ""
+                }?v=${c.createdOrdinal}`}
+              >
+                from v{c.createdOrdinal} ↗
+              </a>
+              {renderThread(c)}
+            </div>
+          ))}
         </div>
       )}
     </aside>

@@ -35,11 +35,25 @@ export {
 export {
   searchQuote,
   mapSmIdsToSourceRange,
+  migrateAnchor,
   type TextQuote,
   type SourceRange,
   type Anchor,
   type SelectionCandidate,
+  type AnchorStatus,
+  type MigrationResult,
 } from "./anchor/index.js";
+
+// Rendered-text extraction: the string cross-Version migration matches against (M6).
+export { renderedText } from "./ingest/rendered-text.js";
+
+// Source-level line diff between two Versions of a Page (M6, CONTEXT "Diff").
+export {
+  diffLines,
+  type DiffLine,
+  type DiffLineType,
+  type LineDiff,
+} from "./diff/lines.js";
 
 // Search
 export { createSearchIndex, type SearchIndex, type SearchHit } from "./search/index.js";

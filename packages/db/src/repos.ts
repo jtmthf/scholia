@@ -2,7 +2,7 @@
 // (PLAN §1: server is the only place HTTP + db meet). These keep route handlers
 // free of query plumbing and own the multi-row invariants of an upload
 // (site + owner token + first Version + manifest, in one transaction).
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./client.js";
 import {
   comments,
@@ -13,6 +13,7 @@ import {
   sites,
   versions,
   viewers,
+  viewerState,
   type Anchor,
   type ContentSource,
   type Identity,
@@ -208,6 +209,288 @@ export async function getLatestManifest(
   }));
 
   return { site, ordinal: latest.ordinal, pages };
+}
+
+// ---- M6: Versioning ----
+
+// Load one Version's manifest by ordinal (a per-Version permalink, CONTEXT
+// "Latest"). Read-only historical content view in the viewer.
+export async function getManifestByOrdinal(
+  db: Db,
+  slug: string,
+  ordinal: number,
+): Promise<SiteManifest | null> {
+  const site = await getSiteBySlug(db, slug);
+  if (!site) return null;
+
+  const [version] = await db
+    .select({ id: versions.id, ordinal: versions.ordinal })
+    .from(versions)
+    .where(and(eq(versions.siteId, site.id), eq(versions.ordinal, ordinal)))
+    .limit(1);
+  if (!version) return null;
+
+  const rows = await db
+    .select()
+    .from(manifestEntries)
+    .where(eq(manifestEntries.versionId, version.id))
+    .orderBy(asc(manifestEntries.path));
+
+  const pages: PageEntry[] = rows.map((r) => ({
+    versionId: r.versionId,
+    ordinal: version.ordinal,
+    path: r.path,
+    kind: r.kind,
+    contentHash: r.contentHash,
+    title: r.title,
+    renderedHash: r.renderedHash,
+    sourceMapHash: r.sourceMapHash,
+  }));
+
+  return { site, ordinal: version.ordinal, pages };
+}
+
+export interface VersionSummary {
+  ordinal: number;
+  createdAt: string;
+  provenance: Provenance | null;
+  isLatest: boolean;
+}
+
+// All Versions of a Site, newest first (CONTEXT "Version"). Powers `list_versions`
+// and the viewer's Version picker / Diff baseline selection.
+export async function listVersions(db: Db, siteId: string): Promise<VersionSummary[]> {
+  const rows = await db
+    .select({
+      ordinal: versions.ordinal,
+      createdAt: versions.createdAt,
+      provenance: versions.provenance,
+      isLatest: versions.isLatest,
+    })
+    .from(versions)
+    .where(eq(versions.siteId, siteId))
+    .orderBy(desc(versions.ordinal));
+  return rows.map((r) => ({
+    ordinal: r.ordinal,
+    createdAt: r.createdAt.toISOString(),
+    provenance: (r.provenance as Provenance | null) ?? null,
+    isLatest: r.isLatest,
+  }));
+}
+
+// Verify an owner capability token (presented hashed) is valid for a Site: a live
+// (non-revoked) owner-kind token row. Gates re-upload + owner actions (PLAN §4).
+export async function verifyOwnerToken(
+  db: Db,
+  siteId: string,
+  tokenHash: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: siteTokens.id })
+    .from(siteTokens)
+    .where(
+      and(
+        eq(siteTokens.siteId, siteId),
+        eq(siteTokens.kind, "owner"),
+        eq(siteTokens.tokenHash, tokenHash),
+        isNull(siteTokens.revokedAt),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+export interface AddVersionInput {
+  siteId: string;
+  contentSource: ContentSource;
+  provenance?: Provenance | null;
+  pages: NewPage[];
+}
+
+export interface AddedVersion {
+  versionId: string;
+  ordinal: number;
+}
+
+// Append a new Version to an existing Site: allocate the next ordinal, flip the
+// old Latest off and the new one on, and write its manifest — atomically
+// (CONTEXT "Version": re-uploading creates a new Version rather than overwriting).
+export async function addVersionWithManifest(
+  db: Db,
+  input: AddVersionInput,
+): Promise<AddedVersion> {
+  return db.transaction(async (tx) => {
+    const maxRows = await tx
+      .select({ max: sql<number>`coalesce(max(${versions.ordinal}), 0)` })
+      .from(versions)
+      .where(eq(versions.siteId, input.siteId));
+    const ordinal = Number(maxRows[0]?.max ?? 0) + 1;
+
+    // Demote the current Latest.
+    await tx
+      .update(versions)
+      .set({ isLatest: false })
+      .where(and(eq(versions.siteId, input.siteId), eq(versions.isLatest, true)));
+
+    const [version] = await tx
+      .insert(versions)
+      .values({
+        siteId: input.siteId,
+        ordinal,
+        contentSource: input.contentSource,
+        provenance: input.provenance ?? null,
+        isLatest: true,
+      })
+      .returning();
+
+    if (input.pages.length > 0) {
+      await tx.insert(manifestEntries).values(
+        input.pages.map((p) => ({
+          versionId: version!.id,
+          path: p.path,
+          kind: p.kind,
+          contentHash: p.contentHash,
+          title: p.title ?? null,
+          renderedHash: p.renderedHash ?? null,
+          sourceMapHash: p.sourceMapHash ?? null,
+        })),
+      );
+    }
+
+    return { versionId: version!.id, ordinal };
+  });
+}
+
+export interface MigrationCandidate {
+  id: string;
+  pagePath: string | null;
+  anchor: Anchor | null;
+  anchorStatus: "live" | "outdated";
+}
+
+// Every Conversation whose anchor status might change when a new Version lands:
+// all public Conversations on a Site (anchored and page-level). The server reads
+// each page's new rendered text and re-resolves the text-quote (core.migrateAnchor).
+export async function listConversationsForMigration(
+  db: Db,
+  siteId: string,
+): Promise<MigrationCandidate[]> {
+  const rows = await db
+    .select({
+      id: conversations.id,
+      pagePath: conversations.pagePath,
+      anchor: conversations.anchor,
+      anchorStatus: conversations.anchorStatus,
+    })
+    .from(conversations)
+    .where(eq(conversations.siteId, siteId));
+  return rows.map((r) => ({
+    id: r.id,
+    pagePath: r.pagePath,
+    anchor: (r.anchor as Anchor | null) ?? null,
+    anchorStatus: r.anchorStatus as "live" | "outdated",
+  }));
+}
+
+// Persist a Conversation's post-migration anchor state.
+export async function updateAnchorAfterMigration(
+  db: Db,
+  input: { id: string; anchorStatus: "live" | "outdated"; anchor: Anchor | null },
+): Promise<void> {
+  await db
+    .update(conversations)
+    .set({ anchorStatus: input.anchorStatus, anchor: input.anchor })
+    .where(eq(conversations.id, input.id));
+}
+
+// ---- M6: Last Seen + summary counts ----
+
+// The Version a Viewer most recently looked at (CONTEXT "Last Seen Version") — the
+// Diff baseline and "new since" anchor. Null when the Viewer hasn't been recorded.
+export async function getLastSeenOrdinal(
+  db: Db,
+  viewerId: string,
+  siteId: string,
+): Promise<number | null> {
+  const [row] = await db
+    .select({ ordinal: versions.ordinal })
+    .from(viewerState)
+    .innerJoin(versions, eq(viewerState.lastSeenVersionId, versions.id))
+    .where(and(eq(viewerState.viewerId, viewerId), eq(viewerState.siteId, siteId)))
+    .limit(1);
+  return row?.ordinal ?? null;
+}
+
+// Upsert a Viewer's Last Seen Version (client-tracked, recorded server-side so
+// summary counts survive across devices for a durable Viewer).
+export async function setLastSeen(
+  db: Db,
+  input: { viewerId: string; siteId: string; versionId: string },
+): Promise<void> {
+  await db
+    .insert(viewerState)
+    .values({
+      viewerId: input.viewerId,
+      siteId: input.siteId,
+      lastSeenVersionId: input.versionId,
+    })
+    .onConflictDoUpdate({
+      target: [viewerState.viewerId, viewerState.siteId],
+      set: { lastSeenVersionId: input.versionId },
+    });
+}
+
+export interface ViewerSummary {
+  latestVersion: number;
+  lastSeenVersion: number | null;
+  /** Versions newer than Last Seen (0 when caught up or never seen). */
+  newVersions: number;
+  /** Comments authored on Versions newer than Last Seen, excluding the Viewer's own. */
+  newComments: number;
+}
+
+// "New since last visit" counts for a Viewer (CONTEXT "Last Seen Version"). New
+// versions = ordinals above lastSeen; new comments = comments bound to those
+// versions, excluding the Viewer's own and deleted tombstones.
+export async function summaryForViewer(
+  db: Db,
+  input: { siteId: string; viewerId: string | null },
+): Promise<ViewerSummary> {
+  const latest = await getLatestVersionId(db, input.siteId);
+  const latestVersion = latest?.ordinal ?? 0;
+
+  const lastSeenVersion = input.viewerId
+    ? await getLastSeenOrdinal(db, input.viewerId, input.siteId)
+    : null;
+
+  if (lastSeenVersion === null || lastSeenVersion >= latestVersion) {
+    return { latestVersion, lastSeenVersion, newVersions: 0, newComments: 0 };
+  }
+
+  const newVersions = latestVersion - lastSeenVersion;
+
+  // Comments on versions with ordinal > lastSeen, excluding own + deleted.
+  const countRows = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(comments)
+    .innerJoin(versions, eq(comments.versionId, versions.id))
+    .where(
+      and(
+        eq(versions.siteId, input.siteId),
+        gt(versions.ordinal, lastSeenVersion),
+        isNull(comments.deletedAt),
+        input.viewerId
+          ? sql`(${comments.authorViewerId} is distinct from ${input.viewerId})`
+          : sql`true`,
+      ),
+    );
+
+  return {
+    latestVersion,
+    lastSeenVersion,
+    newVersions,
+    newComments: Number(countRows[0]?.count ?? 0),
+  };
 }
 
 // ---- M5: Viewers, Conversations, Comments, Reactions ----
@@ -451,6 +734,8 @@ export interface ConversationDTO {
   pagePath: string | null;
   anchor: Anchor | null;
   anchorStatus: "live" | "outdated";
+  /** Ordinal of the Version this Conversation was created on (Outdated permalink). */
+  createdOrdinal: number;
   resolved: boolean;
   resolvedBy: string | null;
   comments: CommentDTO[];
@@ -482,6 +767,14 @@ export async function listConversationsForPage(
   if (convRows.length === 0) return [];
 
   const convIds = convRows.map((c) => c.id);
+
+  // Map each conversation's createdVersionId → ordinal (Outdated permalink target).
+  const createdVersionIds = [...new Set(convRows.map((c) => c.createdVersionId))];
+  const versionRows = await db
+    .select({ id: versions.id, ordinal: versions.ordinal })
+    .from(versions)
+    .where(inArray(versions.id, createdVersionIds));
+  const ordinalByVersion = new Map(versionRows.map((v) => [v.id, v.ordinal]));
 
   // 2. Load comments for these conversations.
   const commentRows = await db
@@ -545,6 +838,7 @@ export async function listConversationsForPage(
     pagePath: conv.pagePath,
     anchor: (conv.anchor as Anchor | null) ?? null,
     anchorStatus: conv.anchorStatus as "live" | "outdated",
+    createdOrdinal: ordinalByVersion.get(conv.createdVersionId) ?? 0,
     resolved: conv.resolvedAt !== null,
     resolvedBy: conv.resolvedBy,
     comments: commentsByConv.get(conv.id) ?? [],

@@ -16,9 +16,11 @@ cli
   .option("--server <url>", "Collab server base URL", {
     default: process.env.COLLAB_SERVER ?? "http://localhost:8787",
   })
+  .option("--new", "Create a fresh Site even if a .collab marker exists")
+  .option("--site <slug>", "Re-upload a new Version to this specific Site slug")
   .action(async (path: string, options: any) => {
     try {
-      await share(path, { server: options.server });
+      await share(path, { server: options.server, forceNew: options.new, site: options.site });
     } catch (err) {
       console.error(`[collab] ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);

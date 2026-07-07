@@ -79,6 +79,13 @@ async function fetchConversationById(
 
   if (!conv) return null;
 
+  // Ordinal of the Version this Conversation was created on (Outdated permalink).
+  const [createdVersion] = await (db as any)
+    .select({ ordinal: schema.versions.ordinal })
+    .from(schema.versions)
+    .where(eq(schema.versions.id, conv.createdVersionId))
+    .limit(1);
+
   const commentRows = await (db as any)
     .select()
     .from(schema.comments)
@@ -136,6 +143,7 @@ async function fetchConversationById(
     pagePath: conv.pagePath as string | null,
     anchor: (conv.anchor as Anchor | null) ?? null,
     anchorStatus: conv.anchorStatus as "live" | "outdated",
+    createdOrdinal: (createdVersion?.ordinal as number | undefined) ?? 0,
     resolved: conv.resolvedAt !== null,
     resolvedBy: conv.resolvedBy as string | null,
     comments: commentDTOs,
