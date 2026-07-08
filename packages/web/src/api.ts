@@ -1,7 +1,7 @@
 // The viewer talks to the REST API over CORS. In dev that's the local server
 // on :8787; in prod it's the app origin. Page content is loaded from the
 // absolute `contentBase` the API returns (the content origin), not from here.
-const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8787").replace(/\/+$/, "");
+export const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8787").replace(/\/+$/, "");
 
 export interface NavNode {
   type: "file" | "dir";

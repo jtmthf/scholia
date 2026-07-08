@@ -64,6 +64,8 @@ export { extractHeadings } from "./util/headings.js";
 export { contentType } from "./util/mime.js";
 export { classifyFile, isDoc, isMdx, toUrlPath, resolveWithinRoot } from "./util/paths.js";
 export { toText, escapeHtml, humanize } from "./util/text.js";
+// @-mention parsing + matching for the agent routing filter (M7, CONTEXT "Mention").
+export { parseMentions, mentionsMatch } from "./util/mentions.js";
 
 // Types
 export type { Heading, NavNode, DocRecord, RenderResult } from "./types.js";

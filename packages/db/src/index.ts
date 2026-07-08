@@ -13,9 +13,11 @@ export {
   addComment,
   editComment,
   deleteComment,
+  ownerDeleteComment,
   setResolved,
   toggleReaction,
   listConversationsForPage,
+  listSiteComments,
   getManifestByOrdinal,
   listVersions,
   verifyOwnerToken,
@@ -42,4 +44,6 @@ export {
   type AddedVersion,
   type MigrationCandidate,
   type ViewerSummary,
+  type SiteCommentDTO,
+  type ListSiteCommentsFilter,
 } from "./repos.js";

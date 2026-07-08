@@ -4,10 +4,15 @@
 // (site + owner token + first Version + manifest, in one transaction).
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "./client.js";
+
+// A Drizzle handle that is either the root client or an open transaction — lets a
+// helper run inside a caller's transaction without a `$client` type mismatch.
+type DbOrTx = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 import {
   comments,
   conversations,
   manifestEntries,
+  mentions,
   reactions,
   siteTokens,
   sites,
@@ -531,6 +536,8 @@ export interface CreateConversationInput {
     body: string;
     author: Identity;
     authorViewerId: string | null;
+    /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
+    mentions?: string[];
   };
 }
 
@@ -553,16 +560,34 @@ export async function createConversation(
       })
       .returning({ id: conversations.id });
 
-    await tx.insert(comments).values({
-      conversationId: conv!.id,
-      versionId: input.firstComment.versionId,
-      body: input.firstComment.body,
-      author: input.firstComment.author,
-      authorViewerId: input.firstComment.authorViewerId ?? null,
-    });
+    const [firstComment] = await tx
+      .insert(comments)
+      .values({
+        conversationId: conv!.id,
+        versionId: input.firstComment.versionId,
+        body: input.firstComment.body,
+        author: input.firstComment.author,
+        authorViewerId: input.firstComment.authorViewerId ?? null,
+      })
+      .returning({ id: comments.id });
+
+    await insertMentions(tx, firstComment!.id, input.firstComment.mentions);
 
     return { conversationId: conv!.id };
   });
+}
+
+// Persist the @-mention targets parsed from a comment body (M7). No-op for an
+// empty list. Called inside the same transaction as the comment insert.
+async function insertMentions(
+  tx: DbOrTx,
+  commentId: string,
+  targets: string[] | undefined,
+): Promise<void> {
+  if (!targets || targets.length === 0) return;
+  await tx
+    .insert(mentions)
+    .values(targets.map((targetIdentity) => ({ commentId, targetIdentity })));
 }
 
 export interface AddCommentInput {
@@ -571,6 +596,8 @@ export interface AddCommentInput {
   body: string;
   author: Identity;
   authorViewerId: string | null;
+  /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
+  mentions?: string[];
 }
 
 // Add a reply comment to an existing Conversation. Returns the new comment id.
@@ -578,17 +605,44 @@ export async function addComment(
   db: Db,
   input: AddCommentInput,
 ): Promise<{ commentId: string }> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(comments)
+      .values({
+        conversationId: input.conversationId,
+        versionId: input.versionId,
+        body: input.body,
+        author: input.author,
+        authorViewerId: input.authorViewerId ?? null,
+      })
+      .returning({ commentId: comments.id });
+    await insertMentions(tx, row!.commentId, input.mentions);
+    return { commentId: row!.commentId };
+  });
+}
+
+// Owner-delete: tombstone ANY comment on the Site, regardless of author (M7 —
+// agents act at the Owner tier, CONTEXT "Owner"). Verifies the comment belongs to
+// the Site via its Conversation. Returns false when no such live comment exists.
+export async function ownerDeleteComment(
+  db: Db,
+  input: { commentId: string; siteId: string },
+): Promise<boolean> {
+  // Resolve the comment's Conversation and confirm site ownership.
   const [row] = await db
-    .insert(comments)
-    .values({
-      conversationId: input.conversationId,
-      versionId: input.versionId,
-      body: input.body,
-      author: input.author,
-      authorViewerId: input.authorViewerId ?? null,
-    })
-    .returning({ commentId: comments.id });
-  return { commentId: row!.commentId };
+    .select({ siteId: conversations.siteId })
+    .from(comments)
+    .innerJoin(conversations, eq(comments.conversationId, conversations.id))
+    .where(and(eq(comments.id, input.commentId), isNull(comments.deletedAt)))
+    .limit(1);
+  if (!row || row.siteId !== input.siteId) return false;
+
+  const result = await db
+    .update(comments)
+    .set({ deletedAt: sql`now()` })
+    .where(and(eq(comments.id, input.commentId), isNull(comments.deletedAt)))
+    .returning({ id: comments.id });
+  return result.length > 0;
 }
 
 // Edit a comment's body, setting editedAt to now. ONLY if authorViewerId ===
@@ -843,4 +897,153 @@ export async function listConversationsForPage(
     resolvedBy: conv.resolvedBy,
     comments: commentsByConv.get(conv.id) ?? [],
   }));
+}
+
+// ---- M7: Agent surface — site-wide comment feed (`list_comments`) ----
+
+// Normalize a mention target / identity name for case- and punctuation-insensitive
+// matching. Mirrors `mentionsMatch` in @collab/core (kept local so @collab/db stays
+// dependency-free); keep the two in sync. The possessive "'s" is dropped so the
+// natural handle `@owner-agent` routes to the default "Owner's agent" label.
+function normalizeMention(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/['']s\b/g, "")
+    .replace(/['']/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export interface SiteCommentDTO {
+  conversationId: string;
+  commentId: string;
+  pagePath: string | null;
+  anchor: Anchor | null;
+  anchorStatus: "live" | "outdated";
+  resolved: boolean;
+  /** Ordinal of the Version this comment was authored on. */
+  version: number;
+  /** Ordinal of the Version the Conversation was created on. */
+  createdOrdinal: number;
+  author: Identity;
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+  mentions: string[];
+  reactions: Array<{ emoji: string; count: number }>;
+}
+
+export interface ListSiteCommentsFilter {
+  siteId: string;
+  /** Only comments in unresolved Conversations. */
+  unresolved?: boolean;
+  /** Only comments created strictly after this instant (ISO 8601). */
+  since?: string;
+  /** Only comments mentioning this identity (normalized match). */
+  mentions?: string;
+}
+
+// The site-wide comment feed powering the agent `list_comments` verb (M7, PLAN §6).
+// Flattens every public Thread's comments across all Pages, newest-relevant first
+// ordering left to the caller — here we return oldest-first (createdAt, id) so the
+// `after=<id>` cursor drops in later. Tombstoned comments are excluded. Each item
+// carries its anchor (text-quote + source range), Page, Version, resolved state,
+// and parsed mentions — everything an agent needs to ground a reply.
+export async function listSiteComments(
+  db: Db,
+  filter: ListSiteCommentsFilter,
+): Promise<SiteCommentDTO[]> {
+  const conds = [
+    eq(conversations.siteId, filter.siteId),
+    eq(conversations.visibility, "public"),
+    isNull(comments.deletedAt),
+  ];
+  if (filter.unresolved) conds.push(isNull(conversations.resolvedAt));
+  if (filter.since) conds.push(gt(comments.createdAt, new Date(filter.since)));
+
+  const rows = await db
+    .select({
+      commentId: comments.id,
+      conversationId: comments.conversationId,
+      author: comments.author,
+      body: comments.body,
+      createdAt: comments.createdAt,
+      editedAt: comments.editedAt,
+      versionOrdinal: versions.ordinal,
+      pagePath: conversations.pagePath,
+      anchor: conversations.anchor,
+      anchorStatus: conversations.anchorStatus,
+      resolvedAt: conversations.resolvedAt,
+      createdVersionId: conversations.createdVersionId,
+    })
+    .from(comments)
+    .innerJoin(conversations, eq(comments.conversationId, conversations.id))
+    .innerJoin(versions, eq(comments.versionId, versions.id))
+    .where(and(...conds))
+    .orderBy(asc(comments.createdAt), asc(comments.id));
+
+  if (rows.length === 0) return [];
+
+  const commentIds = rows.map((r) => r.commentId);
+
+  // Ordinal of each Conversation's creation Version (Outdated permalink target).
+  const createdVersionIds = [...new Set(rows.map((r) => r.createdVersionId))];
+  const versionRows = await db
+    .select({ id: versions.id, ordinal: versions.ordinal })
+    .from(versions)
+    .where(inArray(versions.id, createdVersionIds));
+  const ordinalByVersion = new Map(versionRows.map((v) => [v.id, v.ordinal]));
+
+  // Mentions per comment.
+  const mentionRows = await db
+    .select({ commentId: mentions.commentId, target: mentions.targetIdentity })
+    .from(mentions)
+    .where(inArray(mentions.commentId, commentIds));
+  const mentionsByComment = new Map<string, string[]>();
+  for (const m of mentionRows) {
+    const list = mentionsByComment.get(m.commentId) ?? [];
+    list.push(m.target);
+    mentionsByComment.set(m.commentId, list);
+  }
+
+  // Reaction counts per comment (agent feed omits per-viewer `mine`).
+  const reactionRows = await db
+    .select({ commentId: reactions.commentId, emoji: reactions.emoji })
+    .from(reactions)
+    .where(inArray(reactions.commentId, commentIds));
+  const reactionsByComment = new Map<string, Map<string, number>>();
+  for (const r of reactionRows) {
+    const g = reactionsByComment.get(r.commentId) ?? new Map<string, number>();
+    g.set(r.emoji, (g.get(r.emoji) ?? 0) + 1);
+    reactionsByComment.set(r.commentId, g);
+  }
+
+  const wantMention = filter.mentions ? normalizeMention(filter.mentions) : null;
+
+  const dtos: SiteCommentDTO[] = [];
+  for (const r of rows) {
+    const ments = mentionsByComment.get(r.commentId) ?? [];
+    if (wantMention !== null && !ments.some((t) => normalizeMention(t) === wantMention)) {
+      continue;
+    }
+    dtos.push({
+      conversationId: r.conversationId,
+      commentId: r.commentId,
+      pagePath: r.pagePath,
+      anchor: (r.anchor as Anchor | null) ?? null,
+      anchorStatus: r.anchorStatus as "live" | "outdated",
+      resolved: r.resolvedAt !== null,
+      version: r.versionOrdinal,
+      createdOrdinal: ordinalByVersion.get(r.createdVersionId) ?? 0,
+      author: r.author as Identity,
+      body: r.body,
+      createdAt: r.createdAt.toISOString(),
+      editedAt: r.editedAt ? r.editedAt.toISOString() : null,
+      mentions: ments,
+      reactions: Array.from(reactionsByComment.get(r.commentId)?.entries() ?? []).map(
+        ([emoji, count]) => ({ emoji, count }),
+      ),
+    });
+  }
+  return dtos;
 }

@@ -1,0 +1,140 @@
+/* Owner-only "Copy agent prompt" panel — M7 */
+
+:root {
+  --agent-warning-bg: #fff8c5;
+  --agent-warning-fg: #7d4e00;
+  --agent-warning-border: #d4a72c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --agent-warning-bg: #272115;
+    --agent-warning-fg: #d29922;
+    --agent-warning-border: #9e6a03;
+  }
+}
+
+/* Header trigger button */
+.agent-prompt-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+}
+.agent-prompt-btn:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+
+/* Backdrop */
+.agent-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 52px 16px 0;
+}
+
+/* Panel */
+.agent-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  width: 500px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.agent-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.agent-panel-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.agent-panel-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+.agent-panel-close:hover {
+  color: var(--fg);
+}
+
+/* Warning banner */
+.agent-panel-warning {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--agent-warning-bg);
+  color: var(--agent-warning-fg);
+  border: 1px solid var(--agent-warning-border);
+  border-radius: 4px;
+}
+
+/* Prompt textarea — monospace, selectable */
+.agent-panel-prompt {
+  width: 100%;
+  resize: vertical;
+  background: var(--chrome-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-family: ui-monospace, "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+.agent-panel-prompt:focus {
+  outline: none;
+  border-color: var(--nav-active-fg);
+}
+
+/* Footer: copy + docs link */
+.agent-panel-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-panel-copy {
+  flex: 0 0 auto;
+}
+
+.agent-panel-copy--copied {
+  background: #2da44e !important;
+}
+
+.agent-panel-docs-link {
+  font-size: 12px;
+  color: var(--nav-active-fg);
+  text-decoration: none;
+  margin-left: auto;
+}
+.agent-panel-docs-link:hover {
+  text-decoration: underline;
+}

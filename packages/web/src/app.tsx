@@ -16,11 +16,14 @@ import {
   type ViewerSummary,
 } from "./api";
 import { ensureViewer, getViewer, setDisplayName } from "./viewer";
+import { getOwnerToken, setOwnerToken } from "./owner";
+import { AgentPanel } from "./agent/AgentPanel";
 import { Rail } from "./comments/Rail";
 import { Composer } from "./comments/Composer";
 import { DiffPanel } from "./versioning/DiffPanel";
 import "./comments/comments.css";
 import "./versioning/versioning.css";
+import "./agent/agent.css";
 
 // /s/:slug or /s/:slug/<path> — path may contain slashes (e.g. guide/intro.md).
 // `?v=<ordinal>` pins a historical Version (read-only permalink, CONTEXT "Latest").
@@ -90,6 +93,27 @@ export function App() {
   // OLD Last Seen, advance it to Latest (server defaults to Latest).
   const [summary, setSummary] = useState<ViewerSummary | null>(null);
   const [showDiff, setShowDiff] = useState(false);
+  const [showAgentPanel, setShowAgentPanel] = useState(false);
+
+  // Detect ?token= in the Agent URL (ADR-0005), persist to localStorage, and
+  // strip from the address bar so it doesn't linger in history.
+  const [siteOwnerToken, setSiteOwnerToken] = useState<string | null>(null);
+  useEffect(() => {
+    if (!slug) {
+      setSiteOwnerToken(null);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("token");
+    if (urlToken) {
+      setOwnerToken(slug, urlToken);
+      params.delete("token");
+      const qs = params.toString();
+      history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+    setSiteOwnerToken(getOwnerToken(slug));
+  }, [slug]);
+
   useEffect(() => {
     setSummary(null);
     setShowDiff(false);
@@ -161,7 +185,23 @@ export function App() {
           v{meta.version}
           {readOnly ? ` of ${meta.latestVersion}` : ""}
         </span>
+        {siteOwnerToken && (
+          <button
+            class="agent-prompt-btn"
+            onClick={() => setShowAgentPanel((v) => !v)}
+            title="Copy agent prompt (owner only)"
+          >
+            Agent
+          </button>
+        )}
       </header>
+      {showAgentPanel && siteOwnerToken && (
+        <AgentPanel
+          slug={meta.slug}
+          token={siteOwnerToken}
+          onClose={() => setShowAgentPanel(false)}
+        />
+      )}
       {readOnly && (
         <div class="version-banner version-banner--historical">
           <span>
