@@ -15,6 +15,13 @@
       "when": 1782441888195,
       "tag": "0001_simple_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783473299261,
+      "tag": "0002_brief_jack_power",
+      "breakpoints": true
     }
   ]
 }

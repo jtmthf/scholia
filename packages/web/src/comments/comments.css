@@ -459,7 +459,7 @@
 
 /* ── Floating "Comment" button ─────────────────────────────── */
 
-.floating-comment-btn {
+.floating-action-btn {
   position: fixed;
   z-index: 9999;
   background: var(--floating-btn-bg);
@@ -475,7 +475,7 @@
   transition: background 0.1s, transform 0.1s;
   pointer-events: auto;
 }
-.floating-comment-btn:hover {
+.floating-action-btn:hover {
   background: var(--floating-btn-hover-bg);
   transform: translateY(-1px);
 }
@@ -505,4 +505,218 @@
   color: var(--muted);
   padding: 2px 10px 6px;
   font-style: italic;
+}
+
+/* ── Rail toolbar (page comment + bring-your-agent) ────────── */
+
+.rail-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+}
+/* The page-comment button already carries its own margins; the agent button
+   lines up under it inside the toolbar. */
+.bring-agent-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 24px);
+  margin: 0 12px 8px;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--comment-radius);
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.1s, color 0.1s;
+}
+.bring-agent-btn:hover {
+  border-color: var(--agent-badge-bg);
+  color: var(--fg);
+}
+
+/* ── Private Chats section + card ──────────────────────────── */
+
+.rail-section--chats {
+  background: color-mix(in srgb, var(--agent-badge-bg) 6%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+.rail-chats-note {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 0 12px 6px;
+  margin: 0;
+  font-style: italic;
+}
+
+.thread-card--private {
+  border-color: color-mix(in srgb, var(--agent-badge-bg) 45%, var(--comment-border));
+  background: color-mix(in srgb, var(--agent-badge-bg) 4%, var(--comment-bg));
+}
+.thread-card--private:hover {
+  border-color: var(--agent-badge-bg);
+}
+
+.thread-lock {
+  font-size: 11px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.thread-action-btn--promote {
+  color: var(--agent-badge-bg);
+  border-color: color-mix(in srgb, var(--agent-badge-bg) 45%, var(--border));
+}
+.thread-action-btn--promote:hover {
+  color: var(--agent-badge-fg);
+  background: var(--agent-badge-bg);
+  border-color: var(--agent-badge-bg);
+}
+
+/* ── Floating selection actions (Comment + Ask) ────────────── */
+
+/* The container is fixed-positioned at the selection; the buttons inside flow
+   normally rather than each being fixed (they used to be standalone). */
+.floating-actions {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  gap: 6px;
+}
+.floating-actions .floating-action-btn {
+  position: static;
+}
+
+/* "🔒 Ask" — the private-Chat sibling of the public "Comment" button. */
+.floating-ask-btn {
+  background: var(--agent-badge-bg);
+}
+.floating-ask-btn:hover {
+  background: color-mix(in srgb, var(--agent-badge-bg) 80%, black);
+}
+
+/* ── Promote dialog (Chat → Thread) ────────────────────────── */
+
+.promote-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.promote-dialog {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 460px;
+  max-width: 100%;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  cursor: default;
+}
+
+.promote-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.promote-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.promote-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0;
+}
+
+.promote-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 240px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px;
+}
+
+.promote-comment {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.promote-comment:hover {
+  background: var(--nav-hover);
+}
+
+.promote-comment-author {
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.promote-comment-body {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.promote-summary-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.promote-summary {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+.promote-summary:focus {
+  outline: none;
+  border-color: var(--nav-active-fg);
+}
+
+.promote-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

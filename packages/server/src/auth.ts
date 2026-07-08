@@ -1,5 +1,11 @@
 import type { Context } from "hono";
-import { getSiteBySlug, verifyOwnerToken, type Identity, type SiteRow } from "@collab/db";
+import {
+  getSiteBySlug,
+  resolveViewerToken,
+  verifyOwnerToken,
+  type Identity,
+  type SiteRow,
+} from "@collab/db";
 import type { AppDeps } from "./config.js";
 import { hashToken } from "./tokens.js";
 
@@ -24,10 +30,11 @@ function bearer(c: Context): string | null {
   return m ? m[1]!.trim() : null;
 }
 
-// The owner token as presented by an agent: `Authorization: Bearer <token>` (the
-// installed CLI/MCP path) or `?token=<token>` (the Owner-scoped Agent URL, ADR-0005).
-// The header wins when both are present.
-function ownerToken(c: Context): string | null {
+// A capability token as presented by an agent: `Authorization: Bearer <token>`
+// (the installed CLI/MCP path) or `?token=<token>` (an Agent URL, ADR-0005/0006).
+// The header wins when both are present. Owner and Viewer-scoped tokens share
+// this transport; the tier is decided by which token row the hash matches.
+export function bearerOrQueryToken(c: Context): string | null {
   return bearer(c) ?? c.req.query("token") ?? null;
 }
 
@@ -77,7 +84,7 @@ export async function authorizeAgent(
   const site = await getSiteBySlug(deps.db, slug);
   if (!site) return { ok: false, status: 404, error: "not found" };
 
-  const token = ownerToken(c);
+  const token = bearerOrQueryToken(c);
   if (!token) return { ok: false, status: 401, error: "missing owner token" };
 
   const valid = await verifyOwnerToken(deps.db, site.id, hashToken(token));
@@ -94,8 +101,89 @@ export async function authorizeAgent(
   return { ok: true, site, identity };
 }
 
-// Whether a request carries an owner token at all (header or `?token=`). Lets a
-// dual-mode route (viewer vs agent) branch before doing the DB verify.
+// Whether a request carries a capability token at all (header or `?token=`).
+// Lets a dual-mode route (token vs human) branch before doing the DB verify.
+// NB: a Viewer-scoped token also returns true here — the route must resolve the
+// tier (resolveActor) rather than assume owner, and must NOT grant a Viewer token
+// owner powers (e.g. access to another Viewer's private Chat).
 export function hasOwnerToken(c: Context): boolean {
-  return ownerToken(c) !== null;
+  return bearerOrQueryToken(c) !== null;
+}
+
+// ---- M8: three-tier actor resolution (ADR-0006) ----
+
+// The Identity Collab attributes a Viewer-scoped agent's writes to (M8 decision):
+// a label defaults to "<display name>'s agent" ("Reviewer's agent" when the
+// Viewer never named itself), on behalf of the reviewer, at the viewer tier.
+export function viewerAgentIdentity(
+  viewerDisplayName: string | null,
+  label?: string | null,
+): Identity {
+  const trimmed = (label ?? "").trim();
+  return {
+    name: trimmed || `${viewerDisplayName || "Reviewer"}'s agent`,
+    kind: "agent",
+    tier: "viewer",
+    onBehalfOf: viewerDisplayName || "a reviewer",
+    source: "native",
+  };
+}
+
+// A resolved caller on a Site (ADR-0006 tiers). Owner + viewer carry the agent
+// Identity to attribute token-authored writes to; anonymous carries none.
+export type Actor =
+  | { tier: "owner"; identity: Identity }
+  | { tier: "viewer"; viewerId: string; identity: Identity }
+  | { tier: "anonymous" };
+
+export interface ResolveActorOk {
+  ok: true;
+  site: SiteRow;
+  actor: Actor;
+}
+
+// Resolve the Site + the calling Actor from the presented token (or lack of one).
+// A token is tried as an Owner token first, then as a Viewer-scoped token; an
+// unrecognized token is a hard 403 (a stale/invalid capability, not a passerby).
+// No token → anonymous. `label` distinguishes several agents behind one token.
+export async function resolveActor(
+  c: Context,
+  deps: AppDeps,
+  slug: string,
+  label?: string | null,
+): Promise<ResolveActorOk | OwnerAuthErr> {
+  const site = await getSiteBySlug(deps.db, slug);
+  if (!site) return { ok: false, status: 404, error: "not found" };
+
+  const token = bearerOrQueryToken(c);
+  if (!token) return { ok: true, site, actor: { tier: "anonymous" } };
+
+  const tokenHash = hashToken(token);
+
+  if (await verifyOwnerToken(deps.db, site.id, tokenHash)) {
+    const name = (label ?? "").trim() || DEFAULT_AGENT_LABEL;
+    const identity: Identity = {
+      name,
+      kind: "agent",
+      tier: "owner",
+      onBehalfOf: "Owner",
+      source: "native",
+    };
+    return { ok: true, site, actor: { tier: "owner", identity } };
+  }
+
+  const viewer = await resolveViewerToken(deps.db, site.id, tokenHash);
+  if (viewer) {
+    return {
+      ok: true,
+      site,
+      actor: {
+        tier: "viewer",
+        viewerId: viewer.viewerId,
+        identity: viewerAgentIdentity(viewer.displayName, label),
+      },
+    };
+  }
+
+  return { ok: false, status: 403, error: "invalid token" };
 }

@@ -56,6 +56,11 @@ export interface ListCommentsFilter {
   mentions?: string;
 }
 
+export interface ListChatsFilter {
+  since?: string;
+  path?: string;
+}
+
 export interface SiteCommentDTO {
   conversationId: string;
   commentId: string;
@@ -78,6 +83,13 @@ export interface ListCommentsResult {
 }
 
 export interface CreateThreadOptions {
+  pagePath?: string;
+  anchor?: Anchor;
+  body: string;
+  label?: string;
+}
+
+export interface CreateChatOptions {
   pagePath?: string;
   anchor?: Anchor;
   body: string;
@@ -224,8 +236,29 @@ export class CollabClient {
     return (await res.json()) as ListCommentsResult;
   }
 
-  // POST /sites/:slug/conversations — create a thread (agent-authed).
-  async createThread(opts: CreateThreadOptions): Promise<unknown> {
+  // GET /sites/:slug/chats — the viewer's own private Chats (viewer token).
+  // Owner tokens are refused by the endpoint; that's expected.
+  async listChats(filter: ListChatsFilter = {}): Promise<{ chats: unknown[] }> {
+    const slug = this.requireSlug();
+    const params = new URLSearchParams();
+    if (filter.since) params.set("since", filter.since);
+    if (filter.path) params.set("path", filter.path);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/chats${qs}`, {
+      method: "GET",
+      headers: { ...this.authHeaders() },
+    });
+    if (!res.ok)
+      throw new Error(`GET /sites/${slug}/chats failed (${res.status}): ${await res.text()}`);
+    const chats = (await res.json()) as unknown[];
+    return { chats };
+  }
+
+  // POST /sites/:slug/conversations — shared thread/chat request builder.
+  private async postConversation(
+    opts: CreateThreadOptions,
+    visibility: "public" | "private",
+  ): Promise<unknown> {
     const slug = this.requireSlug();
     const res = await this.apiFetch(`${this.server}/sites/${slug}/conversations`, {
       method: "POST",
@@ -238,6 +271,7 @@ export class CollabClient {
         anchor: opts.anchor ?? null,
         body: opts.body,
         label: opts.label,
+        visibility,
       }),
     });
     if (!res.ok)
@@ -245,6 +279,16 @@ export class CollabClient {
         `POST /sites/${slug}/conversations failed (${res.status}): ${await res.text()}`,
       );
     return res.json();
+  }
+
+  // Create a public Thread (agent-authed).
+  async createThread(opts: CreateThreadOptions): Promise<unknown> {
+    return this.postConversation(opts, "public");
+  }
+
+  // Create a private Chat owned by the viewer behind the token (viewer-authed).
+  async createChat(opts: CreateChatOptions): Promise<unknown> {
+    return this.postConversation(opts, "private");
   }
 
   // POST /sites/:slug/conversations/:id/comments — reply (agent-authed).

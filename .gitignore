@@ -8,6 +8,13 @@ coverage/
 # local blob store / preview scratch
 .collab/
 .blobstore/
+# `collab share` site-link marker (a zip share drops one in cwd; never commit it)
+.collab
+
+# playwright e2e artifacts
+playwright-report/
+test-results/
+.last-run.json
 
 # editor / os
 .DS_Store

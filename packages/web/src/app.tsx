@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 import { connectBridge, type Theme, type BridgeHandle } from "@collab/bridge";
 import type { SelectionCandidate } from "@collab/core";
 import {
+  createChat,
   createConversation,
   fetchSite,
   fetchSummary,
+  listChats,
   listConversations,
   recordLastSeen,
   SiteNotFoundError,
@@ -18,6 +20,7 @@ import {
 import { ensureViewer, getViewer, setDisplayName } from "./viewer";
 import { getOwnerToken, setOwnerToken } from "./owner";
 import { AgentPanel } from "./agent/AgentPanel";
+import { ViewerAgentPanel } from "./agent/ViewerAgentPanel";
 import { Rail } from "./comments/Rail";
 import { Composer } from "./comments/Composer";
 import { DiffPanel } from "./versioning/DiffPanel";
@@ -94,6 +97,7 @@ export function App() {
   const [summary, setSummary] = useState<ViewerSummary | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [showAgentPanel, setShowAgentPanel] = useState(false);
+  const [showViewerAgentPanel, setShowViewerAgentPanel] = useState(false);
 
   // Detect ?token= in the Agent URL (ADR-0005), persist to localStorage, and
   // strip from the address bar so it doesn't linger in history.
@@ -202,6 +206,9 @@ export function App() {
           onClose={() => setShowAgentPanel(false)}
         />
       )}
+      {showViewerAgentPanel && (
+        <ViewerAgentPanel slug={meta.slug} onClose={() => setShowViewerAgentPanel(false)} />
+      )}
       {readOnly && (
         <div class="version-banner version-banner--historical">
           <span>
@@ -255,6 +262,7 @@ export function App() {
           currentPath={currentPath}
           pageTitle={pageTitle}
           readOnly={readOnly}
+          onBringAgent={() => setShowViewerAgentPanel(true)}
         />
       </div>
     </div>
@@ -274,7 +282,15 @@ function candidateToAnchor(candidate: SelectionCandidate): AnchorInput {
   };
 }
 
-type ComposerState = { anchor: AnchorInput | null; at?: { left: number; top: number } };
+// A selection offers two actions: a public Thread ("Comment") or a private Chat
+// ("Ask" your agent). The composer tracks which one it's authoring so submit
+// routes to createConversation vs createChat and the labels adjust.
+type ComposerMode = "thread" | "chat";
+type ComposerState = {
+  anchor: AnchorInput | null;
+  mode: ComposerMode;
+  at?: { left: number; top: number };
+};
 
 // The content view (M5): the sandboxed cross-origin iframe (ADR-0003) plus the
 // comment layer. allow-scripts gives uploaded pages interactivity, but with no
@@ -288,16 +304,19 @@ function PageView({
   currentPath,
   pageTitle,
   readOnly,
+  onBringAgent,
 }: {
   meta: SiteMeta;
   currentPath: string;
   pageTitle: string;
   readOnly: boolean;
+  onBringAgent: () => void;
 }) {
   const slug = meta.slug;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<BridgeHandle | null>(null);
   const [conversations, setConversations] = useState<ConversationDTO[]>([]);
+  const [chats, setChats] = useState<ConversationDTO[]>([]);
   const [selection, setSelection] = useState<{ candidate: SelectionCandidate; rect: DOMRectInit } | null>(null);
   const [composer, setComposer] = useState<ComposerState | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -310,6 +329,15 @@ function PageView({
     listConversations(slug, currentPath, viewer?.viewerId ?? null)
       .then(setConversations)
       .catch(() => setConversations([]));
+    // Only a Viewer that already exists can have Chats — never mint eagerly just
+    // to check (viewer.ts contract). No Viewer ⇒ the Chats list is simply empty.
+    if (viewer) {
+      listChats(slug, currentPath, viewer.viewerId)
+        .then(setChats)
+        .catch(() => setChats([]));
+    } else {
+      setChats([]);
+    }
   }, [slug, currentPath, readOnly]);
 
   const onNeedViewer = useCallback(async () => {
@@ -317,9 +345,10 @@ function PageView({
     return { viewerId: v.viewerId, displayName: v.displayName ?? "" };
   }, [slug]);
 
-  // (Re)load Threads when the page changes.
+  // (Re)load Threads + Chats when the page changes.
   useEffect(() => {
     setConversations([]);
+    setChats([]);
     setSelection(null);
     setComposer(null);
     setActiveThreadId(null);
@@ -355,12 +384,14 @@ function PageView({
     const bridge = bridgeRef.current;
     if (!bridge) return;
     bridge.clearAnchors();
-    for (const c of conversations) {
-      // Only live anchors resolve against the current Version; Outdated Threads
+    // Both public Threads and the Viewer's own Chats highlight in the frame (a
+    // Chat anchor grounds the Viewer's agent, CONTEXT "Chat").
+    for (const c of [...conversations, ...chats]) {
+      // Only live anchors resolve against the current Version; Outdated ones
       // live in the rail with a permalink instead (CONTEXT "Outdated").
       if (c.anchor && c.anchorStatus === "live") bridge.resolveAnchor(c.id, c.anchor.textQuote);
     }
-  }, [conversations]);
+  }, [conversations, chats]);
 
   // Position the floating "Comment" button at the selection: the rect is in
   // iframe coordinates, so offset it by the iframe's position in the parent.
@@ -377,19 +408,23 @@ function PageView({
     };
   }, [selection]);
 
-  async function submitNewThread(body: string, displayName: string) {
+  async function submitNewConversation(body: string, displayName: string) {
     setSubmitting(true);
     setComposerError(null);
     try {
       const v = await ensureViewer(slug);
       if (displayName && !v.displayName) setDisplayName(slug, displayName);
-      await createConversation(slug, {
+      const input = {
         pagePath: currentPath,
         anchor: composer?.anchor ?? null,
         body,
         viewerId: v.viewerId,
         displayName: displayName || v.displayName || "Anonymous",
-      });
+      };
+      // Chat mode → a private Chat (visible only to this Viewer + its agents);
+      // Thread mode → a public Thread. Same body otherwise.
+      if (composer?.mode === "chat") await createChat(slug, input);
+      else await createConversation(slug, input);
       setComposer(null);
       setSelection(null);
       reload();
@@ -431,6 +466,7 @@ function PageView({
       <Rail
         slug={slug}
         conversations={conversations}
+        chats={chats}
         activeThreadId={activeThreadId}
         onNeedViewer={onNeedViewer}
         onChanged={reload}
@@ -438,21 +474,34 @@ function PageView({
           setActiveThreadId(id);
           bridgeRef.current?.scrollToAnchor(id);
         }}
-        onNewPageComment={() => setComposer({ anchor: null })}
+        onNewPageComment={() => setComposer({ anchor: null, mode: "thread" })}
+        onBringAgent={onBringAgent}
       />
 
       {selection && floatingPos && !composer && (
-        <button
-          class="floating-comment-btn"
+        <div
+          class="floating-actions"
           style={{ left: `${floatingPos.left}px`, top: `${floatingPos.top}px`, transform: "translate(-50%, -120%)" }}
-          // Don't let the click steal focus / collapse anything before we read it.
+          // Don't let the click steal focus / collapse the selection before we read it.
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() =>
-            setComposer({ anchor: candidateToAnchor(selection.candidate), at: floatingPos })
-          }
         >
-          💬 Comment
-        </button>
+          <button
+            class="floating-action-btn floating-comment-btn"
+            onClick={() =>
+              setComposer({ anchor: candidateToAnchor(selection.candidate), at: floatingPos, mode: "thread" })
+            }
+          >
+            💬 Comment
+          </button>
+          <button
+            class="floating-action-btn floating-ask-btn"
+            onClick={() =>
+              setComposer({ anchor: candidateToAnchor(selection.candidate), at: floatingPos, mode: "chat" })
+            }
+          >
+            🔒 Ask
+          </button>
+        </div>
       )}
 
       {composer && (
@@ -468,12 +517,24 @@ function PageView({
           }
         >
           <Composer
-            label={composer.anchor ? "New comment on selection" : "Comment on this page"}
+            label={
+              composer.mode === "chat"
+                ? "Ask your agent (private)"
+                : composer.anchor
+                  ? "New comment on selection"
+                  : "Comment on this page"
+            }
+            placeholder={
+              composer.mode === "chat"
+                ? "Ask your agent about this selection…"
+                : "Write a comment…"
+            }
+            submitLabel={composer.mode === "chat" ? "Ask" : "Comment"}
             needsName={!viewerName}
             currentName={viewerName}
             isSubmitting={submitting}
             error={composerError}
-            onSubmit={submitNewThread}
+            onSubmit={submitNewConversation}
             onCancel={() => setComposer(null)}
           />
         </div>

@@ -10,6 +10,8 @@ interface ComposerProps {
   currentName?: string;
   isSubmitting?: boolean;
   error?: string | null;
+  /** Submit button caption (idle state); defaults to "Comment". */
+  submitLabel?: string;
   onSubmit: (body: string, displayName: string) => void | Promise<void>;
   onCancel?: () => void;
 }
@@ -21,6 +23,7 @@ export function Composer({
   currentName = "",
   isSubmitting = false,
   error = null,
+  submitLabel = "Comment",
   onSubmit,
   onCancel,
 }: ComposerProps) {
@@ -62,7 +65,7 @@ export function Composer({
       {error && <div class="composer-error">{error}</div>}
       <div class="composer-footer">
         <button class="btn-primary" type="submit" disabled={!canSubmit || isSubmitting}>
-          {isSubmitting ? "Posting…" : "Comment"}
+          {isSubmitting ? "Posting…" : submitLabel}
         </button>
         {onCancel && (
           <button class="btn-secondary" type="button" onClick={onCancel}>

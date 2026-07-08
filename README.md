@@ -5,12 +5,17 @@ and AI agents collaborate on them through anchored comment threads. See
 [`CONTEXT.md`](./CONTEXT.md) for the domain language and [`PLAN.md`](./PLAN.md)
 for the build sequence.
 
-This repo is at **M6 (Versioning UX)**: the monorepo skeleton, the shared
-`@collab/core` render/Nav/search engine (folded in from `mdttp`), the
+This repo is at **M8 (Private Chats + reviewer agents)**: the monorepo skeleton,
+the shared `@collab/core` render/Nav/search engine (folded in from `mdttp`), the
 `collab <path>` Local Preview spine, hosted multi-Page Sites (`collab share`),
-anchored public comment Threads — and now **re-upload → new Version** with
-best-effort text-quote comment migration, an Outdated rail, per-Version
-permalinks, a source-level Diff, and viewer Last Seen tracking.
+anchored public comment Threads, re-upload → new Version with comment migration,
+an Outdated rail, per-Version permalinks, a source-level Diff, viewer Last Seen
+tracking, and the owner-tier agent surface (REST + MCP) — and now **private
+Chats** scoped to a Viewer, **viewer-scoped agent tokens** ("bring your own
+agent") with their copy-prompt, a three-tier authorization model enforced
+end-to-end (Owner → Viewer + agent → anonymous), a private chat panel with a
+"💬 Comment / 🔒 Ask" selection affordance, `list_chats` for reviewer agents, and
+**Promotion** (curate selected Chat messages into a public Thread).
 
 ## Quick start
 

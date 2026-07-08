@@ -4,6 +4,8 @@ import { Thread } from "./Thread";
 interface RailProps {
   slug: string;
   conversations: ConversationDTO[];
+  /** The current Viewer's private Chats (empty when no Viewer exists yet). */
+  chats: ConversationDTO[];
   activeThreadId: string | null;
   onNeedViewer: () => Promise<{ viewerId: string; displayName: string }>;
   onChanged: () => void;
@@ -11,21 +13,26 @@ interface RailProps {
   onActivateThread: (id: string) => void;
   /** Start a new page-level (un-anchored) Thread. */
   onNewPageComment: () => void;
+  /** Open the "Bring your agent" panel (Viewer-scoped agent token). */
+  onBringAgent: () => void;
 }
 
-// The right-hand comment rail: anchored Threads first, then page-level Threads,
-// each rendered as a Thread card. Resolved Threads render collapsed (handled in
-// Thread). To start an anchored Thread the user selects text in the content
-// (handled by the parent via the bridge); the rail only offers the page-level
-// entry point.
+// The right-hand comment rail: the Viewer's private Chats first, then anchored
+// public Threads, then page-level Threads, each rendered as a Thread card.
+// Resolved Conversations render collapsed (handled in Thread). To start an
+// anchored Conversation the user selects text in the content (handled by the
+// parent via the bridge); the rail only offers the page-level + agent entry
+// points.
 export function Rail({
   slug,
   conversations,
+  chats,
   activeThreadId,
   onNeedViewer,
   onChanged,
   onActivateThread,
   onNewPageComment,
+  onBringAgent,
 }: RailProps) {
   // Outdated Threads (anchor no longer matches the Latest Version, CONTEXT
   // "Outdated") are pulled out of the live sections into their own collapsed rail,
@@ -51,16 +58,49 @@ export function Rail({
     />
   );
 
+  // A Chat card carries the lock affordance and a Promote control — the Viewer
+  // always owns every Chat returned by /chats, so Promote is always available.
+  const renderChat = (c: ConversationDTO) => (
+    <Thread
+      key={c.id}
+      slug={slug}
+      conversation={c}
+      active={c.id === activeThreadId}
+      onNeedViewer={onNeedViewer}
+      onChanged={onChanged}
+      onActivate={() => onActivateThread(c.id)}
+      isPrivate
+      promotable
+    />
+  );
+
   return (
     <aside class="comment-rail">
-      <button class="page-comment-btn" onClick={onNewPageComment}>
-        💬 Comment on this page
-      </button>
+      <div class="rail-toolbar">
+        <button class="page-comment-btn" onClick={onNewPageComment}>
+          💬 Comment on this page
+        </button>
+        <button
+          class="bring-agent-btn"
+          onClick={onBringAgent}
+          title="Mint a token for your own agent (read + your Chats + public comments)"
+        >
+          🤖 Bring your agent
+        </button>
+      </div>
 
-      {conversations.length === 0 && (
+      {conversations.length === 0 && chats.length === 0 && (
         <div class="rail-empty">
-          No comments yet. Select text in the page to start a Thread, or comment on the
-          whole page.
+          No comments yet. Select text in the page to start a Thread or a private Chat, or
+          comment on the whole page.
+        </div>
+      )}
+
+      {chats.length > 0 && (
+        <div class="rail-section rail-section--chats">
+          <h3 class="rail-section-title">🔒 Chats (private) ({chats.length})</h3>
+          <p class="rail-chats-note">Visible only to you and your agents.</p>
+          {chats.map(renderChat)}
         </div>
       )}
 

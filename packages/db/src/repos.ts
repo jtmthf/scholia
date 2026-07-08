@@ -2,7 +2,7 @@
 // (PLAN §1: server is the only place HTTP + db meet). These keep route handlers
 // free of query plumbing and own the multi-row invariants of an upload
 // (site + owner token + first Version + manifest, in one transaction).
-import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { Db } from "./client.js";
 
 // A Drizzle handle that is either the root client or an open transaction — lets a
@@ -305,6 +305,61 @@ export async function verifyOwnerToken(
   return row !== undefined;
 }
 
+// ---- M8: Viewer-scoped agent tokens (ADR-0006 tier 2) ----
+
+// Mint a Viewer-scoped agent token: revoke any live token the Viewer already
+// holds (one live token per Viewer — re-minting rotates), then insert the new
+// hashed row. Possession of the unguessable viewerId is the authorization to
+// mint (the route checks the Viewer exists on the Site first).
+export async function mintViewerToken(
+  db: Db,
+  input: { siteId: string; viewerId: string; tokenHash: string },
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(siteTokens)
+      .set({ revokedAt: sql`now()` })
+      .where(
+        and(
+          eq(siteTokens.viewerId, input.viewerId),
+          eq(siteTokens.kind, "viewer"),
+          isNull(siteTokens.revokedAt),
+        ),
+      );
+    await tx.insert(siteTokens).values({
+      siteId: input.siteId,
+      kind: "viewer",
+      viewerId: input.viewerId,
+      tokenHash: input.tokenHash,
+    });
+  });
+}
+
+// Resolve a live Viewer-scoped agent token (presented hashed) to its owning
+// Viewer + display name. Null when no live viewer-kind token matches. Gates the
+// viewer-agent tier (ADR-0006): read the Site, read/post the Viewer's Chats,
+// create/post public Threads.
+export async function resolveViewerToken(
+  db: Db,
+  siteId: string,
+  tokenHash: string,
+): Promise<{ viewerId: string; displayName: string | null } | null> {
+  const [row] = await db
+    .select({ viewerId: viewers.id, displayName: viewers.displayName })
+    .from(siteTokens)
+    .innerJoin(viewers, eq(siteTokens.viewerId, viewers.id))
+    .where(
+      and(
+        eq(siteTokens.siteId, siteId),
+        eq(siteTokens.kind, "viewer"),
+        eq(siteTokens.tokenHash, tokenHash),
+        isNull(siteTokens.revokedAt),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export interface AddVersionInput {
   siteId: string;
   contentSource: ContentSource;
@@ -484,6 +539,7 @@ export async function summaryForViewer(
         eq(versions.siteId, input.siteId),
         gt(versions.ordinal, lastSeenVersion),
         isNull(comments.deletedAt),
+        isNull(comments.hiddenAt),
         input.viewerId
           ? sql`(${comments.authorViewerId} is distinct from ${input.viewerId})`
           : sql`true`,
@@ -510,6 +566,22 @@ export async function mintViewer(db: Db, siteId: string): Promise<{ viewerId: st
   return { viewerId: row!.viewerId };
 }
 
+// Load a Viewer scoped to a Site (M8): confirms the viewerId belongs to the Site
+// and returns its display name (for identity building / agent-token minting).
+// Null when no such Viewer exists on the Site.
+export async function getViewer(
+  db: Db,
+  viewerId: string,
+  siteId: string,
+): Promise<{ id: string; displayName: string | null } | null> {
+  const [row] = await db
+    .select({ id: viewers.id, displayName: viewers.displayName })
+    .from(viewers)
+    .where(and(eq(viewers.id, viewerId), eq(viewers.siteId, siteId)))
+    .limit(1);
+  return row ?? null;
+}
+
 // Return the id + ordinal of the Latest Version for a Site, or null if none.
 export async function getLatestVersionId(
   db: Db,
@@ -527,9 +599,11 @@ export interface CreateConversationInput {
   siteId: string;
   createdVersionId: string;
   pagePath: string | null;
-  visibility: "public";
+  /** Public = Thread, private = Chat (CONTEXT "Conversation"/"Chat"/"Thread"). */
+  visibility: "public" | "private";
   anchor: Anchor | null;
-  ownerViewerId?: null;
+  /** The owning Viewer for a private Chat (M8, ADR-0006); null for a Thread. */
+  ownerViewerId?: string | null;
   // First comment fields
   firstComment: {
     versionId: string;
@@ -572,9 +646,31 @@ export async function createConversation(
       .returning({ id: comments.id });
 
     await insertMentions(tx, firstComment!.id, input.firstComment.mentions);
+    await persistViewerDisplayName(
+      tx,
+      input.firstComment.author,
+      input.firstComment.authorViewerId ?? null,
+    );
 
     return { conversationId: conv!.id };
   });
+}
+
+// Persist a human Viewer's display name onto its `viewers` row (CONTEXT "Viewer":
+// the name is "supplied on first comment"). It lives on each Comment's author JSON
+// too, but the canonical row is what a Viewer-scoped agent token resolves to when
+// Collab labels that agent "Reviewer <name>'s agent" (M8, ADR-0006). Only human
+// viewer authors carry a name here; agent authors have authorViewerId=null. Runs
+// inside the caller's transaction. Latest supplied name wins (reflects renames).
+async function persistViewerDisplayName(
+  tx: DbOrTx,
+  author: Identity,
+  authorViewerId: string | null,
+): Promise<void> {
+  if (author.kind !== "human" || !authorViewerId) return;
+  const name = author.name.trim();
+  if (name === "") return;
+  await tx.update(viewers).set({ displayName: name }).where(eq(viewers.id, authorViewerId));
 }
 
 // Persist the @-mention targets parsed from a comment body (M7). No-op for an
@@ -617,6 +713,7 @@ export async function addComment(
       })
       .returning({ commentId: comments.id });
     await insertMentions(tx, row!.commentId, input.mentions);
+    await persistViewerDisplayName(tx, input.author, input.authorViewerId ?? null);
     return { commentId: row!.commentId };
   });
 }
@@ -792,7 +889,104 @@ export interface ConversationDTO {
   createdOrdinal: number;
   resolved: boolean;
   resolvedBy: string | null;
+  /** Private = Chat, public = Thread (CONTEXT "Conversation"). */
+  visibility: "public" | "private";
   comments: CommentDTO[];
+}
+
+// A conversation row shape sufficient to assemble a ConversationDTO. Any query
+// that selects `*` from `conversations` satisfies this.
+interface ConversationRow {
+  id: string;
+  pagePath: string | null;
+  anchor: unknown;
+  anchorStatus: string;
+  createdVersionId: string;
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
+  visibility: string;
+}
+
+// Shared DTO assembly for Threads (listConversationsForPage) and Chats
+// (listChats): given the conversation rows already loaded, fetch their
+// (non-deleted, non-hidden) comments + reactions and build ConversationDTOs.
+// Hidden comments (Promotion, M8) and the empty-body tombstone rendering are
+// applied here so both listings behave identically.
+async function assembleConversationDTOs(
+  db: Db,
+  convRows: ConversationRow[],
+  viewerId: string | null,
+): Promise<ConversationDTO[]> {
+  if (convRows.length === 0) return [];
+
+  const convIds = convRows.map((c) => c.id);
+
+  // Map each conversation's createdVersionId → ordinal (Outdated permalink target).
+  const createdVersionIds = [...new Set(convRows.map((c) => c.createdVersionId))];
+  const versionRows = await db
+    .select({ id: versions.id, ordinal: versions.ordinal })
+    .from(versions)
+    .where(inArray(versions.id, createdVersionIds));
+  const ordinalByVersion = new Map(versionRows.map((v) => [v.id, v.ordinal]));
+
+  // Comments for these conversations, excluding Promotion-hidden messages.
+  const commentRows = await db
+    .select()
+    .from(comments)
+    .where(and(inArray(comments.conversationId, convIds), isNull(comments.hiddenAt)))
+    .orderBy(asc(comments.createdAt));
+
+  const commentIds = commentRows.map((r) => r.id);
+
+  const reactionRows =
+    commentIds.length > 0
+      ? await db.select().from(reactions).where(inArray(reactions.commentId, commentIds))
+      : [];
+
+  const reactionsByComment = new Map<string, ReactionGroup[]>();
+  for (const commentId of commentIds) {
+    const rs = reactionRows.filter((r) => r.commentId === commentId);
+    const groups = new Map<string, { count: number; mine: boolean }>();
+    for (const r of rs) {
+      const g = groups.get(r.emoji) ?? { count: 0, mine: false };
+      g.count += 1;
+      if (viewerId && r.authorViewerId === viewerId) g.mine = true;
+      groups.set(r.emoji, g);
+    }
+    reactionsByComment.set(
+      commentId,
+      Array.from(groups.entries()).map(([emoji, g]) => ({ emoji, count: g.count, mine: g.mine })),
+    );
+  }
+
+  const commentsByConv = new Map<string, CommentDTO[]>();
+  for (const c of commentRows) {
+    const list = commentsByConv.get(c.conversationId) ?? [];
+    const deleted = c.deletedAt !== null;
+    list.push({
+      id: c.id,
+      author: c.author as Identity,
+      body: deleted ? "" : c.body,
+      createdAt: c.createdAt.toISOString(),
+      editedAt: c.editedAt ? c.editedAt.toISOString() : null,
+      deleted,
+      mine: viewerId !== null && c.authorViewerId === viewerId,
+      reactions: reactionsByComment.get(c.id) ?? [],
+    });
+    commentsByConv.set(c.conversationId, list);
+  }
+
+  return convRows.map((conv) => ({
+    id: conv.id,
+    pagePath: conv.pagePath,
+    anchor: (conv.anchor as Anchor | null) ?? null,
+    anchorStatus: conv.anchorStatus as "live" | "outdated",
+    createdOrdinal: ordinalByVersion.get(conv.createdVersionId) ?? 0,
+    resolved: conv.resolvedAt !== null,
+    resolvedBy: conv.resolvedBy,
+    visibility: conv.visibility as "public" | "private",
+    comments: commentsByConv.get(conv.id) ?? [],
+  }));
 }
 
 // List all public Conversations for a Site + page. pagePath=null selects
@@ -803,7 +997,8 @@ export async function listConversationsForPage(
   db: Db,
   input: { siteId: string; pagePath: string | null; viewerId: string | null },
 ): Promise<ConversationDTO[]> {
-  // 1. Load conversations.
+  // Load public Conversations (Threads) for the page, then assemble DTOs with the
+  // shared helper (also used by listChats for private Chats).
   const convRows = await db
     .select()
     .from(conversations)
@@ -818,85 +1013,175 @@ export async function listConversationsForPage(
     )
     .orderBy(asc(conversations.id));
 
-  if (convRows.length === 0) return [];
+  return assembleConversationDTOs(db, convRows, input.viewerId);
+}
 
-  const convIds = convRows.map((c) => c.id);
-
-  // Map each conversation's createdVersionId → ordinal (Outdated permalink target).
-  const createdVersionIds = [...new Set(convRows.map((c) => c.createdVersionId))];
-  const versionRows = await db
-    .select({ id: versions.id, ordinal: versions.ordinal })
-    .from(versions)
-    .where(inArray(versions.id, createdVersionIds));
-  const ordinalByVersion = new Map(versionRows.map((v) => [v.id, v.ordinal]));
-
-  // 2. Load comments for these conversations.
-  const commentRows = await db
-    .select()
-    .from(comments)
-    .where(
-      sql`${comments.conversationId} = ANY(ARRAY[${sql.raw(convIds.map((id) => `'${id}'`).join(","))}]::uuid[])`
-    )
-    .orderBy(asc(comments.createdAt));
-
-  const commentIds = commentRows.map((r) => r.id);
-
-  // 3. Load reactions for these comments (may be empty).
-  const reactionRows =
-    commentIds.length > 0
-      ? await db
-          .select()
-          .from(reactions)
-          .where(
-            sql`${reactions.commentId} = ANY(ARRAY[${sql.raw(commentIds.map((id) => `'${id}'`).join(","))}]::uuid[])`
-          )
-      : [];
-
-  // 4. Build reaction groups per comment.
-  const reactionsByComment = new Map<string, ReactionGroup[]>();
-  for (const commentId of commentIds) {
-    const rs = reactionRows.filter((r) => r.commentId === commentId);
-    const groups = new Map<string, { count: number; mine: boolean }>();
-    for (const r of rs) {
-      const g = groups.get(r.emoji) ?? { count: 0, mine: false };
-      g.count += 1;
-      if (input.viewerId && r.authorViewerId === input.viewerId) g.mine = true;
-      groups.set(r.emoji, g);
-    }
-    reactionsByComment.set(
-      commentId,
-      Array.from(groups.entries()).map(([emoji, g]) => ({ emoji, count: g.count, mine: g.mine })),
+// List a Viewer's private Chats (M8, ADR-0006 tier 2). Only Conversations the
+// Viewer owns (ownerViewerId === viewerId) are ever returned — privacy is
+// enforced by this predicate plus the token/viewerId check in the route. Mirrors
+// listConversationsForPage's pagePath semantics: a string filters to that Page,
+// null selects page-level Chats, and undefined returns Chats across all Pages
+// (the polling `list_chats` feed). `since` (ISO) keeps only Chats with a Comment
+// created strictly after that instant.
+export async function listChats(
+  db: Db,
+  input: {
+    siteId: string;
+    viewerId: string;
+    pagePath?: string | null;
+    since?: string;
+  },
+): Promise<ConversationDTO[]> {
+  const conds = [
+    eq(conversations.siteId, input.siteId),
+    eq(conversations.visibility, "private"),
+    eq(conversations.ownerViewerId, input.viewerId),
+  ];
+  if (input.pagePath !== undefined) {
+    conds.push(
+      input.pagePath !== null
+        ? eq(conversations.pagePath, input.pagePath)
+        : isNull(conversations.pagePath),
     );
   }
 
-  // 5. Assemble DTOs.
-  const commentsByConv = new Map<string, CommentDTO[]>();
-  for (const c of commentRows) {
-    const list = commentsByConv.get(c.conversationId) ?? [];
-    const deleted = c.deletedAt !== null;
-    list.push({
-      id: c.id,
-      author: c.author as Identity,
-      body: deleted ? "" : c.body,
-      createdAt: c.createdAt.toISOString(),
-      editedAt: c.editedAt ? c.editedAt.toISOString() : null,
-      deleted,
-      mine: input.viewerId !== null && c.authorViewerId === input.viewerId,
-      reactions: reactionsByComment.get(c.id) ?? [],
-    });
-    commentsByConv.set(c.conversationId, list);
-  }
+  const convRows = await db
+    .select()
+    .from(conversations)
+    .where(and(...conds))
+    .orderBy(asc(conversations.id));
 
-  return convRows.map((conv) => ({
-    id: conv.id,
-    pagePath: conv.pagePath,
-    anchor: (conv.anchor as Anchor | null) ?? null,
-    anchorStatus: conv.anchorStatus as "live" | "outdated",
-    createdOrdinal: ordinalByVersion.get(conv.createdVersionId) ?? 0,
-    resolved: conv.resolvedAt !== null,
-    resolvedBy: conv.resolvedBy,
-    comments: commentsByConv.get(conv.id) ?? [],
-  }));
+  const dtos = await assembleConversationDTOs(db, convRows, input.viewerId);
+
+  if (!input.since) return dtos;
+  const sinceMs = new Date(input.since).getTime();
+  return dtos.filter((d) =>
+    d.comments.some((cm) => new Date(cm.createdAt).getTime() > sinceMs),
+  );
+}
+
+export interface ConversationMeta {
+  id: string;
+  visibility: "public" | "private";
+  ownerViewerId: string | null;
+}
+
+// Load just the access-control fields of a Conversation on a Site (M8 guards).
+// Null when no such Conversation exists for the Site.
+export async function getConversationMeta(
+  db: Db,
+  id: string,
+  siteId: string,
+): Promise<ConversationMeta | null> {
+  const [row] = await db
+    .select({
+      id: conversations.id,
+      visibility: conversations.visibility,
+      ownerViewerId: conversations.ownerViewerId,
+    })
+    .from(conversations)
+    .where(and(eq(conversations.id, id), eq(conversations.siteId, siteId)))
+    .limit(1);
+  if (!row) return null;
+  return {
+    id: row.id,
+    visibility: row.visibility as "public" | "private",
+    ownerViewerId: row.ownerViewerId,
+  };
+}
+
+// Resolve a comment to its Conversation, confirming both belong to the Site.
+// Used by the comment-id routes (edit/delete/react) to load the Conversation's
+// M8 access meta. Null when the comment isn't on the Site.
+export async function getCommentConversation(
+  db: Db,
+  commentId: string,
+  siteId: string,
+): Promise<{ conversationId: string } | null> {
+  const [row] = await db
+    .select({ conversationId: comments.conversationId })
+    .from(comments)
+    .innerJoin(conversations, eq(comments.conversationId, conversations.id))
+    .where(and(eq(comments.id, commentId), eq(conversations.siteId, siteId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export interface PromoteConversationInput {
+  conversationId: string;
+  /** Comment ids that stay visible; every other non-deleted comment is hidden. */
+  keepCommentIds: string[];
+  /** Optional summary prepended as a new visible comment. */
+  summary?: string;
+  summaryAuthor: Identity;
+  summaryAuthorViewerId: string | null;
+}
+
+// Promote a Chat to a Thread (CONTEXT "Promotion"): flip the SAME Conversation
+// private → public in place. Non-selected non-deleted Comments are hidden
+// (hiddenAt=now, not tombstoned); the selected ones stay visible; anchor/resolve
+// carry over untouched. An optional summary is prepended as a new visible Comment
+// bound to the Conversation's latest Version. Verifies the Conversation is
+// currently private (the route already checked the caller is the owning Viewer).
+export async function promoteConversation(
+  db: Db,
+  input: PromoteConversationInput,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [conv] = await tx
+      .select({ id: conversations.id, siteId: conversations.siteId, visibility: conversations.visibility })
+      .from(conversations)
+      .where(eq(conversations.id, input.conversationId))
+      .limit(1);
+    if (!conv || conv.visibility !== "private") {
+      throw new Error("conversation is not a private Chat");
+    }
+
+    // Flip visibility public + drop private ownership.
+    await tx
+      .update(conversations)
+      .set({ visibility: "public", ownerViewerId: null })
+      .where(eq(conversations.id, input.conversationId));
+
+    // Hide every non-selected, non-deleted comment.
+    const keep = input.keepCommentIds;
+    await tx
+      .update(comments)
+      .set({ hiddenAt: sql`now()` })
+      .where(
+        and(
+          eq(comments.conversationId, input.conversationId),
+          isNull(comments.deletedAt),
+          isNull(comments.hiddenAt),
+          keep.length > 0 ? notInArray(comments.id, keep) : undefined,
+        ),
+      );
+
+    // Prepend an optional summary comment, bound to the latest Version the
+    // Conversation has (newest existing comment's version, else site Latest).
+    if (input.summary && input.summary.trim() !== "") {
+      const [newest] = await tx
+        .select({ versionId: comments.versionId })
+        .from(comments)
+        .where(eq(comments.conversationId, input.conversationId))
+        .orderBy(desc(comments.createdAt))
+        .limit(1);
+      let versionId = newest?.versionId;
+      if (!versionId) {
+        const latest = await getLatestVersionId(tx as unknown as Db, conv.siteId);
+        versionId = latest?.id;
+      }
+      if (versionId) {
+        await tx.insert(comments).values({
+          conversationId: input.conversationId,
+          versionId,
+          body: input.summary,
+          author: input.summaryAuthor,
+          authorViewerId: input.summaryAuthorViewerId ?? null,
+        });
+      }
+    }
+  });
 }
 
 // ---- M7: Agent surface — site-wide comment feed (`list_comments`) ----
@@ -957,6 +1242,7 @@ export async function listSiteComments(
     eq(conversations.siteId, filter.siteId),
     eq(conversations.visibility, "public"),
     isNull(comments.deletedAt),
+    isNull(comments.hiddenAt),
   ];
   if (filter.unresolved) conds.push(isNull(conversations.resolvedAt));
   if (filter.since) conds.push(gt(comments.createdAt, new Date(filter.since)));

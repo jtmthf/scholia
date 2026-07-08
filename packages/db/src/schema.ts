@@ -92,6 +92,9 @@ export const siteTokens = pgTable("site_tokens", {
   label: text("label"),
   tokenHash: text("token_hash").notNull().unique(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  // Viewer-scoped agent tokens (M8, ADR-0006 tier 2) bind to the Viewer they
+  // authorize. Null for owner-kind tokens.
+  viewerId: uuid("viewer_id").references(() => viewers.id, { onDelete: "cascade" }),
 });
 
 // An immutable snapshot of an entire Site created by an upload.
@@ -168,6 +171,9 @@ export const comments = pgTable("comments", {
   body: text("body").notNull(),
   editedAt: timestamp("edited_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }), // tombstone
+  // Promotion (M8) hides non-selected Chat messages from all listings without
+  // tombstoning them.
+  hiddenAt: timestamp("hidden_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // M5 deviation from PLAN §3: authorViewerId mirrors conversations.ownerViewerId,
   // enabling anonymous Viewers (localStorage-grade identity, CONTEXT "Viewer") to

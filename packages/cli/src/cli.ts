@@ -4,6 +4,7 @@ import { resolve, dirname } from "node:path";
 import { cac } from "cac";
 import open from "open";
 import { startServer } from "@collab/local";
+import { CollabClient, loadCredentials } from "@collab/client";
 import { share } from "./share.js";
 
 const cli = cac("collab");
@@ -21,6 +22,44 @@ cli
   .action(async (path: string, options: any) => {
     try {
       await share(path, { server: options.server, forceNew: options.new, site: options.site });
+    } catch (err) {
+      console.error(`[collab] ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+// Chats (M8): `collab chats` prints the viewer's own private Chats as JSON, using
+// a viewer-scoped token. Resolves the credential the same way `share` does — an
+// explicit --site, else the newest stored credential. Owner tokens get a 403 from
+// the endpoint (acceptable — Chats are a viewer-tier surface).
+cli
+  .command("chats", "List your viewer's private Chats as JSON")
+  .option("--server <url>", "Collab server base URL", {
+    default: process.env.COLLAB_SERVER ?? "http://localhost:8787",
+  })
+  .option("--site <slug>", "Site slug to query (defaults to the newest stored credential)")
+  .option("--token <token>", "Viewer-scoped token (defaults to COLLAB_TOKEN or the stored credential)")
+  .option("--since <iso>", "ISO 8601 timestamp; only Chats with a comment newer than this")
+  .option("--path <p>", "Filter to Chats anchored to this page path")
+  .action(async (options: any) => {
+    try {
+      const server = (options.server as string).replace(/\/+$/, "");
+      const store = await loadCredentials();
+      const entries = Object.values(store);
+      const cred = options.site
+        ? entries.find((e) => e.slug === options.site)
+        : entries.length
+          ? entries.reduce((a, b) => (a.createdAt > b.createdAt ? a : b))
+          : undefined;
+
+      const slug: string | undefined = options.site ?? cred?.slug ?? process.env.COLLAB_SITE;
+      const token: string | undefined = options.token ?? process.env.COLLAB_TOKEN ?? cred?.token;
+      if (!slug) throw new Error("no site — pass --site <slug> or run `collab share` first");
+      if (!token) throw new Error("no token — pass --token, set COLLAB_TOKEN, or run `collab share` first");
+
+      const client = new CollabClient({ server, token, slug });
+      const { chats } = await client.listChats({ since: options.since, path: options.path });
+      console.log(JSON.stringify(chats, null, 2));
     } catch (err) {
       console.error(`[collab] ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);

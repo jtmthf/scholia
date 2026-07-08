@@ -3,6 +3,7 @@ import { addComment, setResolved, type ConversationDTO } from "../api";
 import { getViewer, setDisplayName } from "../viewer";
 import { Comment } from "./Comment";
 import { Composer } from "./Composer";
+import { PromoteDialog } from "./PromoteDialog";
 
 interface ThreadProps {
   slug: string;
@@ -14,13 +15,30 @@ interface ThreadProps {
   onChanged: () => void;
   /** User clicked the card → scroll its anchor into view. */
   onActivate: () => void;
+  /** Render a lock affordance + muted styling (a private Chat, not a Thread). */
+  isPrivate?: boolean;
+  /** Show the Promote control (the owning Viewer flipping a Chat → Thread). */
+  promotable?: boolean;
 }
 
-// One public Thread: its anchor quote (or "Page comment"), its flat comment list,
-// a reply composer, and resolve/reopen. Resolved Threads collapse to a summary.
-export function Thread({ slug, conversation, active, onNeedViewer, onChanged, onActivate }: ThreadProps) {
+// One Conversation card: its anchor quote (or "Page comment"), its flat comment
+// list, a reply composer, and resolve/reopen — identical for a public Thread and a
+// private Chat (all mutations use the same endpoints). A Chat additionally carries
+// a lock affordance and, for its owning Viewer, a Promote control. Resolved
+// Conversations collapse to a summary.
+export function Thread({
+  slug,
+  conversation,
+  active,
+  onNeedViewer,
+  onChanged,
+  onActivate,
+  isPrivate = false,
+  promotable = false,
+}: ThreadProps) {
   const [expanded, setExpanded] = useState(!conversation.resolved);
   const [replying, setReplying] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,11 +82,17 @@ export function Thread({ slug, conversation, active, onNeedViewer, onChanged, on
   const cls =
     `thread-card${active ? " thread-card--active" : ""}` +
     `${conversation.resolved ? " thread-card--resolved" : ""}` +
-    `${outdated ? " thread-card--outdated" : ""}`;
+    `${outdated ? " thread-card--outdated" : ""}` +
+    `${isPrivate ? " thread-card--private" : ""}`;
 
   return (
     <div class={cls} onClick={onActivate}>
       <div class="thread-header">
+        {isPrivate && (
+          <span class="thread-lock" title="Private Chat — visible only to you and your agents">
+            🔒
+          </span>
+        )}
         {anchored ? (
           <>
             {outdated && <span class="thread-anchor-label">outdated</span>}
@@ -129,6 +153,14 @@ export function Thread({ slug, conversation, active, onNeedViewer, onChanged, on
               <button class="thread-action-btn" onClick={() => setReplying(true)}>
                 Reply
               </button>
+              {promotable && (
+                <button
+                  class="thread-action-btn thread-action-btn--promote"
+                  onClick={() => setPromoting(true)}
+                >
+                  Promote
+                </button>
+              )}
               <button
                 class="thread-action-btn thread-action-btn--resolve"
                 onClick={() => void toggleResolved()}
@@ -138,6 +170,18 @@ export function Thread({ slug, conversation, active, onNeedViewer, onChanged, on
             </div>
           )}
         </>
+      )}
+
+      {promoting && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <PromoteDialog
+            slug={slug}
+            conversation={conversation}
+            onNeedViewer={onNeedViewer}
+            onPromoted={onChanged}
+            onClose={() => setPromoting(false)}
+          />
+        </div>
       )}
     </div>
   );

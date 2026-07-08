@@ -206,6 +206,8 @@ export interface ConversationDTO {
   createdOrdinal: number;
   resolved: boolean;
   resolvedBy: string | null;
+  /** Private Chat (owning Viewer + its agents only) vs public Thread — CONTEXT. */
+  visibility: "public" | "private";
   comments: CommentDTO[];
 }
 
@@ -253,8 +255,32 @@ export async function listConversations(
   return jsonOrThrow(res, "List conversations");
 }
 
-// Start a public Thread: anchored when `anchor` is given, page-level otherwise.
+// Start a Conversation: anchored when `anchor` is given, page-level otherwise.
+// `visibility` defaults to public server-side (a Thread); pass "private" for a
+// Chat (or use createChat, which delegates here).
 export async function createConversation(
+  slug: string,
+  input: {
+    pagePath: string | null;
+    anchor: AnchorInput | null;
+    body: string;
+    viewerId: string;
+    displayName: string;
+    visibility?: "public" | "private";
+  },
+): Promise<ConversationDTO> {
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/conversations`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return jsonOrThrow(res, "Create conversation");
+}
+
+// Start a private Chat (CONTEXT "Chat") — same body as a Thread but private, so
+// it's visible only to this Viewer and the agents it admits. Delegates to
+// createConversation with visibility pinned to "private".
+export async function createChat(
   slug: string,
   input: {
     pagePath: string | null;
@@ -264,12 +290,57 @@ export async function createConversation(
     displayName: string;
   },
 ): Promise<ConversationDTO> {
-  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/conversations`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return jsonOrThrow(res, "Create conversation");
+  return createConversation(slug, { ...input, visibility: "private" });
+}
+
+// List the current Viewer's private Chats for a Page (CONTEXT "Chat"). Possession
+// of the viewerId authorizes; the server returns only Chats owned by that Viewer.
+export async function listChats(
+  slug: string,
+  pagePath: string | null,
+  viewerId: string,
+): Promise<ConversationDTO[]> {
+  const params = new URLSearchParams();
+  if (pagePath) params.set("path", pagePath);
+  params.set("viewerId", viewerId);
+  const res = await fetch(
+    `${API_BASE}/sites/${encodeURIComponent(slug)}/chats?${params.toString()}`,
+  );
+  return jsonOrThrow(res, "List chats");
+}
+
+// Promote a Chat to a public Thread (CONTEXT "Promotion"): the owning Viewer
+// picks which Comments become public (+ an optional summary). Flips the
+// Conversation to public in place and returns it as a Thread.
+export async function promote(
+  slug: string,
+  conversationId: string,
+  input: { commentIds: string[]; summary?: string; viewerId: string },
+): Promise<ConversationDTO> {
+  const res = await fetch(
+    `${API_BASE}/sites/${encodeURIComponent(slug)}/conversations/${conversationId}/promote`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  return jsonOrThrow(res, "Promote conversation");
+}
+
+// Mint a Viewer-scoped agent token (CONTEXT "Agent URL" — Viewer scope). One
+// token per Viewer; the server re-mints on each call. Possession of the viewerId
+// authorizes. Grants read + this Viewer's Chats + public commenting, no Owner
+// powers.
+export async function mintViewerAgentToken(
+  slug: string,
+  viewerId: string,
+): Promise<{ token: string; agentUrl: string }> {
+  const res = await fetch(
+    `${API_BASE}/sites/${encodeURIComponent(slug)}/viewers/${encodeURIComponent(viewerId)}/agent-token`,
+    { method: "POST" },
+  );
+  return jsonOrThrow(res, "Mint viewer agent token");
 }
 
 export async function addComment(
