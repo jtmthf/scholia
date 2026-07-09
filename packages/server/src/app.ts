@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { depsFromEnv, type AppDeps } from "./config.js";
+import { FixedWindowRateLimiter } from "./rate-limit.js";
 import { sitesRoutes } from "./routes/sites.js";
 import { contentRoutes } from "./routes/content.js";
 import { blobsRoutes } from "./routes/blobs.js";
@@ -14,15 +15,22 @@ import { agentDocsRoutes } from "./routes/agent-docs.js";
 // (`GET /content/sites/:slug`). Deps are injectable for tests; in production
 // they are resolved from the environment on first use.
 // Deps as a caller (test or embedder) may pass them: the content-origin fields
-// are optional and default to path-based serving on the app origin.
-export type InputDeps = Omit<AppDeps, "contentUrl" | "contentWildcard"> &
-  Partial<Pick<AppDeps, "contentUrl" | "contentWildcard">>;
+// are optional and default to path-based serving on the app origin; the M9
+// rate limiter + upload limits are optional too (a caller that omits them gets a
+// real limiter with default settings and no upload caps — infinite retention).
+export type InputDeps = Omit<
+  AppDeps,
+  "contentUrl" | "contentWildcard" | "rateLimiter" | "limits"
+> &
+  Partial<Pick<AppDeps, "contentUrl" | "contentWildcard" | "rateLimiter" | "limits">>;
 
 function withContentDefaults(deps: InputDeps): AppDeps {
   return {
     ...deps,
     contentUrl: deps.contentUrl ?? deps.publicUrl,
     contentWildcard: deps.contentWildcard ?? false,
+    rateLimiter: deps.rateLimiter ?? new FixedWindowRateLimiter(20, 60_000),
+    limits: deps.limits ?? {},
   };
 }
 

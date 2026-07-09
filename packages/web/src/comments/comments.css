@@ -578,6 +578,17 @@
   border-color: var(--agent-badge-bg);
 }
 
+/* Owner-only moderation delete (M9). */
+.thread-action-btn--delete {
+  color: #c0392b;
+  border-color: color-mix(in srgb, #c0392b 45%, var(--border));
+}
+.thread-action-btn--delete:hover {
+  color: #fff;
+  background: #c0392b;
+  border-color: #c0392b;
+}
+
 /* ── Floating selection actions (Comment + Ask) ────────────── */
 
 /* The container is fixed-positioned at the selection; the buttons inside flow

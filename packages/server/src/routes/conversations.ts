@@ -17,6 +17,7 @@ import {
   mintViewer,
   mintViewerToken,
   ownerDeleteComment,
+  ownerDeleteConversation,
   promoteConversation,
   setResolved,
   toggleReaction,
@@ -27,11 +28,64 @@ import {
   type SiteCommentDTO,
 } from "@collab/db";
 import type { AppDeps } from "../config.js";
-import { bearerOrQueryToken, resolveActor, type Actor } from "../auth.js";
+import { authorizeOwner, bearerOrQueryToken, resolveActor, type Actor } from "../auth.js";
 import { hashToken, mintToken } from "../tokens.js";
 
 // Fixed review-oriented reaction palette (CONTEXT "Reaction").
 const REACTION_PALETTE = new Set(["👍", "👎", "✅", "👀", "🎉", "❤️"]);
+
+// ---- M9: Site-state gate (CONTEXT "Site state") ----
+// The Site state posture gates *public* mutations; private Chats are the Viewer's
+// own workspace and are always allowed (any state). Public Threads:
+//   open      — everything allowed
+//   read_only — public commenting (new Threads + replies) disabled; reactions and
+//               resolve/reopen still allowed
+//   frozen    — all public-Thread mutations locked
+type StateAction = "comment" | "react" | "resolve";
+function stateAllows(
+  state: "open" | "read_only" | "frozen",
+  action: StateAction,
+  visibility: "public" | "private",
+): boolean {
+  if (visibility === "private") return true;
+  if (state === "open") return true;
+  if (state === "frozen") return false;
+  return action !== "comment"; // read_only: everything but new public comments
+}
+
+function stateError(state: "open" | "read_only" | "frozen"): string {
+  return state === "frozen"
+    ? "site is frozen: public Threads are locked"
+    : "site is read-only: public commenting is disabled";
+}
+
+// ---- M9: per-Viewer/IP rate limiting on comment creation ----
+// The client IP for anonymous callers (behind a proxy). Best-effort — the header
+// is spoofable, but this is an abuse speed-bump, not an auth boundary.
+function clientIp(c: Context): string {
+  const xff = c.req.header("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim() || "anon";
+  return c.req.header("x-real-ip") ?? "anon";
+}
+
+// A stable per-caller subject for the rate limiter: the viewer/agent identity when
+// known, else the client IP.
+function rateSubject(actor: Actor, humanViewerId: string | null, c: Context): string {
+  if (actor.tier === "viewer") return `v:${actor.viewerId}`;
+  if (actor.tier === "owner") return `o:${actor.identity.name}`;
+  return `h:${humanViewerId ?? clientIp(c)}`;
+}
+
+// Charge one comment-creation against the limiter; returns a 429 Response (with
+// Retry-After) when over the limit, else null. Applies regardless of Site state
+// (CONTEXT "Site state").
+function rateLimited(c: Context, deps: AppDeps, siteId: string, subject: string): Response | null {
+  const res = deps.rateLimiter.hit(`${siteId}:${subject}`);
+  if (res.ok) return null;
+  const retrySec = Math.max(1, Math.ceil((res.retryAfterMs ?? 0) / 1000));
+  c.header("Retry-After", String(retrySec));
+  return c.json({ error: "rate limit exceeded; slow down and retry shortly" }, 429);
+}
 
 // Build a viewer-authored (human) Identity from a display name.
 function viewerIdentity(displayName: string): Identity {
@@ -308,11 +362,14 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     const site = await getSiteBySlug(db, slug);
     if (!site) return c.json({ error: "not found" }, 404);
 
-    // Site state gate: only "open" sites allow new Conversations (CONTEXT "Site state").
-    if (site.state !== "open") return c.json({ error: "site is not open for comments" }, 403);
-
     const body = await c.req.json().catch(() => null);
     const visibility: "public" | "private" = body?.visibility === "private" ? "private" : "public";
+
+    // Site state gate (M9): public Threads honor the state posture; private Chats
+    // are always allowed (the Viewer's own workspace, CONTEXT "Site state").
+    if (!stateAllows(site.state, "comment", visibility)) {
+      return c.json({ error: stateError(site.state) }, 403);
+    }
 
     if (bearerOrQueryToken(c) !== null) {
       // ---- Token path: owner or Viewer-scoped agent ----
@@ -334,6 +391,9 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
       const storedAnchor = agentAnchor(body.anchor ?? null);
       const ownerViewerId =
         visibility === "private" && actor.tier === "viewer" ? actor.viewerId : null;
+
+      const limited = rateLimited(c, deps, site.id, rateSubject(actor, null, c));
+      if (limited) return limited;
 
       const agentMentions = parseMentions(body.body as string);
       const identity = actor.tier === "anonymous" ? viewerIdentity("Reviewer") : actor.identity;
@@ -407,6 +467,9 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
       };
     }
 
+    const limited = rateLimited(c, deps, site.id, `h:${body.viewerId as string}`);
+    if (limited) return limited;
+
     const author = viewerIdentity(body.displayName as string);
     const viewerMentions = parseMentions(body.body as string);
     const ownerViewerId = visibility === "private" ? (body.viewerId as string) : null;
@@ -443,8 +506,6 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     const site = await getSiteBySlug(db, slug);
     if (!site) return c.json({ error: "not found" }, 404);
 
-    if (site.state !== "open") return c.json({ error: "site is not open for comments" }, 403);
-
     const body = await c.req.json().catch(() => null);
 
     const auth = await resolveActor(c, deps, slug, body?.label ?? null);
@@ -457,6 +518,14 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     const humanViewerId = typeof body?.viewerId === "string" ? body.viewerId : null;
     const access = checkConversationAccess(meta, actor, humanViewerId);
     if (!access.allowed) return c.json({ error: access.error }, access.status);
+
+    // Site state gate (M9): replies to a public Thread honor the posture; Chat
+    // replies are always allowed. Then charge the rate limiter (CONTEXT "Site state").
+    if (!stateAllows(site.state, "comment", meta.visibility)) {
+      return c.json({ error: stateError(site.state) }, 403);
+    }
+    const limited = rateLimited(c, deps, site.id, rateSubject(actor, humanViewerId, c));
+    if (limited) return limited;
 
     const latestVersion = await getLatestVersionId(db, site.id);
     if (!latestVersion) return c.json({ error: "site has no versions" }, 400);
@@ -654,6 +723,27 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     return c.json(dto, 200);
   });
 
+  // DELETE /sites/:slug/conversations/:id — owner-delete an entire Conversation
+  // (CONTEXT "Owner": "delete any Comment/Conversation"). A destructive moderation
+  // power: the Owner may remove any Thread OR Chat (even one they can't read),
+  // distinct from the M8 content-access guard. Owner-token only (header), never a
+  // viewer token. Cascades the Conversation's comments/reactions/mentions.
+  app.delete("/sites/:slug/conversations/:id", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const conversationId = c.req.param("id");
+
+    const auth = await authorizeOwner(c, deps, slug);
+    if (!auth.ok) return c.json({ error: auth.error }, auth.status);
+
+    const deleted = await ownerDeleteConversation(deps.db, {
+      conversationId,
+      siteId: auth.site.id,
+    });
+    if (!deleted) return c.json({ error: "not found" }, 404);
+    return new Response(null, { status: 204 });
+  });
+
   // POST /sites/:slug/comments/:id/reactions — toggle a reaction.
   // Token callers (owner or viewer agent) toggle keyed by (commentId, emoji,
   // author.name); humans toggle keyed by viewerId. Private Chats enforce the guard.
@@ -685,6 +775,11 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     const humanViewerId = typeof body.viewerId === "string" ? body.viewerId : null;
     const access = checkConversationAccess(meta, actor, humanViewerId);
     if (!access.allowed) return c.json({ error: access.error }, access.status);
+
+    // Site state gate (M9): reactions on a public Thread are blocked when frozen.
+    if (!stateAllows(site.state, "react", meta.visibility)) {
+      return c.json({ error: stateError(site.state) }, 403);
+    }
 
     if (actor.tier !== "anonymous") {
       // ---- Agent reaction: toggle keyed by (commentId, emoji, author.name) ----
@@ -764,6 +859,11 @@ async function resolveHandler(c: Context, getDeps: () => AppDeps, resolved: bool
   const humanViewerId = typeof body?.viewerId === "string" ? body.viewerId : null;
   const access = checkConversationAccess(meta, actor, humanViewerId);
   if (!access.allowed) return c.json({ error: access.error }, access.status);
+
+  // Site state gate (M9): resolve/reopen on a public Thread is locked when frozen.
+  if (!stateAllows(site.state, "resolve", meta.visibility)) {
+    return c.json({ error: stateError(site.state) }, 403);
+  }
 
   let resolvedBy: string;
   let viewerId: string | null;

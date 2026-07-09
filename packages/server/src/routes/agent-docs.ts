@@ -156,6 +156,33 @@ Tombstone a comment. Agents (owner tier) can delete any comment on the site.
 REST: DELETE /sites/{slug}/comments/{id}
 \`\`\`
 
+### delete_conversation
+Delete an entire Thread or Chat — owner-tier moderation for abusive content. Owner
+token only. This is destructive; **always confirm** before calling it.
+
+\`\`\`json
+{ "tool": "delete_conversation", "input": { "conversationId": "uuid" } }
+\`\`\`
+\`\`\`
+REST: DELETE /sites/{slug}/conversations/{id}   (owner token, header only)
+\`\`\`
+
+### set_state
+Set the Site's moderation posture: \`open\` (read + public comment), \`read_only\`
+(commenting disabled), or \`frozen\` (public Threads locked). Owner token only.
+
+\`\`\`json
+{ "tool": "set_state", "input": { "state": "frozen" } }
+\`\`\`
+\`\`\`
+REST: PATCH /sites/{slug}/state   (owner token, header only)
+Body: { state: "open" | "read_only" | "frozen" }
+\`\`\`
+
+Rotating the Share URL / owner token and deleting the whole Site are **human-only**
+ops actions (CLI \`collab rotate-share|rotate-token|delete-site\` or the web owner
+panel) — deliberately not agent verbs.
+
 ### list_versions
 List all versions of the site, newest first.
 
@@ -193,7 +220,7 @@ REST: POST /sites/{slug}/versions   (re-upload to existing site)
 | list_comments, list_versions, diff, GET /conversations | No | public read |
 | comment, reply, resolve, reopen, react | Yes | owner or viewer |
 | list_chats, chat | Yes | viewer only |
-| delete, upload | Yes | owner only |
+| delete, delete_conversation, set_state, upload | Yes | owner only |
 
 Present the token as \`Authorization: Bearer <token>\` or \`?token=<token>\` query param.
 The server resolves your tier from the token — viewer-tier verbs return \`403\` for an
@@ -343,6 +370,14 @@ const AGENT_DOCS_HTML = `<!DOCTYPE html>
   <p>Tombstone a comment. Agents (owner tier) can delete any comment on the site.</p>
   <pre>{ "label": "review-bot" }   (body optional)</pre>
 
+  <h3>delete_conversation <code>DELETE /sites/:slug/conversations/:id</code></h3>
+  <p><strong>Owner token only.</strong> Delete an entire Thread or Chat (moderation for abusive
+  content). Destructive &mdash; always confirm first.</p>
+
+  <h3>set_state <code>PATCH /sites/:slug/state</code></h3>
+  <p><strong>Owner token only.</strong> Set the moderation posture.</p>
+  <pre>{ "state": "open" | "read_only" | "frozen" }</pre>
+
   <h3>list_versions <code>GET /sites/:slug/versions</code></h3>
   <p>All versions, newest first. No token required.</p>
 
@@ -358,8 +393,17 @@ const AGENT_DOCS_HTML = `<!DOCTYPE html>
   ("Owner's agent" matches <code>@owners-agent</code>).</p>
 
   <h2>Site State Gate</h2>
-  <p>Create / reply verbs return <code>403</code> when the site is not in <code>open</code> state.
-  Owner state management (open/read-only/freeze) arrives in M9.</p>
+  <p>A Site's owner-set state posture gates <em>public</em> mutations (private Chats are always
+  allowed):</p>
+  <ul>
+    <li><code>open</code> — read + public comment (default).</li>
+    <li><code>read_only</code> — new public Threads and replies return <code>403</code>; reactions and
+    resolve/reopen still work.</li>
+    <li><code>frozen</code> — all public-Thread mutations (comment, react, resolve) return <code>403</code>.</li>
+  </ul>
+  <p>Owners set the state with <code>set_state</code> (owner token). Independently, comment creation is
+  rate-limited per Viewer/IP and returns <code>429</code> with a <code>Retry-After</code> header when exceeded,
+  regardless of state.</p>
 </div>
 </body>
 </html>`;

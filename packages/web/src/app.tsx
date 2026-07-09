@@ -18,8 +18,9 @@ import {
   type ViewerSummary,
 } from "./api";
 import { ensureViewer, getViewer, setDisplayName } from "./viewer";
-import { getOwnerToken, setOwnerToken } from "./owner";
+import { getOwnerToken, setOwnerToken, clearOwnerToken } from "./owner";
 import { AgentPanel } from "./agent/AgentPanel";
+import { OwnerPanel } from "./owner/OwnerPanel";
 import { ViewerAgentPanel } from "./agent/ViewerAgentPanel";
 import { Rail } from "./comments/Rail";
 import { Composer } from "./comments/Composer";
@@ -97,6 +98,7 @@ export function App() {
   const [summary, setSummary] = useState<ViewerSummary | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [showAgentPanel, setShowAgentPanel] = useState(false);
+  const [showOwnerPanel, setShowOwnerPanel] = useState(false);
   const [showViewerAgentPanel, setShowViewerAgentPanel] = useState(false);
 
   // Detect ?token= in the Agent URL (ADR-0005), persist to localStorage, and
@@ -190,13 +192,27 @@ export function App() {
           {readOnly ? ` of ${meta.latestVersion}` : ""}
         </span>
         {siteOwnerToken && (
-          <button
-            class="agent-prompt-btn"
-            onClick={() => setShowAgentPanel((v) => !v)}
-            title="Copy agent prompt (owner only)"
-          >
-            Agent
-          </button>
+          <>
+            <button
+              class="agent-prompt-btn"
+              onClick={() => setShowAgentPanel((v) => !v)}
+              title="Copy agent prompt (owner only)"
+            >
+              Agent
+            </button>
+            <button
+              class="agent-prompt-btn"
+              onClick={() => setShowOwnerPanel((v) => !v)}
+              title="Manage Site (owner only)"
+            >
+              Manage
+            </button>
+          </>
+        )}
+        {siteOwnerToken && meta.state !== "open" && (
+          <span class={`site-state-badge site-state-badge--${meta.state}`}>
+            {meta.state === "frozen" ? "Frozen" : "Read-only"}
+          </span>
         )}
       </header>
       {showAgentPanel && siteOwnerToken && (
@@ -204,6 +220,33 @@ export function App() {
           slug={meta.slug}
           token={siteOwnerToken}
           onClose={() => setShowAgentPanel(false)}
+        />
+      )}
+      {showOwnerPanel && siteOwnerToken && (
+        <OwnerPanel
+          slug={meta.slug}
+          token={siteOwnerToken}
+          state={meta.state}
+          onClose={() => setShowOwnerPanel(false)}
+          onStateChanged={(state) => setSiteState({ status: "ready", meta: { ...meta, state } })}
+          onShareRotated={(newSlug) => {
+            // Re-key the owner token under the new slug and navigate to it.
+            setOwnerToken(newSlug, siteOwnerToken);
+            clearOwnerToken(meta.slug);
+            setShowOwnerPanel(false);
+            history.pushState(null, "", `/s/${encodeURIComponent(newSlug)}`);
+            setRoute({ slug: newSlug, pagePath: null, version: null });
+          }}
+          onTokenRotated={(newToken) => {
+            setOwnerToken(meta.slug, newToken);
+            setSiteOwnerToken(newToken);
+          }}
+          onDeleted={() => {
+            clearOwnerToken(meta.slug);
+            setShowOwnerPanel(false);
+            setSiteState({ status: "missing" });
+            history.pushState(null, "", "/");
+          }}
         />
       )}
       {showViewerAgentPanel && (
@@ -262,6 +305,7 @@ export function App() {
           currentPath={currentPath}
           pageTitle={pageTitle}
           readOnly={readOnly}
+          ownerToken={siteOwnerToken}
           onBringAgent={() => setShowViewerAgentPanel(true)}
         />
       </div>
@@ -304,12 +348,14 @@ function PageView({
   currentPath,
   pageTitle,
   readOnly,
+  ownerToken,
   onBringAgent,
 }: {
   meta: SiteMeta;
   currentPath: string;
   pageTitle: string;
   readOnly: boolean;
+  ownerToken: string | null;
   onBringAgent: () => void;
 }) {
   const slug = meta.slug;
@@ -476,6 +522,7 @@ function PageView({
         }}
         onNewPageComment={() => setComposer({ anchor: null, mode: "thread" })}
         onBringAgent={onBringAgent}
+        ownerToken={ownerToken}
       />
 
       {selection && floatingPos && !composer && (

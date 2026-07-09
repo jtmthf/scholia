@@ -201,6 +201,21 @@ Owner delete (any content); Share URL rotation; token rotation/revoke; Site stat
 (read-only / frozen); per-Viewer/IP rate limiting; operator retention/quota knobs
 (all default-unset, infinite retention).
 
+> **Scope (as built):** owner delete covers **Site** (`DELETE /sites/:slug`, cascades
+> all metadata; content-addressed blobs are left in the store) and **Conversation**
+> (`DELETE /sites/:slug/conversations/:id`, a moderation power over any Thread or Chat).
+> **Version delete is deferred** — it collides with the immutable-Version design and the
+> comment→version bindings, so keep-last-N pruning is out of scope too. Site state gates
+> *public* mutations only (Chats are the Viewer's own workspace): `read_only` disables new
+> public comments while allowing reactions/resolve; `frozen` locks all public-Thread
+> mutations. Retention is **upload-time caps only** (`COLLAB_MAX_FILE_BYTES` /
+> `MAX_SITE_BYTES` / `MAX_FILE_COUNT`, all default-unset → infinite retention); background
+> inactivity-TTL and keep-last-N GC are deferred. Rate limiting is an in-memory fixed
+> window (default 20 comment-creates/60s per Viewer/IP), on by default and injectable
+> (`COLLAB_RATELIMIT_*`). Owner ops verbs available to agents (owner tier) are limited to
+> `set_state` + `delete_conversation`; rotate-share/rotate-token/delete-site are
+> human-only (CLI + web owner panel), by design.
+
 ### M10 — GitHub mirror (PR-backed Sites) (ADR-0008, ADR-0009)
 Depends on M8 (visibility gates the backend). Operator-level opt-in; the end-user
 "no config" promise is untouched.

@@ -27,9 +27,30 @@ export function blobsRoutes(getDeps: () => AppDeps) {
     const hash = c.req.param("hash");
     if (!isValidHash(hash)) return c.json({ error: "invalid hash" }, 400);
 
-    const { store } = getDeps();
+    const { store, limits } = getDeps();
+
+    // Operator per-file size cap (M9, default-unset). Reject oversize blobs at the
+    // door so they never enter the store; POST /sites also re-checks the total.
+    if (limits.maxFileBytes !== undefined) {
+      const declared = Number(c.req.header("content-length"));
+      if (Number.isFinite(declared) && declared > limits.maxFileBytes) {
+        return c.json(
+          { error: `file too large: ${declared} bytes exceeds the limit of ${limits.maxFileBytes} bytes` },
+          413,
+        );
+      }
+    }
+
     const existed = await store.has(hash);
     const bytes = new Uint8Array(await c.req.arrayBuffer());
+
+    if (limits.maxFileBytes !== undefined && bytes.length > limits.maxFileBytes) {
+      return c.json(
+        { error: `file too large: ${bytes.length} bytes exceeds the limit of ${limits.maxFileBytes} bytes` },
+        413,
+      );
+    }
+
     const actual = hashBytes(bytes);
     if (actual !== hash) {
       return c.json({ error: "hash mismatch", expected: hash, got: actual }, 400);

@@ -48,4 +48,13 @@ export class FsBlobStore implements BlobStore {
       return false;
     }
   }
+
+  async size(hash: string): Promise<number | null> {
+    if (!isValidHash(hash)) return null;
+    try {
+      return (await stat(this.pathFor(hash))).size;
+    } catch {
+      return null;
+    }
+  }
 }

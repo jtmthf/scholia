@@ -409,6 +409,77 @@ export async function setResolved(
   return jsonOrThrow(res, "Resolve conversation");
 }
 
+// ----------------------------------------------------------------------------
+// M9 — Moderation & ops (owner-authed). These carry the owner token as a Bearer
+// credential (never `?token=`), matching the server's owner-only management gate.
+// ----------------------------------------------------------------------------
+
+export type SiteState = "open" | "read_only" | "frozen";
+
+function ownerHeaders(token: string): Record<string, string> {
+  return { authorization: `Bearer ${token}` };
+}
+
+// PATCH /sites/:slug/state — set the moderation posture.
+export async function setSiteState(
+  slug: string,
+  token: string,
+  state: SiteState,
+): Promise<{ slug: string; state: SiteState }> {
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/state`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", ...ownerHeaders(token) },
+    body: JSON.stringify({ state }),
+  });
+  return jsonOrThrow(res, "Set site state");
+}
+
+// POST /sites/:slug/rotate-share — mint a fresh Share URL slug.
+export async function rotateShare(
+  slug: string,
+  token: string,
+): Promise<{ slug: string; shareUrl: string }> {
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/rotate-share`, {
+    method: "POST",
+    headers: { ...ownerHeaders(token) },
+  });
+  return jsonOrThrow(res, "Rotate share URL");
+}
+
+// POST /sites/:slug/rotate-token — mint a fresh owner token (revokes the old one).
+export async function rotateOwnerToken(
+  slug: string,
+  token: string,
+): Promise<{ token: string; agentUrl: string }> {
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/rotate-token`, {
+    method: "POST",
+    headers: { ...ownerHeaders(token) },
+  });
+  return jsonOrThrow(res, "Rotate owner token");
+}
+
+// DELETE /sites/:slug — owner-delete the whole Site.
+export async function deleteSite(slug: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}`, {
+    method: "DELETE",
+    headers: { ...ownerHeaders(token) },
+  });
+  if (!res.ok) throw new Error(`Delete site failed (${res.status}).`);
+}
+
+// DELETE /sites/:slug/conversations/:id — owner-delete a Thread or Chat (moderation).
+export async function ownerDeleteConversation(
+  slug: string,
+  token: string,
+  conversationId: string,
+): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/sites/${encodeURIComponent(slug)}/conversations/${conversationId}`,
+    { method: "DELETE", headers: { ...ownerHeaders(token) } },
+  );
+  if (!res.ok) throw new Error(`Delete conversation failed (${res.status}).`);
+}
+
 // Toggle a reaction (add if absent, remove if the Viewer already reacted).
 export async function toggleReaction(
   slug: string,

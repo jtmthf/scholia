@@ -3,15 +3,27 @@ import { buildNav, pickEntryPath } from "@collab/core";
 import {
   addVersionWithManifest,
   createSiteWithVersion,
+  deleteSite,
   getLatestManifest,
   getManifestByOrdinal,
+  listTokens,
+  revokeToken,
+  rotateOwnerToken,
+  rotateSlug,
+  setSiteState,
   type Provenance,
 } from "@collab/db";
 import type { AppDeps } from "../config.js";
 import { contentBaseFor } from "../content-origin.js";
 import { hashToken, mintToken, randomSlug } from "../tokens.js";
 import { authorizeOwner } from "../auth.js";
-import { buildManifestPages, isFileEntry, missingBlobs, type FileEntry } from "../manifest.js";
+import {
+  buildManifestPages,
+  checkUploadLimits,
+  isFileEntry,
+  missingBlobs,
+  type FileEntry,
+} from "../manifest.js";
 import { migrateConversationsToLatest } from "../migration.js";
 
 interface SiteBody {
@@ -51,12 +63,16 @@ export function sitesRoutes(getDeps: () => AppDeps) {
       );
     }
 
-    const { db, store, viewerUrl } = getDeps();
+    const { db, store, viewerUrl, limits } = getDeps();
 
     const missing = await missingBlobs(store, body.files);
     if (missing.length > 0) {
       return c.json({ error: "blobs missing; upload them first", missing }, 409);
     }
+
+    // Operator upload caps (M9) — all default-unset (infinite retention).
+    const violation = await checkUploadLimits(store, body.files, limits);
+    if (violation) return c.json({ error: violation.error }, 413);
 
     const pages = await buildManifestPages(store, body.files);
 
@@ -96,6 +112,9 @@ export function sitesRoutes(getDeps: () => AppDeps) {
     if (missing.length > 0) {
       return c.json({ error: "blobs missing; upload them first", missing }, 409);
     }
+
+    const violation = await checkUploadLimits(deps.store, body.files, deps.limits);
+    if (violation) return c.json({ error: violation.error }, 413);
 
     const pages = await buildManifestPages(deps.store, body.files);
     const { ordinal } = await addVersionWithManifest(deps.db, {
@@ -159,6 +178,102 @@ export function sitesRoutes(getDeps: () => AppDeps) {
       nav: buildNav(pages),
       pages: pages.map((p) => ({ path: p.path, kind: p.kind, title: p.title ?? p.path })),
     });
+  });
+
+  // ---- M9: Owner moderation & ops (CONTEXT "Owner"/"Site state") ----
+  // Every route below is owner-authed via the header owner token (never `?token=`
+  // — these are management actions, distinct from the read/agent surface).
+
+  const VALID_STATES = new Set(["open", "read_only", "frozen"]);
+
+  // PATCH /sites/:slug/state — set the Site state (CONTEXT "Site state").
+  app.patch("/sites/:slug/state", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const auth = await authorizeOwner(c, deps, slug);
+    if (!auth.ok) return c.json({ error: auth.error }, auth.status);
+
+    const body = (await c.req.json().catch(() => null)) as { state?: unknown } | null;
+    const state = body?.state;
+    if (typeof state !== "string" || !VALID_STATES.has(state)) {
+      return c.json({ error: "expected JSON { state: 'open' | 'read_only' | 'frozen' }" }, 400);
+    }
+
+    await setSiteState(deps.db, auth.site.id, state as "open" | "read_only" | "frozen");
+    return c.json({ slug, state }, 200);
+  });
+
+  // DELETE /sites/:slug — owner-delete the entire Site (cascades all metadata).
+  app.delete("/sites/:slug", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const auth = await authorizeOwner(c, deps, slug);
+    if (!auth.ok) return c.json({ error: auth.error }, auth.status);
+
+    await deleteSite(deps.db, auth.site.id);
+    return new Response(null, { status: 204 });
+  });
+
+  // POST /sites/:slug/rotate-share — mint a fresh Share URL slug (kills a leaked
+  // link). Returns the new slug + Share URL; the owner token is unchanged.
+  app.post("/sites/:slug/rotate-share", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const auth = await authorizeOwner(c, deps, slug);
+    if (!auth.ok) return c.json({ error: auth.error }, auth.status);
+
+    const newSlug = randomSlug();
+    await rotateSlug(deps.db, { siteId: auth.site.id, newSlug });
+    return c.json({ slug: newSlug, shareUrl: `${deps.viewerUrl}/s/${newSlug}` }, 200);
+  });
+
+  // POST /sites/:slug/rotate-token — mint a fresh owner token and revoke all prior
+  // owner tokens (rotation = new token, revoke old; invalidates leaked Agent URLs).
+  // The presenting token authorized this request before it was revoked.
+  app.post("/sites/:slug/rotate-token", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const auth = await authorizeOwner(c, deps, slug);
+    if (!auth.ok) return c.json({ error: auth.error }, auth.status);
+
+    const token = mintToken();
+    await rotateOwnerToken(deps.db, { siteId: auth.site.id, newTokenHash: hashToken(token) });
+    return c.json({ token, agentUrl: `${deps.viewerUrl}/s/${slug}?token=${token}` }, 200);
+  });
+
+  // GET /sites/:slug/tokens — list this Site's tokens (metadata only, never the
+  // secret) so the owner can pick one to revoke.
+  app.get("/sites/:slug/tokens", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const auth = await authorizeOwner(c, deps, slug);
+    if (!auth.ok) return c.json({ error: auth.error }, auth.status);
+
+    const tokens = await listTokens(deps.db, auth.site.id);
+    return c.json({ tokens }, 200);
+  });
+
+  // DELETE /sites/:slug/tokens/:id — revoke a single token (e.g. a leaked viewer
+  // token). Refuses to revoke the last live owner token (would lock the owner out
+  // — use rotate-token to replace it).
+  app.delete("/sites/:slug/tokens/:id", async (c) => {
+    const deps = getDeps();
+    const slug = c.req.param("slug");
+    const auth = await authorizeOwner(c, deps, slug);
+    if (!auth.ok) return c.json({ error: auth.error }, auth.status);
+
+    const result = await revokeToken(deps.db, {
+      tokenId: c.req.param("id"),
+      siteId: auth.site.id,
+    });
+    if (!result.ok) {
+      if (result.reason === "not_found") return c.json({ error: "not found" }, 404);
+      return c.json(
+        { error: "cannot revoke the last owner token — rotate it instead" },
+        409,
+      );
+    }
+    return new Response(null, { status: 204 });
   });
 
   return app;

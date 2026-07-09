@@ -23,4 +23,7 @@ export interface BlobStore {
   get(hash: string): Promise<Uint8Array | null>;
   /** Whether a blob with this hash is present. */
   has(hash: string): Promise<boolean>;
+  /** Byte length of a stored blob, or null if absent. Cheap metadata lookup
+   * (no full read) so the server can enforce size caps without downloading. */
+  size(hash: string): Promise<number | null>;
 }

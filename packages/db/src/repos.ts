@@ -360,6 +360,163 @@ export async function resolveViewerToken(
   return row ?? null;
 }
 
+// ---- M9: Moderation & ops (PLAN §5, CONTEXT "Owner"/"Site state"/"API Token") ----
+
+// Set a Site's state (open | read_only | frozen). Owner-only management action
+// (CONTEXT "Site state"); the comment-creation gate reads this.
+export async function setSiteState(
+  db: Db,
+  siteId: string,
+  state: "open" | "read_only" | "frozen",
+): Promise<void> {
+  await db.update(sites).set({ state }).where(eq(sites.id, siteId));
+}
+
+// Owner-delete an entire Site (CONTEXT "Owner"). Cascades to tokens, versions,
+// manifest entries, viewers, conversations, comments, reactions, mentions via the
+// schema's onDelete: "cascade" FKs. Content-addressed blobs are immutable and may
+// be shared across Sites, so they are intentionally left in the store (blob GC is
+// out of scope). Returns false when no such Site exists.
+export async function deleteSite(db: Db, siteId: string): Promise<boolean> {
+  const result = await db.delete(sites).where(eq(sites.id, siteId)).returning({ id: sites.id });
+  return result.length > 0;
+}
+
+// Owner-delete an entire Conversation — a Thread or a Chat (CONTEXT "Owner":
+// "delete any Comment/Conversation"). This is a destructive moderation power and
+// is distinct from the M8 content-access guard (an Owner cannot read a Chat but
+// may remove an abusive one). Cascades its comments/mentions/reactions. Verifies
+// the Conversation belongs to the Site. Returns false when it does not exist.
+export async function ownerDeleteConversation(
+  db: Db,
+  input: { conversationId: string; siteId: string },
+): Promise<boolean> {
+  const result = await db
+    .delete(conversations)
+    .where(
+      and(
+        eq(conversations.id, input.conversationId),
+        eq(conversations.siteId, input.siteId),
+      ),
+    )
+    .returning({ id: conversations.id });
+  return result.length > 0;
+}
+
+// Rotate a Site's Share URL slug (CONTEXT "Owner"/"Share URL"): mint a fresh slug
+// so a leaked link 404s. The owner token is unchanged. Caller mints the new slug.
+export async function rotateSlug(
+  db: Db,
+  input: { siteId: string; newSlug: string },
+): Promise<void> {
+  await db.update(sites).set({ slug: input.newSlug }).where(eq(sites.id, input.siteId));
+}
+
+// Rotate the owner API Token / Agent URL (CONTEXT "Owner", PLAN §4: "rotation =
+// new token, revoke old"): insert a fresh owner-kind token and revoke every prior
+// live owner token, atomically. The Agent URL embeds the owner token, so this
+// invalidates leaked Agent URLs too. Caller mints + hashes the new token.
+export async function rotateOwnerToken(
+  db: Db,
+  input: { siteId: string; newTokenHash: string; label?: string | null },
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(siteTokens)
+      .set({ revokedAt: sql`now()` })
+      .where(
+        and(
+          eq(siteTokens.siteId, input.siteId),
+          eq(siteTokens.kind, "owner"),
+          isNull(siteTokens.revokedAt),
+        ),
+      );
+    await tx.insert(siteTokens).values({
+      siteId: input.siteId,
+      kind: "owner",
+      label: input.label ?? null,
+      tokenHash: input.newTokenHash,
+    });
+  });
+}
+
+export interface TokenSummary {
+  id: string;
+  kind: "owner" | "viewer";
+  label: string | null;
+  viewerId: string | null;
+  createdAt: string;
+  revoked: boolean;
+}
+
+// List a Site's capability tokens for owner management (revoke UI). Never returns
+// the token secret (only its hash is stored) — just the metadata needed to pick
+// one to revoke. Newest first.
+export async function listTokens(db: Db, siteId: string): Promise<TokenSummary[]> {
+  const rows = await db
+    .select({
+      id: siteTokens.id,
+      kind: siteTokens.kind,
+      label: siteTokens.label,
+      viewerId: siteTokens.viewerId,
+      createdAt: siteTokens.createdAt,
+      revokedAt: siteTokens.revokedAt,
+    })
+    .from(siteTokens)
+    .where(eq(siteTokens.siteId, siteId))
+    .orderBy(desc(siteTokens.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    label: r.label,
+    viewerId: r.viewerId,
+    createdAt: r.createdAt.toISOString(),
+    revoked: r.revokedAt !== null,
+  }));
+}
+
+export type RevokeTokenResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" | "last_owner" };
+
+// Revoke a single token by id (CONTEXT "Owner": rotate/revoke a leaked capability).
+// Refuses to revoke the last live owner token — that would lock the Owner out of
+// their own Site (use rotateOwnerToken to replace it instead). Idempotent-ish: a
+// token that is already revoked still reports ok.
+export async function revokeToken(
+  db: Db,
+  input: { tokenId: string; siteId: string },
+): Promise<RevokeTokenResult> {
+  return db.transaction(async (tx) => {
+    const [tok] = await tx
+      .select({ id: siteTokens.id, kind: siteTokens.kind, revokedAt: siteTokens.revokedAt })
+      .from(siteTokens)
+      .where(and(eq(siteTokens.id, input.tokenId), eq(siteTokens.siteId, input.siteId)))
+      .limit(1);
+    if (!tok) return { ok: false, reason: "not_found" as const };
+
+    if (tok.kind === "owner" && tok.revokedAt === null) {
+      const live = await tx
+        .select({ id: siteTokens.id })
+        .from(siteTokens)
+        .where(
+          and(
+            eq(siteTokens.siteId, input.siteId),
+            eq(siteTokens.kind, "owner"),
+            isNull(siteTokens.revokedAt),
+          ),
+        );
+      if (live.length <= 1) return { ok: false, reason: "last_owner" as const };
+    }
+
+    await tx
+      .update(siteTokens)
+      .set({ revokedAt: sql`now()` })
+      .where(and(eq(siteTokens.id, input.tokenId), isNull(siteTokens.revokedAt)));
+    return { ok: true as const };
+  });
+}
+
 export interface AddVersionInput {
   siteId: string;
   contentSource: ContentSource;

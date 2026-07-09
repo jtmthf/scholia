@@ -327,6 +327,45 @@ function buildServer(config: ResolvedConfig): McpServer {
     },
   );
 
+  // ---- delete_conversation (M9) ------------------------------------------------
+  server.registerTool(
+    "delete_conversation",
+    {
+      description:
+        "Delete an entire conversation (a Thread or Chat) — owner-level moderation for abusive " +
+        "content. Destructive and irreversible; confirm with the user before calling.",
+      inputSchema: {
+        conversationId: z.string().describe("ID of the conversation to delete"),
+      },
+    },
+    async ({ conversationId }) => {
+      await client.deleteConversation(conversationId);
+      return {
+        content: [
+          { type: "text" as const, text: JSON.stringify({ deleted: true, conversationId }) },
+        ],
+      };
+    },
+  );
+
+  // ---- set_state (M9) ----------------------------------------------------------
+  server.registerTool(
+    "set_state",
+    {
+      description:
+        "Set the site's moderation posture (owner-level). 'open' allows public commenting, " +
+        "'read_only' disables new public comments, 'frozen' locks all public threads. Private " +
+        "Chats are unaffected. Confirm with the user before changing state.",
+      inputSchema: {
+        state: z.enum(["open", "read_only", "frozen"]).describe("New site state"),
+      },
+    },
+    async ({ state }) => {
+      const result = await client.setState(state);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
   return server;
 }
 

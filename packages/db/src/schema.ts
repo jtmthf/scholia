@@ -91,6 +91,7 @@ export const siteTokens = pgTable("site_tokens", {
   kind: tokenKind("kind").notNull(),
   label: text("label"),
   tokenHash: text("token_hash").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   // Viewer-scoped agent tokens (M8, ADR-0006 tier 2) bind to the Viewer they
   // authorize. Null for owner-kind tokens.

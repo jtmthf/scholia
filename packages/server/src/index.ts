@@ -1,7 +1,14 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 
-export { createApp, type App } from "./app.js";
+export { createApp, type App, type InputDeps } from "./app.js";
+export { type AppDeps, type UploadLimits } from "./config.js";
+export {
+  FixedWindowRateLimiter,
+  NoopRateLimiter,
+  type RateLimiter,
+  type RateLimitResult,
+} from "./rate-limit.js";
 
 // Boot only when run directly (not when imported, e.g. by tests).
 if (import.meta.url === `file://${process.argv[1]}`) {

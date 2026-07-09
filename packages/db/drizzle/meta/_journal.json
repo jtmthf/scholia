@@ -22,6 +22,13 @@
       "when": 1783473299261,
       "tag": "0002_brief_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783639535962,
+      "tag": "0003_fat_hex",
+      "breakpoints": true
     }
   ]
 }

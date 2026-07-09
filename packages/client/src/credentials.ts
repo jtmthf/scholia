@@ -24,11 +24,24 @@ export async function loadCredentials(): Promise<CredentialStore> {
   }
 }
 
-export async function saveCredential(cred: SiteCredential): Promise<void> {
+async function writeStore(store: CredentialStore): Promise<void> {
   await mkdir(DIR, { recursive: true, mode: 0o700 });
+  await writeFile(FILE, JSON.stringify(store, null, 2) + "\n", { mode: 0o600 });
+}
+
+export async function saveCredential(cred: SiteCredential): Promise<void> {
   const store = await loadCredentials();
   store[cred.slug] = cred;
-  await writeFile(FILE, JSON.stringify(store, null, 2) + "\n", { mode: 0o600 });
+  await writeStore(store);
+}
+
+// Remove a stored credential by slug (after `collab delete-site`, or the old slug
+// after `collab rotate-share`). No-op when absent.
+export async function removeCredential(slug: string): Promise<void> {
+  const store = await loadCredentials();
+  if (!(slug in store)) return;
+  delete store[slug];
+  await writeStore(store);
 }
 
 export const credentialsPath = FILE;

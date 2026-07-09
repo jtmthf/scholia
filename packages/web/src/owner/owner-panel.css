@@ -1,0 +1,127 @@
+/* M9 owner moderation & ops panel. Reuses the .agent-panel backdrop/shell
+   (agent.css); these rules cover the state selector, action rows, and danger
+   zone. Variables come from styles.css (--border, --fg, --muted, --bg). */
+
+.owner-panel {
+  max-width: 460px;
+}
+
+.owner-section {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.owner-section:first-of-type {
+  border-top: none;
+}
+
+.owner-section-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.owner-state-options {
+  display: flex;
+  gap: 8px;
+}
+.owner-state-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+}
+.owner-state-btn:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+.owner-state-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.owner-state-btn--active {
+  border-color: var(--floating-btn-bg);
+  background: color-mix(in srgb, var(--floating-btn-bg) 12%, transparent);
+}
+.owner-state-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.owner-state-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.owner-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+.owner-action-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.owner-action-copy strong {
+  font-size: 13px;
+}
+.owner-action-copy span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.owner-confirm {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-danger {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #a93226;
+}
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.owner-section--danger .owner-section-title {
+  color: #c0392b;
+}
+
+.owner-panel-error {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #c0392b 12%, transparent);
+  color: #c0392b;
+  font-size: 12px;
+}
+
+.owner-panel-notice {
+  margin: 2px 0 6px;
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+}

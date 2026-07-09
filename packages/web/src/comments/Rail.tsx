@@ -15,6 +15,8 @@ interface RailProps {
   onNewPageComment: () => void;
   /** Open the "Bring your agent" panel (Viewer-scoped agent token). */
   onBringAgent: () => void;
+  /** Owner token — enables the owner-only per-thread delete affordance (M9). */
+  ownerToken?: string | null;
 }
 
 // The right-hand comment rail: the Viewer's private Chats first, then anchored
@@ -33,6 +35,7 @@ export function Rail({
   onActivateThread,
   onNewPageComment,
   onBringAgent,
+  ownerToken = null,
 }: RailProps) {
   // Outdated Threads (anchor no longer matches the Latest Version, CONTEXT
   // "Outdated") are pulled out of the live sections into their own collapsed rail,
@@ -55,6 +58,7 @@ export function Rail({
       onNeedViewer={onNeedViewer}
       onChanged={onChanged}
       onActivate={() => onActivateThread(c.id)}
+      ownerToken={ownerToken}
     />
   );
 
@@ -71,6 +75,7 @@ export function Rail({
       onActivate={() => onActivateThread(c.id)}
       isPrivate
       promotable
+      ownerToken={ownerToken}
     />
   );
 

@@ -2,6 +2,7 @@ export { collectFiles, type CollectedFile } from "./collect.js";
 export {
   loadCredentials,
   saveCredential,
+  removeCredential,
   credentialsPath,
   type SiteCredential,
   type CredentialStore,
@@ -27,4 +28,6 @@ export {
   type ResolveOptions,
   type DeleteCommentOptions,
   type DiffOptions,
+  type SiteState,
+  type TokenSummary,
 } from "./client.js";

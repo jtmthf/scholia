@@ -123,6 +123,19 @@ export interface DiffOptions {
   path?: string;
 }
 
+// ---- M9: Moderation & ops ----
+
+export type SiteState = "open" | "read_only" | "frozen";
+
+export interface TokenSummary {
+  id: string;
+  kind: "owner" | "viewer";
+  label: string | null;
+  viewerId: string | null;
+  createdAt: string;
+  revoked: boolean;
+}
+
 export class CollabClient {
   private server: string;
   private token: string | undefined;
@@ -416,6 +429,94 @@ export class CollabClient {
     if (!res.ok)
       throw new Error(`GET /sites/${slug}/diff failed (${res.status}): ${await res.text()}`);
     return res.json();
+  }
+
+  // ---- M9: Moderation & ops (owner-authed) ----
+
+  // PATCH /sites/:slug/state — set the Site moderation posture.
+  async setState(state: SiteState): Promise<{ slug: string; state: SiteState }> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/state`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ state }),
+    });
+    if (!res.ok)
+      throw new Error(`PATCH /sites/${slug}/state failed (${res.status}): ${await res.text()}`);
+    return (await res.json()) as { slug: string; state: SiteState };
+  }
+
+  // DELETE /sites/:slug — owner-delete the whole Site.
+  async deleteSite(): Promise<void> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(`${this.server}/sites/${slug}`, {
+      method: "DELETE",
+      headers: { ...this.authHeaders() },
+    });
+    if (!res.ok)
+      throw new Error(`DELETE /sites/${slug} failed (${res.status}): ${await res.text()}`);
+  }
+
+  // DELETE /sites/:slug/conversations/:id — owner-delete a Thread or Chat.
+  async deleteConversation(conversationId: string): Promise<void> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(
+      `${this.server}/sites/${slug}/conversations/${conversationId}`,
+      { method: "DELETE", headers: { ...this.authHeaders() } },
+    );
+    if (!res.ok)
+      throw new Error(
+        `DELETE /sites/${slug}/conversations/${conversationId} failed (${res.status}): ${await res.text()}`,
+      );
+  }
+
+  // POST /sites/:slug/rotate-share — mint a fresh Share URL slug.
+  async rotateShare(): Promise<{ slug: string; shareUrl: string }> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/rotate-share`, {
+      method: "POST",
+      headers: { ...this.authHeaders() },
+    });
+    if (!res.ok)
+      throw new Error(`POST /sites/${slug}/rotate-share failed (${res.status}): ${await res.text()}`);
+    return (await res.json()) as { slug: string; shareUrl: string };
+  }
+
+  // POST /sites/:slug/rotate-token — mint a fresh owner token (revokes prior ones).
+  async rotateToken(): Promise<{ token: string; agentUrl: string }> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/rotate-token`, {
+      method: "POST",
+      headers: { ...this.authHeaders() },
+    });
+    if (!res.ok)
+      throw new Error(`POST /sites/${slug}/rotate-token failed (${res.status}): ${await res.text()}`);
+    return (await res.json()) as { token: string; agentUrl: string };
+  }
+
+  // GET /sites/:slug/tokens — list this Site's tokens (metadata only).
+  async listTokens(): Promise<{ tokens: TokenSummary[] }> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/tokens`, {
+      method: "GET",
+      headers: { ...this.authHeaders() },
+    });
+    if (!res.ok)
+      throw new Error(`GET /sites/${slug}/tokens failed (${res.status}): ${await res.text()}`);
+    return (await res.json()) as { tokens: TokenSummary[] };
+  }
+
+  // DELETE /sites/:slug/tokens/:id — revoke a single token.
+  async revokeToken(tokenId: string): Promise<void> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/tokens/${tokenId}`, {
+      method: "DELETE",
+      headers: { ...this.authHeaders() },
+    });
+    if (!res.ok)
+      throw new Error(
+        `DELETE /sites/${slug}/tokens/${tokenId} failed (${res.status}): ${await res.text()}`,
+      );
   }
 }
 

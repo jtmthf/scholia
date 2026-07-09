@@ -86,6 +86,19 @@ export class S3BlobStore implements BlobStore {
       throw err;
     }
   }
+
+  async size(hash: string): Promise<number | null> {
+    if (!isValidHash(hash)) return null;
+    try {
+      const res = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: this.keyFor(hash) }),
+      );
+      return res.ContentLength ?? null;
+    } catch (err) {
+      if (isNotFound(err)) return null;
+      throw err;
+    }
+  }
 }
 
 function isNotFound(err: unknown): boolean {

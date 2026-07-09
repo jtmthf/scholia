@@ -1,5 +1,10 @@
 import { useState } from "preact/hooks";
-import { addComment, setResolved, type ConversationDTO } from "../api";
+import {
+  addComment,
+  ownerDeleteConversation,
+  setResolved,
+  type ConversationDTO,
+} from "../api";
 import { getViewer, setDisplayName } from "../viewer";
 import { Comment } from "./Comment";
 import { Composer } from "./Composer";
@@ -19,6 +24,8 @@ interface ThreadProps {
   isPrivate?: boolean;
   /** Show the Promote control (the owning Viewer flipping a Chat → Thread). */
   promotable?: boolean;
+  /** Owner token — when present, show the owner-only "Delete" moderation control. */
+  ownerToken?: string | null;
 }
 
 // One Conversation card: its anchor quote (or "Page comment"), its flat comment
@@ -35,12 +42,24 @@ export function Thread({
   onActivate,
   isPrivate = false,
   promotable = false,
+  ownerToken = null,
 }: ThreadProps) {
   const [expanded, setExpanded] = useState(!conversation.resolved);
   const [replying, setReplying] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function deleteThread() {
+    if (!ownerToken) return;
+    try {
+      await ownerDeleteConversation(slug, ownerToken, conversation.id);
+      onChanged();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Delete failed.");
+    }
+  }
 
   const anchored = conversation.anchor !== null;
   const outdated = conversation.anchorStatus === "outdated";
@@ -167,6 +186,28 @@ export function Thread({
               >
                 {conversation.resolved ? "Reopen" : "Resolve"}
               </button>
+              {ownerToken &&
+                (confirmDelete ? (
+                  <>
+                    <button
+                      class="thread-action-btn thread-action-btn--delete"
+                      onClick={() => void deleteThread()}
+                    >
+                      Confirm delete
+                    </button>
+                    <button class="thread-action-btn" onClick={() => setConfirmDelete(false)}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    class="thread-action-btn thread-action-btn--delete"
+                    title="Owner moderation — delete this entire conversation"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    Delete
+                  </button>
+                ))}
             </div>
           )}
         </>
