@@ -43,16 +43,26 @@ async function resolveOwner(options: {
 // Share (ADR-0010): `collab share <path>` promotes local content to a hosted,
 // public Site — the explicit step out of local-first Preview. M3 accepts a
 // single file, a directory (walked recursively), or a .zip archive.
+// M10 adds `--pr owner/repo#123` and `--ref owner/repo@<ref>` to create a Site
+// from a GitHub content source (the server fetches bytes; no local path needed).
 cli
-  .command("share <path>", "Upload a file, folder, or zip and host it as a public Site")
+  .command("share [path]", "Upload a file, folder, or zip and host it as a public Site")
   .option("--server <url>", "Collab server base URL", {
     default: process.env.COLLAB_SERVER ?? "http://localhost:8787",
   })
   .option("--new", "Create a fresh Site even if a .collab marker exists")
   .option("--site <slug>", "Re-upload a new Version to this specific Site slug")
-  .action(async (path: string, options: any) => {
+  .option("--pr <spec>", "Create from a GitHub PR: owner/repo#123")
+  .option("--ref <spec>", "Create from a GitHub ref: owner/repo@<ref>")
+  .action(async (path: string | undefined, options: any) => {
     try {
-      await share(path, { server: options.server, forceNew: options.new, site: options.site });
+      await share(path, {
+        server: options.server,
+        forceNew: options.new,
+        site: options.site,
+        pr: options.pr,
+        ref: options.ref,
+      });
     } catch (err) {
       console.error(`[collab] ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);

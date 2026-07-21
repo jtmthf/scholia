@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
+import { describeRoute } from "hono-openapi";
 import { contentType, pickEntryPath, rewriteInterPageLinks } from "@collab/core";
 import { getLatestManifest, getManifestByOrdinal, type PageEntry } from "@collab/db";
 import type { AppDeps } from "../config.js";
@@ -50,15 +51,30 @@ export function contentRoutes(getDeps: () => AppDeps) {
     return serveEntry(c, deps, slug, manifest.pages);
   });
 
-  app.get("/content/sites/:slug/*", async (c) => {
-    const deps = getDeps();
-    const slug = c.req.param("slug");
-    const manifest = await getLatestManifest(deps.db, slug);
-    if (!manifest) return c.notFound();
-    const prefix = `/content/sites/${slug}/`;
-    const pagePath = c.req.path.startsWith(prefix) ? c.req.path.slice(prefix.length) : "";
-    return servePath(c, deps, slug, manifest.pages, pagePath);
-  });
+  app.get(
+    "/content/sites/:slug/*",
+    describeRoute({
+      summary: "Serve a rendered Page or raw Asset",
+      description:
+        "Returns a rendered HTML document for Markdown/HTML Pages (for the sandboxed iframe) " +
+        "or raw bytes for Assets. Add `?format=raw` to return the original source " +
+        "(markdown or HTML) instead of the rendered document.",
+      operationId: "serveContent",
+      parameters: [
+        { name: "slug", in: "path", required: true, schema: { type: "string" } },
+        { name: "format", in: "query", schema: { type: "string", enum: ["raw"] } },
+      ],
+    }),
+    async (c) => {
+      const deps = getDeps();
+      const slug = c.req.param("slug");
+      const manifest = await getLatestManifest(deps.db, slug);
+      if (!manifest) return c.notFound();
+      const prefix = `/content/sites/${slug}/`;
+      const pagePath = c.req.path.startsWith(prefix) ? c.req.path.slice(prefix.length) : "";
+      return servePath(c, deps, slug, manifest.pages, pagePath);
+    },
+  );
 
   return app;
 }
@@ -75,7 +91,23 @@ async function serveEntry(c: Context, deps: AppDeps, slug: string, pages: PageEn
   const entryPath = pickEntryPath(pages);
   if (!entryPath) return c.notFound();
   const page = pages.find((p) => p.path === entryPath);
-  if (!page || !page.renderedHash) return c.notFound();
+  if (!page) return c.notFound();
+
+  // `?format=raw` returns the original source (markdown or HTML) as inert
+  // text, not the rendered document. Agents need this to craft precise
+  // textQuote anchors. Always served as text/plain, even for HTML Pages —
+  // this is source for reading, not a document to execute.
+  if (c.req.query("format") === "raw") {
+    const bytes = await deps.store.get(page.contentHash);
+    if (!bytes) return c.notFound();
+    return c.body(bytes as unknown as Uint8Array<ArrayBuffer>, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+      ...baseHeaders(),
+    });
+  }
+
+  if (!page.renderedHash) return c.notFound();
   return servePage(c, deps, slug, pages, page as PageEntry & { renderedHash: string });
 }
 
@@ -96,6 +128,20 @@ async function servePath(
     if (!bytes) return c.notFound();
     return c.body(bytes as unknown as Uint8Array<ArrayBuffer>, 200, {
       "Content-Type": contentType(pagePath),
+      ...baseHeaders(),
+    });
+  }
+
+  // `?format=raw` returns the original source (markdown or HTML) as inert
+  // text, not the rendered document. Agents need this to craft precise
+  // textQuote anchors. Always served as text/plain, even for HTML Pages —
+  // this is source for reading, not a document to execute.
+  if (c.req.query("format") === "raw") {
+    const bytes = await deps.store.get(page.contentHash);
+    if (!bytes) return c.notFound();
+    return c.body(bytes as unknown as Uint8Array<ArrayBuffer>, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
       ...baseHeaders(),
     });
   }

@@ -29,6 +29,20 @@
       "when": 1783639535962,
       "tag": "0003_fat_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783647286363,
+      "tag": "0004_tan_the_fallen",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784599590947,
+      "tag": "0005_tired_beyonder",
+      "breakpoints": true
     }
   ]
 }

@@ -155,3 +155,18 @@
 .site-state-badge--frozen {
   color: #2f6fbf;
 }
+
+/* M10 — PR-backed badge in the chrome header. Links to the GitHub PR. */
+.pr-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #1a7f37;
+  border: 1px solid currentColor;
+  transition: background 0.15s;
+}
+.pr-badge:hover {
+  background: rgba(26, 127, 55, 0.07);
+}

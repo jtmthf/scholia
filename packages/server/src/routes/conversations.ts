@@ -30,6 +30,13 @@ import {
 import type { AppDeps } from "../config.js";
 import { authorizeOwner, bearerOrQueryToken, resolveActor, type Actor } from "../auth.js";
 import { hashToken, mintToken } from "../tokens.js";
+import {
+  emitCommentCreated,
+  emitPromotion,
+  emitResolve,
+  toMirrorIdentity,
+  type EmitDeps,
+} from "../mirror/emit.js";
 
 // Fixed review-oriented reaction palette (CONTEXT "Reaction").
 const REACTION_PALETTE = new Set(["👍", "👎", "✅", "👀", "🎉", "❤️"]);
@@ -57,6 +64,17 @@ function stateError(state: "open" | "read_only" | "frozen"): string {
   return state === "frozen"
     ? "site is frozen: public Threads are locked"
     : "site is read-only: public commenting is disabled";
+}
+
+// Build the EmitDeps the outbound mirror helpers need (M10). null `mirrorBinding`
+// short-circuits every emit, so non-PR-backed Sites pay nothing.
+function emitDeps(deps: AppDeps, site: { id: string; state: "open" | "read_only" | "frozen"; mirrorBinding: { provider: string; repo: string; prNumber: number } | null }): EmitDeps {
+  return {
+    mirrorBinding: site.mirrorBinding as EmitDeps["mirrorBinding"],
+    siteId: site.id,
+    siteState: site.state,
+    mirrorBus: deps.mirrorBus,
+  };
 }
 
 // ---- M9: per-Viewer/IP rate limiting on comment creation ----
@@ -397,7 +415,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
 
       const agentMentions = parseMentions(body.body as string);
       const identity = actor.tier === "anonymous" ? viewerIdentity("Reviewer") : actor.identity;
-      const { conversationId } = await createConversation(db, {
+      const { conversationId, firstCommentId } = await createConversation(db, {
         siteId: site.id,
         createdVersionId: latestVersion.id,
         pagePath,
@@ -411,6 +429,19 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
           authorViewerId: null,
           mentions: agentMentions,
         },
+      });
+
+      // M10: mirror a new public Thread's first comment to GitHub (no-op on
+      // non-PR-backed Sites or Chats). Best-effort, never blocks the response.
+      emitCommentCreated(emitDeps(deps, site), {
+        conversationId,
+        commentId: firstCommentId,
+        pagePath,
+        createdVersionId: latestVersion.id,
+        author: toMirrorIdentity(identity),
+        body: body.body as string,
+        anchor: storedAnchor,
+        visibility,
       });
 
       const dto = await fetchConversationById(db, site.id, conversationId, null);
@@ -474,7 +505,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     const viewerMentions = parseMentions(body.body as string);
     const ownerViewerId = visibility === "private" ? (body.viewerId as string) : null;
 
-    const { conversationId } = await createConversation(db, {
+    const { conversationId, firstCommentId } = await createConversation(db, {
       siteId: site.id,
       createdVersionId: latestVersion.id,
       pagePath,
@@ -488,6 +519,19 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
         authorViewerId: body.viewerId as string,
         mentions: viewerMentions,
       },
+    });
+
+    // M10: mirror a new public Thread's first comment to GitHub (no-op on
+    // non-PR-backed Sites or Chats). Best-effort, never blocks the response.
+    emitCommentCreated(emitDeps(deps, site), {
+      conversationId,
+      commentId: firstCommentId,
+      pagePath,
+      createdVersionId: latestVersion.id,
+      author: toMirrorIdentity(author),
+      body: body.body as string,
+      anchor: storedAnchor,
+      visibility,
     });
 
     const dto = await fetchConversationById(db, site.id, conversationId, body.viewerId as string);
@@ -544,6 +588,21 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
         authorViewerId: null,
         mentions: agentMentions,
       });
+
+      // M10: mirror a public-Thread reply to GitHub (best-effort, no-op on
+      // non-PR-backed Sites or Chats). Uses the conversation's anchor so the
+      // reply lands in the same review thread on the PR.
+      emitCommentCreated(emitDeps(deps, site), {
+        conversationId,
+        commentId,
+        pagePath: meta.pagePath,
+        createdVersionId: meta.createdVersionId,
+        author: toMirrorIdentity(actor.identity),
+        body: body.body as string,
+        anchor: meta.anchor,
+        visibility: meta.visibility,
+      });
+
       return c.json(await newCommentDTO(db, commentId, false), 201);
     }
 
@@ -568,6 +627,20 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
       authorViewerId: body.viewerId as string,
       mentions: viewerMentions,
     });
+
+    // M10: mirror a public-Thread reply to GitHub (best-effort, no-op on
+    // non-PR-backed Sites or Chats).
+    emitCommentCreated(emitDeps(deps, site), {
+      conversationId,
+      commentId,
+      pagePath: meta.pagePath,
+      createdVersionId: meta.createdVersionId,
+      author: toMirrorIdentity(author),
+      body: body.body as string,
+      anchor: meta.anchor,
+      visibility: meta.visibility,
+    });
+
     return c.json(await newCommentDTO(db, commentId, true), 201);
   });
 
@@ -720,6 +793,24 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
 
     const dto = await fetchConversationById(db, site.id, conversationId, summaryAuthorViewerId);
     if (!dto) return c.json({ error: "internal error" }, 500);
+
+    // M10: Promotion is the push-to-GitHub trigger (ADR-0008). Each now-visible
+    // (kept + summary) comment becomes a new public Thread comment mirrored to
+    // GitHub. The original Chat comments stay private (never mirrored). No-op on
+    // non-PR-backed Sites. Best-effort, never blocks the response.
+    emitPromotion(emitDeps(deps, site), {
+      conversationId,
+      pagePath: meta.pagePath,
+      createdVersionId: meta.createdVersionId,
+      visibility: "public",
+      comments: dto.comments.map((cm) => ({
+        commentId: cm.id,
+        author: toMirrorIdentity(cm.author),
+        body: cm.body,
+        anchor: meta.anchor,
+      })),
+    });
+
     return c.json(dto, 200);
   });
 
@@ -879,6 +970,19 @@ async function resolveHandler(c: Context, getDeps: () => AppDeps, resolved: bool
   }
 
   await setResolved(db, { conversationId, resolved, resolvedBy });
+
+  // M10: mirror resolve/reopen on a public Thread to GitHub (best-effort, no-op
+  // on non-PR-backed Sites or Chats). Resolve has no comment_mirrors row of its
+  // own; the bus dispatches against an already-synced comment's review thread.
+  emitResolve(emitDeps(deps, site), {
+    conversationId,
+    pagePath: meta.pagePath,
+    createdVersionId: meta.createdVersionId,
+    resolved,
+    resolvedBy,
+    visibility: meta.visibility,
+  });
+
   const dto = await fetchConversationById(db, site.id, conversationId, viewerId);
   if (!dto) return c.json({ error: "internal error" }, 500);
   return c.json(dto, 200);

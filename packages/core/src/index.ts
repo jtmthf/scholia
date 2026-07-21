@@ -72,3 +72,7 @@ export type { Heading, NavNode, DocRecord, RenderResult } from "./types.js";
 
 // Content-addressed blob store
 export * from "./blob/index.js";
+
+// MirrorProvider port + outbound domain events (M10, ADR-0008). Pure domain
+// shape; @collab/github is the v1 impl, server is where HTTP + db meet it.
+export * from "./mirror/index.js";

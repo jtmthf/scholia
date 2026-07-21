@@ -3,7 +3,9 @@
 // content-addressed blob store, not here — these tables only reference blobs by
 // their content hash.
 import {
+  bigint,
   boolean,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -11,8 +13,10 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ---- Enums ----
 export const siteState = pgEnum("site_state", ["open", "read_only", "frozen"]);
@@ -37,6 +41,8 @@ export interface MirrorBinding {
 
 export interface ContentSource {
   kind: "local" | "ref" | "pr";
+  /** M10: repo name (owner/repo) for ref/pr content sources. */
+  repo?: string;
   ref?: string;
   prNumber?: number;
 }
@@ -197,8 +203,25 @@ export const commentMirrors = pgTable(
     externalUrl: text("external_url"),
     status: mirrorStatus("status").notNull().default("pending"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    // M10 outbound queue replay: the serialized MirrorEvent so a crash or restart
+    // can re-dispatch without re-deriving it from joined rows.
+    payload: jsonb("payload"),
+    // Bounded retry attempts; the worker gives up past MAX_ATTEMPTS → status="failed".
+    attempts: integer("attempts").notNull().default(0),
   },
-  (t) => [primaryKey({ columns: [t.commentId, t.provider] })],
+  (t) => [
+    primaryKey({ columns: [t.commentId, t.provider] }),
+    // Outbound mirror queue drain: find pending/failed rows fast on startup + poll.
+    index("comment_mirrors_drain_idx").on(t.provider, t.status),
+    // Inbound dedup backstop: outbound rows are pre-written with externalId=""
+    // before the GitHub POST (see bus.ts), so the constraint only applies once a
+    // real external id is recorded — this closes the race where a webhook
+    // delivery and the reconcile poll (or a webhook retry) both process the same
+    // GitHub comment concurrently and would otherwise create two Threads for it.
+    uniqueIndex("comment_mirrors_external_id_idx")
+      .on(t.provider, t.externalId)
+      .where(sql`${t.externalId} <> ''`),
+  ],
 );
 
 // Emoji from a fixed review-oriented palette. Imported GitHub reactions carry
@@ -240,4 +263,40 @@ export const viewerState = pgTable(
     lastSeenVersionId: uuid("last_seen_version_id").references(() => versions.id),
   },
   (t) => [primaryKey({ columns: [t.viewerId, t.siteId] })],
+);
+
+// ---- M10: GitHub mirror (ADR-0008/0009) ----
+
+// One row per GitHub App installation recorded via the install callback. Operator
+// global — the App reads PR files + PR comments on the bound repo only. `repos`
+// caches the installation's accessible repos (refreshed on reconcile) so a
+// PR-backed Site can resolve its installation by repo name.
+export interface GitHubInstallation {
+  installationId: number;
+  account: string | null;
+  /** Cached list of `owner/repo` this installation can reach. */
+  repos: string[];
+  updatedAt: Date;
+}
+export const githubInstallations = pgTable("github_installations", {
+  installationId: bigint("installation_id", { mode: "number" }).primaryKey(),
+  account: text("account"),
+  repos: jsonb("repos").$type<string[]>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Per-PR-backed-Site reconciliation cursor + last-seen PR head. The reconcile
+// poll re-fetches review comments since `lastPrCommentId`/`lastPrReviewId` and
+// detects head-advance by comparing `lastHeadSha`. One row created lazily.
+export const githubSiteState = pgTable(
+  "github_site_state",
+  {
+    siteId: uuid("site_id")
+      .primaryKey()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    lastPrCommentId: bigint("last_pr_comment_id", { mode: "number" }),
+    lastPrReviewId: bigint("last_pr_review_id", { mode: "number" }),
+    lastHeadSha: text("last_head_sha"),
+    lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
+  },
 );

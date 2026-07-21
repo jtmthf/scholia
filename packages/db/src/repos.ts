@@ -10,7 +10,10 @@ import type { Db } from "./client.js";
 type DbOrTx = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 import {
   comments,
+  commentMirrors,
   conversations,
+  githubInstallations,
+  githubSiteState,
   manifestEntries,
   mentions,
   reactions,
@@ -22,6 +25,7 @@ import {
   type Anchor,
   type ContentSource,
   type Identity,
+  type MirrorBinding,
   type Provenance,
 } from "./schema.js";
 
@@ -42,6 +46,8 @@ export interface CreateSiteInput {
   contentSource: ContentSource;
   provenance?: Provenance | null;
   pages: NewPage[];
+  /** M10: bind this Site to a GitHub PR (sets `sites.mirror_binding`). */
+  mirrorBinding?: MirrorBinding | null;
 }
 
 export interface CreatedSite {
@@ -58,7 +64,10 @@ export async function createSiteWithVersion(
   input: CreateSiteInput,
 ): Promise<CreatedSite> {
   return db.transaction(async (tx) => {
-    const [site] = await tx.insert(sites).values({ slug: input.slug }).returning();
+    const [site] = await tx
+      .insert(sites)
+      .values({ slug: input.slug, mirrorBinding: input.mirrorBinding ?? null })
+      .returning();
     await tx.insert(siteTokens).values({
       siteId: site!.id,
       kind: "owner",
@@ -96,6 +105,8 @@ export interface SiteRow {
   id: string;
   slug: string;
   state: "open" | "read_only" | "frozen";
+  /** Set for a PR-backed Site (M10); null otherwise. */
+  mirrorBinding: MirrorBinding | null;
 }
 
 export interface PageEntry {
@@ -116,11 +127,22 @@ export interface SitePage {
 
 export async function getSiteBySlug(db: Db, slug: string): Promise<SiteRow | null> {
   const [row] = await db
-    .select({ id: sites.id, slug: sites.slug, state: sites.state })
+    .select({
+      id: sites.id,
+      slug: sites.slug,
+      state: sites.state,
+      mirrorBinding: sites.mirrorBinding,
+    })
     .from(sites)
     .where(eq(sites.slug, slug))
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  return {
+    id: row.id,
+    slug: row.slug,
+    state: row.state,
+    mirrorBinding: (row.mirrorBinding as MirrorBinding | null) ?? null,
+  };
 }
 
 // Entry Page precedence (CONTEXT "Entry Page"). M2 hosts a single Page, but the
@@ -177,6 +199,7 @@ export async function getLatestPage(
 export interface SiteManifest {
   site: SiteRow;
   ordinal: number;
+  provenance: Provenance | null;
   pages: PageEntry[];
 }
 
@@ -190,7 +213,7 @@ export async function getLatestManifest(
   if (!site) return null;
 
   const [latest] = await db
-    .select({ id: versions.id, ordinal: versions.ordinal })
+    .select({ id: versions.id, ordinal: versions.ordinal, provenance: versions.provenance })
     .from(versions)
     .where(and(eq(versions.siteId, site.id), eq(versions.isLatest, true)))
     .limit(1);
@@ -213,7 +236,7 @@ export async function getLatestManifest(
     sourceMapHash: r.sourceMapHash,
   }));
 
-  return { site, ordinal: latest.ordinal, pages };
+  return { site, ordinal: latest.ordinal, provenance: (latest.provenance as Provenance | null) ?? null, pages };
 }
 
 // ---- M6: Versioning ----
@@ -229,7 +252,7 @@ export async function getManifestByOrdinal(
   if (!site) return null;
 
   const [version] = await db
-    .select({ id: versions.id, ordinal: versions.ordinal })
+    .select({ id: versions.id, ordinal: versions.ordinal, provenance: versions.provenance })
     .from(versions)
     .where(and(eq(versions.siteId, site.id), eq(versions.ordinal, ordinal)))
     .limit(1);
@@ -252,7 +275,7 @@ export async function getManifestByOrdinal(
     sourceMapHash: r.sourceMapHash,
   }));
 
-  return { site, ordinal: version.ordinal, pages };
+  return { site, ordinal: version.ordinal, provenance: (version.provenance as Provenance | null) ?? null, pages };
 }
 
 export interface VersionSummary {
@@ -769,15 +792,32 @@ export interface CreateConversationInput {
     authorViewerId: string | null;
     /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
     mentions?: string[];
+    /** M10: "github" for inbound-mirrored comments, "collab" (default) otherwise. */
+    origin?: "collab" | "github";
+  };
+  /**
+   * M10 inbound import: insert the `comment_mirrors` row for the first comment
+   * in the SAME transaction as the Conversation/Comment. The unique
+   * (provider, external_id) index (partial: external_id <> '') means a
+   * concurrent import of the same GitHub comment (e.g. a webhook delivery
+   * racing the reconcile poll) throws a unique-violation here — rolling back
+   * the whole transaction instead of leaving behind a duplicate Thread.
+   */
+  mirror?: {
+    provider: string;
+    externalId: string;
+    externalUrl: string | null;
+    status: "pending" | "synced" | "failed" | "detached";
   };
 }
 
 // Create a Conversation and its first Comment in one transaction. Returns the
-// new conversation id.
+// new conversation id and the first comment's id (M10 emit needs the comment id
+// to mirror the first message outward to GitHub).
 export async function createConversation(
   db: Db,
   input: CreateConversationInput,
-): Promise<{ conversationId: string }> {
+): Promise<{ conversationId: string; firstCommentId: string }> {
   return db.transaction(async (tx) => {
     const [conv] = await tx
       .insert(conversations)
@@ -799,6 +839,7 @@ export async function createConversation(
         body: input.firstComment.body,
         author: input.firstComment.author,
         authorViewerId: input.firstComment.authorViewerId ?? null,
+        origin: input.firstComment.origin ?? "collab",
       })
       .returning({ id: comments.id });
 
@@ -809,7 +850,18 @@ export async function createConversation(
       input.firstComment.authorViewerId ?? null,
     );
 
-    return { conversationId: conv!.id };
+    if (input.mirror) {
+      await tx.insert(commentMirrors).values({
+        commentId: firstComment!.id,
+        provider: input.mirror.provider,
+        externalId: input.mirror.externalId,
+        externalUrl: input.mirror.externalUrl,
+        status: input.mirror.status,
+        ...(input.mirror.status === "synced" ? { lastSyncedAt: sql`now()` } : {}),
+      });
+    }
+
+    return { conversationId: conv!.id, firstCommentId: firstComment!.id };
   });
 }
 
@@ -851,6 +903,8 @@ export interface AddCommentInput {
   authorViewerId: string | null;
   /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
   mentions?: string[];
+  /** M10: "github" for inbound-mirrored comments, "collab" (default) otherwise. */
+  origin?: "collab" | "github";
 }
 
 // Add a reply comment to an existing Conversation. Returns the new comment id.
@@ -867,6 +921,7 @@ export async function addComment(
         body: input.body,
         author: input.author,
         authorViewerId: input.authorViewerId ?? null,
+        origin: input.origin ?? "collab",
       })
       .returning({ commentId: comments.id });
     await insertMentions(tx, row!.commentId, input.mentions);
@@ -938,6 +993,37 @@ export async function deleteComment(
     )
     .returning({ id: comments.id });
   return result.length > 0;
+}
+
+// M10: Tombstone a comment by id with no viewer-id check — used when GitHub
+// reports an inbound `deleted` on a `github`-origin comment (external delete).
+// Leaves a tombstone (deletedAt set) so the thread structure is preserved.
+export async function tombstoneComment(db: Db, commentId: string): Promise<boolean> {
+  const result = await db
+    .update(comments)
+    .set({ deletedAt: sql`now()` })
+    .where(and(eq(comments.id, commentId), isNull(comments.deletedAt)))
+    .returning({ id: comments.id });
+  return result.length > 0;
+}
+
+// M10: Mark a `comment_mirrors` row as `detached` — the external (GitHub) side
+// deleted a `collab`-origin comment. We respect the external delete and do NOT
+// re-push. The Collab comment itself is left intact (the human/agent can still
+// see it in Collab).
+export async function detachMirror(
+  db: Db,
+  input: { commentId: string; provider: string },
+): Promise<void> {
+  await db
+    .update(commentMirrors)
+    .set({ status: "detached" })
+    .where(
+      and(
+        eq(commentMirrors.commentId, input.commentId),
+        eq(commentMirrors.provider, input.provider),
+      ),
+    );
 }
 
 // Resolve (resolvedAt=now, resolvedBy=name) or reopen (both null) a Conversation.
@@ -1221,10 +1307,16 @@ export interface ConversationMeta {
   id: string;
   visibility: "public" | "private";
   ownerViewerId: string | null;
+  /** M10 emit: the Page a Thread anchors to (null = page-level). */
+  pagePath: string | null;
+  /** M10 emit: the Version the Conversation was created on (resolve/reply anchor). */
+  createdVersionId: string;
+  /** M10 emit: the Conversation's anchor (null for page-level). Replies inherit it. */
+  anchor: Anchor | null;
 }
 
-// Load just the access-control fields of a Conversation on a Site (M8 guards).
-// Null when no such Conversation exists for the Site.
+// Load the access-control + emit fields of a Conversation on a Site (M8 guards,
+// M10 outbound emit). Null when no such Conversation exists for the Site.
 export async function getConversationMeta(
   db: Db,
   id: string,
@@ -1235,6 +1327,9 @@ export async function getConversationMeta(
       id: conversations.id,
       visibility: conversations.visibility,
       ownerViewerId: conversations.ownerViewerId,
+      pagePath: conversations.pagePath,
+      createdVersionId: conversations.createdVersionId,
+      anchor: conversations.anchor,
     })
     .from(conversations)
     .where(and(eq(conversations.id, id), eq(conversations.siteId, siteId)))
@@ -1244,6 +1339,9 @@ export async function getConversationMeta(
     id: row.id,
     visibility: row.visibility as "public" | "private",
     ownerViewerId: row.ownerViewerId,
+    pagePath: row.pagePath,
+    createdVersionId: row.createdVersionId,
+    anchor: (row.anchor as Anchor | null) ?? null,
   };
 }
 
@@ -1373,6 +1471,8 @@ export interface SiteCommentDTO {
   editedAt: string | null;
   mentions: string[];
   reactions: Array<{ emoji: string; count: number }>;
+  /** M10: external (GitHub) URL for mirrored comments, or null. */
+  externalUrl: string | null;
 }
 
 export interface ListSiteCommentsFilter {
@@ -1463,6 +1563,13 @@ export async function listSiteComments(
 
   const wantMention = filter.mentions ? normalizeMention(filter.mentions) : null;
 
+  // M10: mirror external URLs for mirrored comments.
+  const mirrorRows = await db
+    .select({ commentId: commentMirrors.commentId, externalUrl: commentMirrors.externalUrl })
+    .from(commentMirrors)
+    .where(inArray(commentMirrors.commentId, commentIds));
+  const externalUrlByComment = new Map(mirrorRows.map((m) => [m.commentId, m.externalUrl]));
+
   const dtos: SiteCommentDTO[] = [];
   for (const r of rows) {
     const ments = mentionsByComment.get(r.commentId) ?? [];
@@ -1486,7 +1593,369 @@ export async function listSiteComments(
       reactions: Array.from(reactionsByComment.get(r.commentId)?.entries() ?? []).map(
         ([emoji, count]) => ({ emoji, count }),
       ),
+      externalUrl: externalUrlByComment.get(r.commentId) ?? null,
     });
   }
   return dtos;
+}
+
+// ---- M10: GitHub mirror repo helpers (ADR-0008/0009) ----
+//
+// `comment_mirrors` is the outbound queue + dedup map: a `(comment_id, provider)`
+// PK with `status` (`pending` while queued, `synced` after the bot pushed,
+// `failed` past the retry cap, `detached` when GitHub deleted the bot comment
+// and we respect the external delete without resurrecting it). The worker drains
+// `pending` rows; the importer uses `mirrorExistsByExternal` to dedup inbound.
+// `github_installations` is operator-global; a Site resolves its installation by
+// repo name (cached on the install row). `github_site_state` is the per-PR-Site
+// reconciliation cursor + last-seen PR head.
+
+export interface MirrorRow {
+  commentId: string;
+  status: "pending" | "synced" | "failed" | "detached";
+  externalId: string;
+  externalUrl: string | null;
+}
+
+export interface PendingMirrorRow extends MirrorRow {
+  provider: string;
+  payload: unknown | null;
+  attempts: number;
+}
+
+// Upsert a mirror row. Used by:
+//  - emit (status="pending") when an outbound event is first scheduled;
+//  - dispatch success (status="synced", externalId/url set, lastSyncedAt=now);
+//  - dispatch terminal failure (status="failed");
+//  - inbound `deleted` on a collab-origin mirror (status="detached").
+export async function touchMirrorRow(
+  db: Db,
+  input: {
+    commentId: string;
+    provider: string;
+    externalId: string;
+    externalUrl?: string | null;
+    status: "pending" | "synced" | "failed" | "detached";
+    /** The serialized MirrorEvent payload, written on `pending` for replay-by-row on startup. */
+    payload?: unknown;
+  },
+): Promise<void> {
+  await db
+    .insert(commentMirrors)
+    .values({
+      commentId: input.commentId,
+      provider: input.provider,
+      externalId: input.externalId,
+      externalUrl: input.externalUrl ?? null,
+      status: input.status,
+      payload: input.payload ?? null,
+    })
+    .onConflictDoUpdate({
+      target: [commentMirrors.commentId, commentMirrors.provider],
+      set: {
+        status: input.status,
+        externalId: input.externalId,
+        externalUrl: input.externalUrl ?? null,
+        ...(input.payload !== undefined ? { payload: input.payload } : {}),
+        ...(input.status === "synced" ? { lastSyncedAt: sql`now()` } : {}),
+      },
+    });
+}
+
+// Increment the retry counter; the worker uses this on a transient dispatch failure.
+export async function bumpMirrorAttempts(
+  db: Db,
+  input: { commentId: string; provider: string },
+): Promise<number> {
+  const [row] = await db
+    .update(commentMirrors)
+    .set({ attempts: sql`attempts + 1` })
+    .where(
+      and(
+        eq(commentMirrors.commentId, input.commentId),
+        eq(commentMirrors.provider, input.provider),
+      ),
+    )
+    .returning({ attempts: commentMirrors.attempts });
+  return row?.attempts ?? 0;
+}
+
+export async function getMirrorForComment(
+  db: Db,
+  commentId: string,
+  provider: string,
+): Promise<MirrorRow | null> {
+  const [row] = await db
+    .select()
+    .from(commentMirrors)
+    .where(
+      and(
+        eq(commentMirrors.commentId, commentId),
+        eq(commentMirrors.provider, provider),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  return {
+    commentId: row.commentId,
+    status: row.status as "pending" | "synced" | "failed" | "detached",
+    externalId: row.externalId,
+    externalUrl: row.externalUrl,
+  };
+}
+
+export async function getMirrorRow(
+  db: Db,
+  commentId: string,
+  provider: string,
+): Promise<(MirrorRow & { payload: unknown | null; attempts: number }) | null> {
+  const [row] = await db
+    .select()
+    .from(commentMirrors)
+    .where(
+      and(
+        eq(commentMirrors.commentId, commentId),
+        eq(commentMirrors.provider, provider),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  return {
+    commentId: row.commentId,
+    status: row.status as "pending" | "synced" | "failed" | "detached",
+    externalId: row.externalId,
+    externalUrl: row.externalUrl,
+    payload: row.payload,
+    attempts: row.attempts,
+  };
+}
+
+// Startup replay: every pending (and recently-failed, retried) row for a provider.
+export async function pendingMirrorRows(
+  db: Db,
+  provider: string,
+): Promise<PendingMirrorRow[]> {
+  const rows = await db
+    .select()
+    .from(commentMirrors)
+    .where(
+      and(
+        eq(commentMirrors.provider, provider),
+        inArray(commentMirrors.status, ["pending", "failed"]),
+      ),
+    )
+    .orderBy(asc(commentMirrors.commentId));
+  return rows.map((r) => ({
+    commentId: r.commentId,
+    provider: r.provider,
+    status: r.status as "pending" | "synced" | "failed" | "detached",
+    externalId: r.externalId,
+    externalUrl: r.externalUrl,
+    payload: r.payload,
+    attempts: r.attempts,
+  }));
+}
+
+// Inbound dedup: a `comment_mirrors` row keyed by `external_id` (provider + id).
+// Used by the importer to skip a duplicate inbound review comment (the echo loop).
+export async function mirrorExistsByExternal(
+  db: Db,
+  provider: string,
+  externalId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ commentId: commentMirrors.commentId })
+    .from(commentMirrors)
+    .where(
+      and(
+        eq(commentMirrors.provider, provider),
+        eq(commentMirrors.externalId, externalId),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+// Resolve the (commentId, conversationId, commentOrigin) for an externally-known
+// GitHub comment — the importer uses this on `deleted` to decide between tombstone
+// (origin="github") and detach (origin="collab" — respect the external delete).
+export async function getMirrorWithOrigins(
+  db: Db,
+  provider: string,
+  externalId: string,
+): Promise<{
+  commentId: string;
+  conversationId: string;
+  commentOrigin: "collab" | "github";
+} | null> {
+  const [row] = await db
+    .select({
+      commentId: commentMirrors.commentId,
+      conversationId: comments.conversationId,
+      commentOrigin: comments.origin,
+    })
+    .from(commentMirrors)
+    .innerJoin(comments, eq(commentMirrors.commentId, comments.id))
+    .where(
+      and(
+        eq(commentMirrors.provider, provider),
+        eq(commentMirrors.externalId, externalId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  return {
+    commentId: row.commentId,
+    conversationId: row.conversationId,
+    commentOrigin: row.commentOrigin as "collab" | "github",
+  };
+}
+
+// ---- github_installations ----
+
+export async function upsertGitHubInstallation(
+  db: Db,
+  input: {
+    installationId: number;
+    account?: string | null;
+    repos?: string[];
+  },
+): Promise<void> {
+  await db
+    .insert(githubInstallations)
+    .values({
+      installationId: input.installationId,
+      account: input.account ?? null,
+      repos: input.repos ?? [],
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: githubInstallations.installationId,
+      set: {
+        account: input.account ?? null,
+        repos: input.repos ?? [],
+        updatedAt: sql`now()`,
+      },
+    });
+}
+
+// Find any installation whose cached `repos` includes `repo` (exact `owner/name`).
+// Returns null when the repo isn't under any known installation — the caller surfaces
+// a clear "install the Collab GitHub App on owner/repo" error.
+export async function findInstallationForRepo(
+  db: Db,
+  repo: string,
+): Promise<{ installationId: number } | null> {
+  const rows = await db.select().from(githubInstallations);
+  for (const r of rows) {
+    if (Array.isArray(r.repos) && r.repos.includes(repo)) {
+      return { installationId: r.installationId };
+    }
+  }
+  return null;
+}
+
+// ---- github_site_state ----
+
+export interface GitHubSiteStateRow {
+  siteId: string;
+  lastPrCommentId: number | null;
+  lastPrReviewId: number | null;
+  lastHeadSha: string | null;
+  lastReconciledAt: Date | null;
+}
+
+export async function getGitHubSiteState(
+  db: Db,
+  siteId: string,
+): Promise<GitHubSiteStateRow | null> {
+  const [row] = await db
+    .select()
+    .from(githubSiteState)
+    .where(eq(githubSiteState.siteId, siteId))
+    .limit(1);
+  if (!row) return null;
+  return {
+    siteId: row.siteId,
+    lastPrCommentId: row.lastPrCommentId,
+    lastPrReviewId: row.lastPrReviewId,
+    lastHeadSha: row.lastHeadSha,
+    lastReconciledAt: row.lastReconciledAt,
+  };
+}
+
+export async function ensureGitHubSiteState(db: Db, siteId: string): Promise<void> {
+  await db.insert(githubSiteState).values({ siteId }).onConflictDoNothing();
+}
+
+export async function setGitHubReconcileCursor(
+  db: Db,
+  input: {
+    siteId: string;
+    lastPrCommentId?: number;
+    lastPrReviewId?: number;
+    lastHeadSha?: string;
+  },
+): Promise<void> {
+  const set: Record<string, unknown> = { lastReconciledAt: sql`now()` };
+  if (input.lastPrCommentId !== undefined) set.lastPrCommentId = input.lastPrCommentId;
+  if (input.lastPrReviewId !== undefined) set.lastPrReviewId = input.lastPrReviewId;
+  if (input.lastHeadSha !== undefined) set.lastHeadSha = input.lastHeadSha;
+  await db
+    .insert(githubSiteState)
+    .values({
+      siteId: input.siteId,
+      lastPrCommentId: input.lastPrCommentId ?? null,
+      lastPrReviewId: input.lastPrReviewId ?? null,
+      lastHeadSha: input.lastHeadSha ?? null,
+      lastReconciledAt: sql`now()`,
+    })
+    .onConflictDoUpdate({
+      target: githubSiteState.siteId,
+      set,
+    });
+}
+
+// ---- PR-backed Site binding (sites.mirror_binding) ----
+
+export async function setSiteMirrorBinding(
+  db: Db,
+  siteId: string,
+  binding: MirrorBinding | null,
+): Promise<void> {
+  await db.update(sites).set({ mirrorBinding: binding }).where(eq(sites.id, siteId));
+}
+
+// Find sites whose `mirror_binding.repo` matches and, optionally, `prNumber` matches.
+// Used by the importer to dispatch an inbound review comment to its PR-backed Site.
+// At most one site per PR normally; iterate for safety.
+export async function findPRBackedSites(
+  db: Db,
+  repo?: string,
+  prNumber?: number,
+): Promise<Array<{ id: string; slug: string; mirrorBinding: MirrorBinding }>> {
+  // Filter by provider='github'; optionally narrow by repo and prNumber.
+  const rows = repo
+    ? await db
+        .select({ id: sites.id, slug: sites.slug, mirrorBinding: sites.mirrorBinding })
+        .from(sites)
+        .where(
+          sql`${sites.mirrorBinding}->>'provider' = 'github' and ${sites.mirrorBinding}->>'repo' = ${repo}`,
+        )
+    : await db
+        .select({ id: sites.id, slug: sites.slug, mirrorBinding: sites.mirrorBinding })
+        .from(sites)
+        .where(sql`${sites.mirrorBinding}->>'provider' = 'github'`);
+  return rows
+    .filter((r) => {
+      const b = r.mirrorBinding as MirrorBinding | null;
+      if (!b) return false;
+      if (prNumber !== undefined && b.prNumber !== prNumber) return false;
+      return true;
+    })
+    .map((r) => ({
+      id: r.id,
+      slug: r.slug,
+      mirrorBinding: r.mirrorBinding as MirrorBinding,
+    }));
 }

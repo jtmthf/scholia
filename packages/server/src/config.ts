@@ -1,10 +1,17 @@
 import { createDb, type Db } from "@collab/db";
-import { S3BlobStore, type BlobStore } from "@collab/core";
+import { S3BlobStore, type BlobStore, type MirrorProvider } from "@collab/core";
 import {
   FixedWindowRateLimiter,
   NoopRateLimiter,
   type RateLimiter,
 } from "./rate-limit.js";
+import { buildMirrorContext } from "./mirror/context.js";
+import { createMirrorBus, noopMirrorBus, type MirrorBus } from "./mirror/bus.js";
+import {
+  githubConfigFromEnv,
+  loadMirrorProviders,
+  type GitHubOperatorConfig,
+} from "./github-config.js";
 
 // Operator retention/quota knobs (CONTEXT "Retention & limits", PLAN §5 M9). All
 // default-unset — infinite retention — and enforced only at upload time with a
@@ -51,6 +58,19 @@ export interface AppDeps {
   rateLimiter: RateLimiter;
   /** Operator upload caps (M9). All default-unset (infinite retention). */
   limits: UploadLimits;
+  /**
+   * Mirror providers registered for this instance (M10). Empty for non-PR-backed
+   * deployments — the no-config promise is untouched. The GitHub provider is
+   * constructed only when `GITHUB_APP_ID` + a private key are configured.
+   */
+  mirror: MirrorProvider[];
+  /**
+   * The outbound mirror bus (M10). `noopMirrorBus` when no providers are
+   * registered. Routes emit to it; the bus owns retry/backoff + startup replay.
+   */
+  mirrorBus: MirrorBus;
+  /** Operator GitHub config (M10) — null when GitHub integration is off. */
+  github: GitHubOperatorConfig | null;
 }
 
 // Parse a positive-integer env var, or undefined when unset/invalid (an invalid
@@ -99,14 +119,28 @@ function stripTrailingSlash(url: string): string {
 // (e.g. for the health check in tests) never requires DATABASE_URL or S3.
 export function depsFromEnv(): AppDeps {
   const publicUrl = stripTrailingSlash(process.env.PUBLIC_URL ?? "http://localhost:8787");
+  const db = createDb();
+  const store = blobStoreFromEnv();
+  const github = githubConfigFromEnv();
+  const mirror = loadMirrorProviders({ github, deps: { db } });
+  // The bus needs the db + store to resolve Page source bytes on dispatch; wire it
+  // here so the routes just call `deps.mirrorBus.emit`. No providers → noop bus.
+  const mirrorBus = createMirrorBus({
+    providers: mirror,
+    db,
+    contextFor: () => buildMirrorContext({ db, store }),
+  });
   return {
-    db: createDb(),
-    store: blobStoreFromEnv(),
+    db,
+    store,
     publicUrl,
     viewerUrl: stripTrailingSlash(process.env.VIEWER_URL ?? "http://localhost:5173"),
     contentUrl: stripTrailingSlash(process.env.CONTENT_URL ?? publicUrl),
     contentWildcard: process.env.CONTENT_WILDCARD === "true",
     rateLimiter: rateLimiterFromEnv(),
     limits: limitsFromEnv(),
+    mirror,
+    mirrorBus,
+    github,
   };
 }

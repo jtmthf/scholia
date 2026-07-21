@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "comment_mirrors_external_id_idx" ON "comment_mirrors" USING btree ("provider","external_id") WHERE "comment_mirrors"."external_id" <> '';

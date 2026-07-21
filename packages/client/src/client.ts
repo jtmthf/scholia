@@ -14,6 +14,7 @@ export interface SiteCreatedResult {
   shareUrl: string;
   token: string;
   entryPath: string;
+  mirrorBinding?: { provider: string; repo: string; prNumber: number };
 }
 
 export interface VersionAddedResult {
@@ -208,6 +209,23 @@ export class CollabClient {
     return (await res.json()) as SiteCreatedResult;
   }
 
+  // Create a new Site from a ref or PR content source — the server fetches the
+  // bytes itself, so no blob negotiation is needed (ADR-0009). `source` is either
+  // {kind:"ref",repo,ref} or {kind:"pr",repo,prNumber}. A PR source sets the
+  // Site's mirrorBinding so public Threads mirror to the GitHub PR.
+  async createSiteFromSource(
+    source: { kind: "ref"; repo: string; ref: string } | { kind: "pr"; repo: string; prNumber: number },
+    provenance?: Provenance,
+  ): Promise<SiteCreatedResult> {
+    const res = await this.apiFetch(`${this.server}/sites`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ contentSource: source, provenance }),
+    });
+    if (!res.ok) throw new Error(`POST /sites failed (${res.status}): ${await res.text()}`);
+    return (await res.json()) as SiteCreatedResult;
+  }
+
   // Add a new Version to an existing Site (requires owner token).
   async addVersion(
     slug: string,
@@ -226,6 +244,27 @@ export class CollabClient {
         ...this.authHeaders(),
       },
       body: JSON.stringify({ contentSource: { kind: "local" }, provenance, files: manifest }),
+    });
+    if (!res.ok)
+      throw new Error(`POST /sites/${slug}/versions failed (${res.status}): ${await res.text()}`);
+    return (await res.json()) as VersionAddedResult;
+  }
+
+  // Re-fetch a ref or PR content source and append a new Version (owner-authed).
+  // The server fetches the bytes; the client just sends the content source spec.
+  // For a PR-backed Site this advances to the latest PR head.
+  async refetchSource(
+    slug: string,
+    source: { kind: "ref"; repo: string; ref: string } | { kind: "pr"; repo: string; prNumber: number },
+    provenance?: Provenance,
+  ): Promise<VersionAddedResult> {
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/versions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...this.authHeaders(),
+      },
+      body: JSON.stringify({ contentSource: source, provenance }),
     });
     if (!res.ok)
       throw new Error(`POST /sites/${slug}/versions failed (${res.status}): ${await res.text()}`);

@@ -209,6 +209,24 @@ Push a new version of the site (replaces the current latest).
 REST: POST /sites/{slug}/versions   (re-upload to existing site)
 ```
 
+### PR-backed Sites (M10)
+
+A Site may be bound to a GitHub PR (`mirrorBinding` set in the site metadata). For PR-backed Sites, **public Threads mirror to GitHub PR comments** authored by the Collab bot. Private Chats stay Collab-only. The site metadata returned by `GET /sites/:slug` includes:
+
+- `mirrorBinding`: `{ provider: "github", repo: "owner/repo", prNumber: 42 }` when bound, absent otherwise.
+- `githubAppSlug`: the GitHub App slug, present when the server has GitHub integration configured.
+
+Mirrored comments carry an `externalUrl` — the URL of the corresponding GitHub PR comment — so agents rendering a comment can link to its counterpart.
+
+### Content sources (CLI)
+
+`collab share` accepts new flags for creating Sites from GitHub content sources (ADR-0009):
+
+- `collab share --pr owner/repo#123` — create a Site from a PR's changed `.md`/`.html` files; the server fetches bytes from GitHub, no local files needed.
+- `collab share --ref owner/repo@main` — create a Site from a Git ref (branch/tag/commit).
+
+These produce a **clean Provenance** (pinned ref/PR head) — no dirty-tree problem. Re-running with the same flags and a `--site` argument re-fetches and appends a new Version, migrating conversations forward.
+
 ## Auth Summary
 
 | Verb | Token required? | Tier |

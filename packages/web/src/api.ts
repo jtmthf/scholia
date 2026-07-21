@@ -29,6 +29,10 @@ export interface SiteMeta {
   contentBase: string;
   nav: NavNode[];
   pages: PageMeta[];
+  /** M10: PR-backed Site binding (null for local / non-PR Sites). */
+  mirrorBinding?: { provider: string; repo: string; prNumber: number };
+  /** M10: GitHub App slug when the server has GitHub integration configured. */
+  githubAppSlug?: string;
 }
 
 export class SiteNotFoundError extends Error {

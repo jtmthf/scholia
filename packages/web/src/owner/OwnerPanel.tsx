@@ -14,10 +14,16 @@ import "./owner-panel.css";
 // rotation, and Site deletion. Rotations/deletion mutate the owner's own
 // localStorage state, so the parent handles the follow-through (re-key the token,
 // navigate to the new slug, or leave the deleted Site) via callbacks.
+// M10 adds GitHub integration: "Connect GitHub" button for non-PR Sites when the
+// server has GitHub configured, and PR-backed info when the Site is bound.
 interface OwnerPanelProps {
   slug: string;
   token: string;
   state: SiteState;
+  /** M10: PR-backed binding (null = local / ref-backed Site). */
+  mirrorBinding: { provider: string; repo: string; prNumber: number } | null;
+  /** M10: GitHub App slug when the server has the integration enabled. */
+  githubAppSlug: string | null;
   onClose: () => void;
   onStateChanged: (state: SiteState) => void;
   onShareRotated: (slug: string, shareUrl: string) => void;
@@ -35,6 +41,8 @@ export function OwnerPanel({
   slug,
   token,
   state,
+  mirrorBinding,
+  githubAppSlug,
   onClose,
   onStateChanged,
   onShareRotated,
@@ -147,6 +155,44 @@ export function OwnerPanel({
             </div>
           )}
         </section>
+
+        {mirrorBinding ? (
+          <section class="owner-section">
+            <h3 class="owner-section-title">PR-backed Site</h3>
+            <div class="owner-action-row">
+              <div class="owner-action-copy">
+                <strong>{mirrorBinding.repo}#{mirrorBinding.prNumber}</strong>
+                <span>Public Threads mirror to the GitHub PR.</span>
+              </div>
+              <a
+                class="btn-secondary"
+                href={`https://github.com/${mirrorBinding.repo}/pull/${mirrorBinding.prNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open PR ↗
+              </a>
+            </div>
+          </section>
+        ) : githubAppSlug ? (
+          <section class="owner-section">
+            <h3 class="owner-section-title">GitHub</h3>
+            <div class="owner-action-row">
+              <div class="owner-action-copy">
+                <strong>Connect a GitHub PR</strong>
+                <span>Install the Collab GitHub App to create PR-backed Sites.</span>
+              </div>
+              <a
+                class="btn-secondary"
+                href={`https://github.com/apps/${githubAppSlug}/installations/new`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Connect ↗
+              </a>
+            </div>
+          </section>
+        ) : null}
 
         <section class="owner-section owner-section--danger">
           <h3 class="owner-section-title">Danger zone</h3>

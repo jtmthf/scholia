@@ -191,6 +191,17 @@ export function App() {
           v{meta.version}
           {readOnly ? ` of ${meta.latestVersion}` : ""}
         </span>
+        {meta.mirrorBinding && (
+          <a
+            class="pr-badge"
+            href={`https://github.com/${meta.mirrorBinding.repo}/pull/${meta.mirrorBinding.prNumber}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View on GitHub"
+          >
+            {meta.mirrorBinding.repo}#{meta.mirrorBinding.prNumber}
+          </a>
+        )}
         {siteOwnerToken && (
           <>
             <button
@@ -227,6 +238,8 @@ export function App() {
           slug={meta.slug}
           token={siteOwnerToken}
           state={meta.state}
+          mirrorBinding={meta.mirrorBinding ?? null}
+          githubAppSlug={meta.githubAppSlug ?? null}
           onClose={() => setShowOwnerPanel(false)}
           onStateChanged={(state) => setSiteState({ status: "ready", meta: { ...meta, state } })}
           onShareRotated={(newSlug) => {
