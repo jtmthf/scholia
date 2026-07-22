@@ -1,4 +1,5 @@
-import matter from "gray-matter";
+import { VFile } from "vfile";
+import { matter } from "vfile-matter";
 
 export interface Frontmatter {
   data: Record<string, unknown>;
@@ -12,8 +13,9 @@ const FENCE_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 // parse error we strip the leading fence and keep the document body.
 export function parseFrontmatter(raw: string): Frontmatter {
   try {
-    const result = matter(raw);
-    return { data: (result.data ?? {}) as Record<string, unknown>, content: result.content };
+    const file = new VFile(raw);
+    matter(file, { strip: true });
+    return { data: (file.data.matter ?? {}) as Record<string, unknown>, content: String(file) };
   } catch {
     const match = FENCE_RE.exec(raw);
     return { data: {}, content: match ? raw.slice(match[0].length) : raw };
