@@ -238,6 +238,35 @@ Depends on M8 (visibility gates the backend). Operator-level opt-in; the end-use
   failures degrade to DB-only; deleted bot comments are respected (detached, not
   resurrected); PR merged/closed offers freeze, **PR locked auto-freezes**.
 
+### M11 — Deployment-agnostic server; Vercel hosted target (ADR-0015)
+Depends on M9 (rate limiting) and M10 (mirror bus). Makes the server's background-work
+assumptions explicit and pluggable, then adds Vercel as a second supported hosted
+target alongside self-host.
+- **`config.ts` decomposition:** split `depsFromEnv()` into composable per-resource
+  builders (`dbFromEnv`, `storeFromEnv`, `urlsFromEnv`, `limitsFromEnv`,
+  `githubFromEnv`, `mirrorFromEnv`); `depsFromEnv()` composes them unchanged for
+  self-host. `createDb()` gains optional postgres-js pool options (e.g. `max: 1`).
+- **Rate limiter:** `PostgresRateLimiter` alongside the existing in-memory
+  `FixedWindowRateLimiter` (interface unchanged). Selection via
+  `COLLAB_RATELIMIT_STORE` (default `memory`; no platform auto-detection in core).
+- **Mirror bus:** `emit()` drops the in-process `setTimeout` retry loop for a single
+  inline dispatch attempt; the existing pending-row sweep becomes the sole retry
+  path, exposed as a callable `runMirrorDrain(deps)` shared with reconcile.
+- **`/internal/drain` route:** bearer-auth'd (`COLLAB_INTERNAL_SECRET`) HTTP trigger
+  for the drain+reconcile sweep, callable by any external scheduler. Self-host keeps
+  triggering the same function from the existing `setInterval` boot hook — nothing
+  changes for self-host operators who never touch the new route.
+- **Vercel adapter** (`packages/server/src/adapters/vercel.ts`): wraps `hono/vercel`;
+  forces `contentWildcard: true` and a `PostgresRateLimiter` by default (multi-tenant
+  hosted requires both); rejects `GITHUB_APP_PRIVATE_KEY_PATH` at boot with an error
+  pointing at `GITHUB_APP_PRIVATE_KEY` (no mountable secret-file volume on Vercel).
+- **Deploy config + docs:** `vercel.json` Cron entry for `/internal/drain`; env var
+  reference for `web` (static) and `server` (adapter) on Vercel; wildcard
+  custom-domain setup for the content origin.
+- **Scope:** self-host defaults are unchanged throughout — every new behavior
+  (Postgres rate limiting, wildcard content origin, pooled DB) is opt-in via
+  explicit config, hardcoded only inside the Vercel adapter.
+
 ## 6. Notifications
 
 v1 = **pull** only: `list_comments --since` + summary counts (free from existing

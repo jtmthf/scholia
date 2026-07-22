@@ -7,6 +7,7 @@ A zero-config service for hosting markdown and HTML documents and letting humans
 **Site**:
 The unit of upload and sharing: a collection of one or more Pages hosted under a single shareable URL. A single uploaded file is the degenerate one-Page Site. A folder/zip becomes a multi-Page Site with a navigable tree and relative links between Pages rewritten to work. Versioning, ownership, and the access gate all live at the Site level.
 _Avoid_: project, doc set, bundle
+_Future_: Owner-bound custom domains for a Site (Share URL and/or content origin) are anticipated but out of scope for v1.
 
 **Page**:
 A single markdown or HTML artifact within a Site, hosted at a path under the Site's URL. Every Page is of a definite kind — a **Markdown Page** or an **HTML Page** — which differ in how they render and how comments anchor. Each Page is independently commentable. A Page's identity across Versions is its **path**: same path = same Page (migrate comments), a renamed/moved/deleted path = a new/removed Page whose old comments become Outdated.
