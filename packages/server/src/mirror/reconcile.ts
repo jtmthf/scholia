@@ -1,8 +1,14 @@
 // Reconciliation poller (ADR-0008): re-fetches PR review comments for every
 // PR-backed Site since its stored cursor, feeding them to the importer. This is
 // the poll-only fallback for firewalled self-hosts where webhooks aren't
-// delivered, and a safety net for dropped webhooks. Runs on a setInterval
-// started by the boot path when a provider is configured.
+// delivered, and a safety net for dropped webhooks.
+//
+// `runMirrorDrain` (ADR-0015, M11) pairs this inbound reconcile with the
+// outbound mirror bus's pending-row sweep into one platform-agnostic trigger:
+// self-host calls it from a `setInterval` started at boot (`startDrainLoop`);
+// a hosted target with no persistent process (Vercel) calls it from
+// `POST /internal/drain` on a schedule instead. Same function either way — the
+// domain logic doesn't know which platform is calling it.
 
 import type { AppDeps } from "../config.js";
 import { findPRBackedSites, getGitHubSiteState, setGitHubReconcileCursor, getLatestManifest } from "@collab/db";
@@ -31,6 +37,29 @@ export async function reconcilePRBackedSites(deps: AppDeps): Promise<number> {
     }
   }
   return total;
+}
+
+export interface MirrorDrainResult {
+  /** Outbound comment_mirrors rows re-dispatched by the bus's pending-row sweep. */
+  drained: boolean;
+  /** Inbound events accepted by the reconcile poll across all PR-backed Sites. */
+  reconciled: number;
+}
+
+// The shared drain+reconcile sweep (ADR-0015): outbound retry (mirrorBus's
+// pending/failed-under-cap rows) plus inbound reconcile (this poll), run back
+// to back. No-ops (drained: false, reconciled: 0) when no mirror providers are
+// registered — callers (the boot interval, `/internal/drain`) don't need to
+// check that themselves.
+export async function runMirrorDrain(deps: AppDeps): Promise<MirrorDrainResult> {
+  if (deps.mirror.length === 0) return { drained: false, reconciled: 0 };
+  let drained = false;
+  if (deps.mirrorBus.drainNow) {
+    await deps.mirrorBus.drainNow();
+    drained = true;
+  }
+  const reconciled = await reconcilePRBackedSites(deps);
+  return { drained, reconciled };
 }
 
 // Per-site reentrancy guard.
@@ -242,13 +271,15 @@ async function fetchThreadResolveState(
   return events;
 }
 
-// Start the reconciliation poller. Returns a stop function.
-export function startReconcilePoller(deps: AppDeps, intervalMs: number): () => void {
+// Start self-host's boot-time drain+reconcile interval (ADR-0015). Returns a
+// stop function. The Vercel adapter never calls this — it wires the same
+// `runMirrorDrain` to Vercel Cron via `/internal/drain` instead.
+export function startDrainLoop(deps: AppDeps, intervalMs: number): () => void {
   if (deps.mirror.length === 0) return () => {};
   const timer = setInterval(() => {
-    reconcilePRBackedSites(deps).catch((err) => {
-      // Log but don't throw — the poller must be resilient.
-      console.error("[collab] reconcile poll error:", err);
+    runMirrorDrain(deps).catch((err) => {
+      // Log but don't throw — the loop must be resilient.
+      console.error("[collab] drain loop error:", err);
     });
   }, intervalMs);
   return () => clearInterval(timer);

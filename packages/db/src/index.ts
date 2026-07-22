@@ -84,4 +84,7 @@ export {
   setGitHubReconcileCursor,
   setSiteMirrorBinding,
   findPRBackedSites,
+  // M11: Postgres-backed rate limiter (ADR-0015).
+  type RateLimitHit,
+  hitRateLimit,
 } from "./repos.js";

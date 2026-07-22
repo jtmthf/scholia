@@ -11,8 +11,9 @@ import { conversationsRoutes } from "./routes/conversations.js";
 import { agentDocsRoutes } from "./routes/agent-docs.js";
 import { webhooksRoutes } from "./routes/webhooks.js";
 import { githubInstallRoutes } from "./routes/github-install.js";
+import { internalRoutes } from "./routes/internal.js";
 import { noopMirrorBus } from "./mirror/bus.js";
-import { startReconcilePoller } from "./mirror/reconcile.js";
+import { startDrainLoop } from "./mirror/reconcile.js";
 
 // The hosted REST API + content-origin server (ADR-0011). M2 adds the first
 // hosted tracer bullet: create a Site (`POST /sites`), read its metadata
@@ -32,6 +33,7 @@ export type InputDeps = Omit<
   | "mirror"
   | "mirrorBus"
   | "github"
+  | "internalSecret"
 > &
   Partial<
     Pick<
@@ -43,6 +45,7 @@ export type InputDeps = Omit<
       | "mirror"
       | "mirrorBus"
       | "github"
+      | "internalSecret"
     >
   >;
 
@@ -58,6 +61,7 @@ function withContentDefaults(deps: InputDeps): AppDeps {
     github,
     mirror,
     mirrorBus: deps.mirrorBus ?? noopMirrorBus,
+    internalSecret: deps.internalSecret ?? null,
   };
 }
 
@@ -85,6 +89,7 @@ export function createApp(deps?: InputDeps) {
   app.route("/", agentDocsRoutes());
   app.route("/", webhooksRoutes(getDeps));
   app.route("/", githubInstallRoutes(getDeps));
+  app.route("/", internalRoutes(getDeps));
 
   // Serve the OpenAPI 3.1 spec (ADR-0014) at /openapi.json. Generated from
   // describeRoute annotations on the routes above.
@@ -101,14 +106,17 @@ export function createApp(deps?: InputDeps) {
   // Expose start hooks for the boot path:
   // - startMirror: drain the outbound mirror queue on startup (M10). No-op when
   //   no providers are registered.
-  // - startReconcile: start the inbound reconciliation poller (M10). No-op when
-  //   no providers or GitHub config is present.
+  // - startDrain: start self-host's boot-time drain+reconcile interval (M11,
+  //   ADR-0015) — outbound retry sweep + inbound reconcile, on one timer. No-op
+  //   when no providers or GitHub config is present. A hosted target with no
+  //   persistent process (Vercel) never calls this; it wires the same
+  //   `runMirrorDrain` to `/internal/drain` via Vercel Cron instead.
   return Object.assign(app, {
     startMirror: () => getDeps().mirrorBus.start(),
-    startReconcile: () => {
+    startDrain: () => {
       const deps = getDeps();
       if (deps.mirror.length === 0 || !deps.github) return () => {};
-      return startReconcilePoller(deps, deps.github.reconcileIntervalMs);
+      return startDrainLoop(deps, deps.github.reconcileIntervalMs);
     },
   });
 }

@@ -97,8 +97,8 @@ function rateSubject(actor: Actor, humanViewerId: string | null, c: Context): st
 // Charge one comment-creation against the limiter; returns a 429 Response (with
 // Retry-After) when over the limit, else null. Applies regardless of Site state
 // (CONTEXT "Site state").
-function rateLimited(c: Context, deps: AppDeps, siteId: string, subject: string): Response | null {
-  const res = deps.rateLimiter.hit(`${siteId}:${subject}`);
+async function rateLimited(c: Context, deps: AppDeps, siteId: string, subject: string): Promise<Response | null> {
+  const res = await deps.rateLimiter.hit(`${siteId}:${subject}`);
   if (res.ok) return null;
   const retrySec = Math.max(1, Math.ceil((res.retryAfterMs ?? 0) / 1000));
   c.header("Retry-After", String(retrySec));
@@ -410,7 +410,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
       const ownerViewerId =
         visibility === "private" && actor.tier === "viewer" ? actor.viewerId : null;
 
-      const limited = rateLimited(c, deps, site.id, rateSubject(actor, null, c));
+      const limited = await rateLimited(c, deps, site.id, rateSubject(actor, null, c));
       if (limited) return limited;
 
       const agentMentions = parseMentions(body.body as string);
@@ -498,7 +498,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
       };
     }
 
-    const limited = rateLimited(c, deps, site.id, `h:${body.viewerId as string}`);
+    const limited = await rateLimited(c, deps, site.id, `h:${body.viewerId as string}`);
     if (limited) return limited;
 
     const author = viewerIdentity(body.displayName as string);
@@ -568,7 +568,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     if (!stateAllows(site.state, "comment", meta.visibility)) {
       return c.json({ error: stateError(site.state) }, 403);
     }
-    const limited = rateLimited(c, deps, site.id, rateSubject(actor, humanViewerId, c));
+    const limited = await rateLimited(c, deps, site.id, rateSubject(actor, humanViewerId, c));
     if (limited) return limited;
 
     const latestVersion = await getLatestVersionId(db, site.id);

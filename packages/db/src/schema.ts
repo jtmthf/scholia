@@ -300,3 +300,14 @@ export const githubSiteState = pgTable(
     lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
   },
 );
+
+// Shared fixed-window counters for `PostgresRateLimiter` (M11, ADR-0015) — the
+// multi-instance-safe alternative to the in-memory limiter, needed once a
+// hosted deployment runs more than one process (e.g. Vercel Lambdas). One row
+// per limiter key (`${siteId}:${viewerId|ip}`); a window resets by overwriting
+// `resetAt` rather than deleting the row.
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});

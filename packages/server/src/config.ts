@@ -3,12 +3,13 @@ import { S3BlobStore, type BlobStore, type MirrorProvider } from "@collab/core";
 import {
   FixedWindowRateLimiter,
   NoopRateLimiter,
+  PostgresRateLimiter,
   type RateLimiter,
 } from "./rate-limit.js";
 import { buildMirrorContext } from "./mirror/context.js";
-import { createMirrorBus, noopMirrorBus, type MirrorBus } from "./mirror/bus.js";
+import { createMirrorBus, type MirrorBus } from "./mirror/bus.js";
 import {
-  githubConfigFromEnv,
+  githubFromEnv,
   loadMirrorProviders,
   type GitHubOperatorConfig,
 } from "./github-config.js";
@@ -47,13 +48,16 @@ export interface AppDeps {
    * (`<slug>.<content-host>`), giving each Site its own opaque origin so one
    * Site's page JS can't script another's. Requires wildcard DNS/TLS in prod;
    * for local testing use a wildcard proxy such as vercel-labs/portless. Off by
-   * default (path-based fallback) so CI/Playwright don't need wildcard DNS.
+   * default (path-based fallback) so CI/Playwright don't need wildcard DNS. The
+   * Vercel adapter (M11, ADR-0015) forces this on — a multi-tenant hosted
+   * deployment requires per-Site origin isolation.
    */
   contentWildcard: boolean;
   /**
    * Per-Viewer/IP rate limiter for comment creation (M9). On by default; a
-   * NoopRateLimiter disables it. Injectable so a multi-instance deploy can swap a
-   * shared store and tests can supply a tiny window or a no-op.
+   * NoopRateLimiter disables it. Injectable so a multi-instance deploy can swap
+   * a shared store (M11: `PostgresRateLimiter`) and tests can supply a tiny
+   * window or a no-op.
    */
   rateLimiter: RateLimiter;
   /** Operator upload caps (M9). All default-unset (infinite retention). */
@@ -66,41 +70,49 @@ export interface AppDeps {
   mirror: MirrorProvider[];
   /**
    * The outbound mirror bus (M10). `noopMirrorBus` when no providers are
-   * registered. Routes emit to it; the bus owns retry/backoff + startup replay.
+   * registered. Routes emit to it; the bus attempts one inline dispatch per
+   * event (M11, ADR-0015) — `runMirrorDrain` owns retry via periodic sweep.
    */
   mirrorBus: MirrorBus;
   /** Operator GitHub config (M10) — null when GitHub integration is off. */
   github: GitHubOperatorConfig | null;
+  /**
+   * Bearer secret gating `POST/GET /internal/drain` (M11, ADR-0015) — the
+   * platform-agnostic trigger for the outbound-drain + inbound-reconcile
+   * sweep. Null disables the route (404), matching the GitHub webhook route's
+   * disabled-when-unconfigured pattern.
+   */
+  internalSecret: string | null;
 }
 
 // Parse a positive-integer env var, or undefined when unset/invalid (an invalid
-// value must not silently become a cap — default is "no limit").
-function intEnv(name: string): number | undefined {
+// value must not silently become a cap — default is "no limit"). Exported for
+// the Vercel adapter, which reuses it to parse the same rate-limit knobs while
+// forcing the Postgres implementation.
+export function intEnv(name: string): number | undefined {
   const raw = process.env[name];
   if (raw === undefined || raw.trim() === "") return undefined;
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
-// Build the rate limiter from env. Default: 20 comment-creates per 60s per
-// identity. `COLLAB_RATELIMIT_DISABLED=true` turns it off; the count and window
-// are overridable.
-function rateLimiterFromEnv(): RateLimiter {
-  if (process.env.COLLAB_RATELIMIT_DISABLED === "true") return new NoopRateLimiter();
-  const limit = intEnv("COLLAB_RATELIMIT_COMMENTS") ?? 20;
-  const windowMs = intEnv("COLLAB_RATELIMIT_WINDOW_MS") ?? 60_000;
-  return new FixedWindowRateLimiter(limit, windowMs);
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, "");
 }
 
-function limitsFromEnv(): UploadLimits {
-  return {
-    maxFileBytes: intEnv("COLLAB_MAX_FILE_BYTES"),
-    maxSiteBytes: intEnv("COLLAB_MAX_SITE_BYTES"),
-    maxFileCount: intEnv("COLLAB_MAX_FILE_COUNT"),
-  };
+// ---- Per-resource builders (ADR-0015) ----
+// Each builder reads only the env it needs and is independently testable.
+// `depsFromEnv()` composes all of them unchanged for self-host; a platform
+// adapter (e.g. the Vercel adapter) composes its own subset instead of
+// layering overrides onto an opaque function.
+
+// `options` passes through to postgres-js (e.g. `{ max: 1 }` for a
+// serverless-function-sized pool) — a caller decision, not a default here.
+export function dbFromEnv(options?: Parameters<typeof createDb>[1]): Db {
+  return createDb(process.env.DATABASE_URL, options);
 }
 
-function blobStoreFromEnv(): BlobStore {
+export function storeFromEnv(): BlobStore {
   return new S3BlobStore({
     bucket: process.env.S3_BUCKET ?? "collab-blobs",
     endpoint: process.env.S3_ENDPOINT,
@@ -111,36 +123,87 @@ function blobStoreFromEnv(): BlobStore {
   });
 }
 
-function stripTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
+export type Urls = Pick<AppDeps, "publicUrl" | "viewerUrl" | "contentUrl" | "contentWildcard">;
+
+export function urlsFromEnv(): Urls {
+  const publicUrl = stripTrailingSlash(process.env.PUBLIC_URL ?? "http://localhost:8787");
+  return {
+    publicUrl,
+    viewerUrl: stripTrailingSlash(process.env.VIEWER_URL ?? "http://localhost:5173"),
+    contentUrl: stripTrailingSlash(process.env.CONTENT_URL ?? publicUrl),
+    contentWildcard: process.env.CONTENT_WILDCARD === "true",
+  };
+}
+
+export function limitsFromEnv(): UploadLimits {
+  return {
+    maxFileBytes: intEnv("COLLAB_MAX_FILE_BYTES"),
+    maxSiteBytes: intEnv("COLLAB_MAX_SITE_BYTES"),
+    maxFileCount: intEnv("COLLAB_MAX_FILE_COUNT"),
+  };
+}
+
+// `githubFromEnv` lives in ./github-config.js (it also exports `botLoginFor` +
+// `loadMirrorProviders`, which stay grouped with it); re-exported here so every
+// M11 builder is reachable from one module.
+export { githubFromEnv, type GitHubOperatorConfig } from "./github-config.js";
+
+export type MirrorDeps = Pick<AppDeps, "mirror" | "mirrorBus">;
+
+// The bus needs the db + store to resolve Page source bytes on dispatch; wire
+// it here so the routes just call `deps.mirrorBus.emit`. No providers → noop bus.
+export function mirrorFromEnv(opts: {
+  db: Db;
+  store: BlobStore;
+  github: GitHubOperatorConfig | null;
+}): MirrorDeps {
+  const mirror = loadMirrorProviders({ github: opts.github, deps: { db: opts.db } });
+  const mirrorBus = createMirrorBus({
+    providers: mirror,
+    db: opts.db,
+    contextFor: () => buildMirrorContext({ db: opts.db, store: opts.store }),
+  });
+  return { mirror, mirrorBus };
+}
+
+// Build the rate limiter from env. Default: 20 comment-creates per 60s per
+// identity. `COLLAB_RATELIMIT_DISABLED=true` turns it off; the count and window
+// are overridable. `COLLAB_RATELIMIT_STORE=postgres` selects the multi-instance-
+// safe implementation (default `memory`; no platform auto-detection here — a
+// platform adapter may choose a default for itself, e.g. the Vercel adapter
+// defaults to postgres, but config.ts never branches on the platform).
+export function rateLimiterFromEnv(db: Db): RateLimiter {
+  if (process.env.COLLAB_RATELIMIT_DISABLED === "true") return new NoopRateLimiter();
+  const limit = intEnv("COLLAB_RATELIMIT_COMMENTS") ?? 20;
+  const windowMs = intEnv("COLLAB_RATELIMIT_WINDOW_MS") ?? 60_000;
+  if (process.env.COLLAB_RATELIMIT_STORE === "postgres") {
+    return new PostgresRateLimiter(db, limit, windowMs);
+  }
+  return new FixedWindowRateLimiter(limit, windowMs);
+}
+
+export function internalSecretFromEnv(): string | null {
+  return process.env.COLLAB_INTERNAL_SECRET?.trim() || null;
 }
 
 // Build deps from environment. Called lazily on first use so importing the app
 // (e.g. for the health check in tests) never requires DATABASE_URL or S3.
 export function depsFromEnv(): AppDeps {
-  const publicUrl = stripTrailingSlash(process.env.PUBLIC_URL ?? "http://localhost:8787");
-  const db = createDb();
-  const store = blobStoreFromEnv();
-  const github = githubConfigFromEnv();
-  const mirror = loadMirrorProviders({ github, deps: { db } });
-  // The bus needs the db + store to resolve Page source bytes on dispatch; wire it
-  // here so the routes just call `deps.mirrorBus.emit`. No providers → noop bus.
-  const mirrorBus = createMirrorBus({
-    providers: mirror,
-    db,
-    contextFor: () => buildMirrorContext({ db, store }),
-  });
+  const db = dbFromEnv();
+  const store = storeFromEnv();
+  const urls = urlsFromEnv();
+  const limits = limitsFromEnv();
+  const github = githubFromEnv();
+  const { mirror, mirrorBus } = mirrorFromEnv({ db, store, github });
   return {
     db,
     store,
-    publicUrl,
-    viewerUrl: stripTrailingSlash(process.env.VIEWER_URL ?? "http://localhost:5173"),
-    contentUrl: stripTrailingSlash(process.env.CONTENT_URL ?? publicUrl),
-    contentWildcard: process.env.CONTENT_WILDCARD === "true",
-    rateLimiter: rateLimiterFromEnv(),
-    limits: limitsFromEnv(),
+    ...urls,
+    rateLimiter: rateLimiterFromEnv(db),
+    limits,
     mirror,
     mirrorBus,
     github,
+    internalSecret: internalSecretFromEnv(),
   };
 }

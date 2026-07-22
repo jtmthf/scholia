@@ -43,6 +43,13 @@
       "when": 1784599590947,
       "tag": "0005_tired_beyonder",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784693152583,
+      "tag": "0006_tidy_celestials",
+      "breakpoints": true
     }
   ]
 }

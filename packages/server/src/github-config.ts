@@ -18,7 +18,7 @@ export interface GitHubOperatorConfig {
   reconcileIntervalMs: number;
 }
 
-export function githubConfigFromEnv(): GitHubOperatorConfig | null {
+export function githubFromEnv(): GitHubOperatorConfig | null {
   const appId = process.env.GITHUB_APP_ID?.trim();
   const slug = process.env.GITHUB_APP_SLUG?.trim() ?? "collab";
   const key =

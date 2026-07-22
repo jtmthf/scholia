@@ -1,10 +1,13 @@
-// In-process outbound mirror bus (ADR-0008, M10). A domain event emitted by a
-// route (public comment created, resolve/reopen, promotion) is persisted as a
-// `comment_mirrors` row with `status="pending"` AND a serialized `payload`, then
-// asynchronously handed to the matching provider's `dispatch`. Failures degrade
-// to DB-only (never abort the user's request): the bus retries with exponential
-// backoff up to MAX_ATTEMPTS, then marks the row `failed`. On `start()` it drains
-// every `pending`/`failed`-under-cap row so a crash or restart replays the queue.
+// In-process outbound mirror bus (ADR-0008, M10; single-attempt dispatch per
+// ADR-0015, M11). A domain event emitted by a route (public comment created,
+// resolve/reopen, promotion) is persisted as a `comment_mirrors` row with
+// `status="pending"` AND a serialized `payload`, then dispatched to the
+// matching provider once, inline, in the same request. Failures degrade to
+// DB-only (never abort the user's request): the row stays `pending` for the
+// next periodic drain sweep (`runMirrorDrain`, driven by `/internal/drain` or
+// self-host's boot-time interval) to retry, up to MAX_ATTEMPTS, after which the
+// row is marked `failed`. `start()` runs one drain pass on boot so a crash or
+// restart replays the queue immediately rather than waiting for the interval.
 //
 // The bus is injectable on `AppDeps`; tests and local dev use `NoopMirrorBus`.
 
@@ -35,10 +38,6 @@ export interface MirrorBusOptions {
   db: Db;
   /** Builds the MirrorContext handed to a provider's dispatch (resolves Page source bytes). */
   contextFor: (binding: MirrorBinding) => MirrorContext;
-  /** Backoff base ms; default 100. Real exponential: min(2^n * base, 30_000). */
-  baseBackoffMs?: number;
-  /** Test hook: override sleep so tests don't wait real time. Defaults to setTimeout. */
-  sleep?: (ms: number) => Promise<void>;
   /** Max attempts before a row is marked `failed`; default MAX_ATTEMPTS. */
   maxAttempts?: number;
 }
@@ -67,8 +66,6 @@ class InProcessMirrorBus implements MirrorBus {
   private readonly providers = new Map<string, MirrorProvider>();
   private readonly db: Db;
   private readonly contextFor: (binding: MirrorBinding) => MirrorContext;
-  private readonly baseBackoffMs: number;
-  private readonly sleep: (ms: number) => Promise<void>;
   private readonly maxAttempts: number;
   private running = false;
   private inFlight = new Set<Promise<void>>();
@@ -80,8 +77,6 @@ class InProcessMirrorBus implements MirrorBus {
     for (const p of opts.providers) this.providers.set(p.id, p);
     this.db = opts.db;
     this.contextFor = opts.contextFor;
-    this.baseBackoffMs = opts.baseBackoffMs ?? 100;
-    this.sleep = opts.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)));
     this.maxAttempts = opts.maxAttempts ?? MAX_ATTEMPTS;
   }
 
@@ -173,45 +168,43 @@ class InProcessMirrorBus implements MirrorBus {
     }
   }
 
+  // A single inline dispatch attempt (ADR-0015): no in-process retry/backoff —
+  // `emit()` calls this once per event, and the periodic drain sweep
+  // (`drainNow`, driven by `runMirrorDrain`) is the sole retry path for a row
+  // still `pending`/`failed`-under-cap. This is what makes the bus safe under a
+  // serverless function that terminates at the response.
   private async dispatchOne(provider: MirrorProvider, event: MirrorEvent, commentId: string): Promise<void> {
     const ctx = this.contextFor(event.mirrorBinding);
-    // Retry loop with bounded exponential backoff.
-    let attempt = 0;
-    for (;;) {
-      try {
-        await provider.dispatch([event], ctx);
-        // Success: read the external id/url from the provider via the mirror row.
-        // The provider's dispatch is expected to upsert the mirror row itself on
-        // success (it owns the GitHub comment id). We mark synced here only if the
-        // provider didn't already — check the row.
-        const row = await getMirrorRow(this.db, commentId, provider.id);
-        if (row && row.status === "pending") {
-          // Provider didn't record a synced row (best-effort resolve failure etc.):
-          // mark synced without an external id only when dispatch returned cleanly.
-          await touchMirrorRow(this.db, {
-            commentId,
-            provider: provider.id,
-            externalId: row.externalId || "",
-            externalUrl: row.externalUrl,
-            status: "synced",
-          });
-        }
-        return;
-      } catch (err) {
-        attempt += 1;
-        const attempts = await bumpMirrorAttempts(this.db, { commentId, provider: provider.id });
-        if (attempts >= this.maxAttempts || attempt >= this.maxAttempts) {
-          await touchMirrorRow(this.db, {
-            commentId,
-            provider: provider.id,
-            externalId: "",
-            status: "failed",
-          });
-          return;
-        }
-        const backoff = Math.min(2 ** attempt * this.baseBackoffMs, 30_000);
-        await this.sleep(backoff);
+    try {
+      await provider.dispatch([event], ctx);
+      // Success: read the external id/url from the provider via the mirror row.
+      // The provider's dispatch is expected to upsert the mirror row itself on
+      // success (it owns the GitHub comment id). We mark synced here only if the
+      // provider didn't already — check the row.
+      const row = await getMirrorRow(this.db, commentId, provider.id);
+      if (row && row.status === "pending") {
+        // Provider didn't record a synced row (best-effort resolve failure etc.):
+        // mark synced without an external id only when dispatch returned cleanly.
+        await touchMirrorRow(this.db, {
+          commentId,
+          provider: provider.id,
+          externalId: row.externalId || "",
+          externalUrl: row.externalUrl,
+          status: "synced",
+        });
       }
+    } catch {
+      const attempts = await bumpMirrorAttempts(this.db, { commentId, provider: provider.id });
+      if (attempts >= this.maxAttempts) {
+        await touchMirrorRow(this.db, {
+          commentId,
+          provider: provider.id,
+          externalId: "",
+          status: "failed",
+        });
+      }
+      // Under the cap: the row is already `pending` (touchMirrorRow above at
+      // enqueue time) — the next drain sweep will retry it.
     }
   }
 }

@@ -6,6 +6,7 @@ export { type AppDeps, type UploadLimits } from "./config.js";
 export {
   FixedWindowRateLimiter,
   NoopRateLimiter,
+  PostgresRateLimiter,
   type RateLimiter,
   type RateLimitResult,
 } from "./rate-limit.js";
@@ -17,9 +18,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // Start the outbound mirror bus (drains pending comment_mirrors rows on boot so
   // a crash/restart replays the queue). No-op when no providers are registered.
   void app.startMirror();
-  // Start the inbound reconciliation poller — the fallback for firewalled
-  // self-hosts and dropped webhook deliveries. No-op without GitHub config.
-  app.startReconcile();
+  // Start the drain+reconcile interval — outbound retry sweep + the inbound
+  // reconcile fallback for firewalled self-hosts and dropped webhook
+  // deliveries. No-op without GitHub config.
+  app.startDrain();
   serve({ fetch: app.fetch, port });
   console.log(`[collab] server listening on http://localhost:${port}`);
 }

@@ -2,11 +2,14 @@
 // state": "applies regardless of state"). A small in-memory fixed-window counter
 // keyed by an opaque string (the caller composes `${siteId}:${viewerId|ip}`).
 //
-// In-memory is sufficient for v1 single-instance hosting and the self-host path;
+// In-memory is sufficient for the self-host path (typically single-instance);
 // it is injected via AppDeps so a multi-instance deployment can swap a shared
-// (e.g. Redis) implementation and tests can supply a NoopRateLimiter or a tiny
-// window. This is a safety mechanism, so it is on by default (config.ts wires the
-// default limit); operators tune or disable it via env.
+// implementation (M11: `PostgresRateLimiter`, ADR-0015) and tests can supply a
+// NoopRateLimiter or a tiny window. This is a safety mechanism, so it is on by
+// default (config.ts wires the default limit); operators tune or disable it via
+// env (`COLLAB_RATELIMIT_STORE` selects the implementation).
+
+import { hitRateLimit, type Db } from "@collab/db";
 
 export interface RateLimitResult {
   ok: boolean;
@@ -15,8 +18,12 @@ export interface RateLimitResult {
 }
 
 export interface RateLimiter {
-  /** Record one hit for `key` and report whether it is within the limit. */
-  hit(key: string): RateLimitResult;
+  /**
+   * Record one hit for `key` and report whether it is within the limit.
+   * Async to accommodate `PostgresRateLimiter` (M11); in-memory implementations
+   * still return synchronously (a plain value satisfies a `Promise`-typed return).
+   */
+  hit(key: string): RateLimitResult | Promise<RateLimitResult>;
 }
 
 // Fixed-window limiter: at most `limit` hits per `windowMs` per key. A window
@@ -63,6 +70,28 @@ export class FixedWindowRateLimiter implements RateLimiter {
 // as a convenient default for tests that don't exercise the limit.
 export class NoopRateLimiter implements RateLimiter {
   hit(_key: string): RateLimitResult {
+    return { ok: true };
+  }
+}
+
+// Postgres-backed fixed-window limiter (M11, ADR-0015): correct across the many
+// concurrent instances a busy hosted Site gets (e.g. Vercel Lambdas), where the
+// in-memory limiter's per-process Map would silently become `limit ×
+// warm-instance-count`. One round trip per hit via `hitRateLimit`'s atomic
+// upsert. Selected via `COLLAB_RATELIMIT_STORE=postgres`; the Vercel adapter
+// defaults to it since multi-instance hosting requires it.
+export class PostgresRateLimiter implements RateLimiter {
+  constructor(
+    private readonly db: Db,
+    private readonly limit: number,
+    private readonly windowMs: number,
+  ) {}
+
+  async hit(key: string): Promise<RateLimitResult> {
+    const { count, resetAt } = await hitRateLimit(this.db, key, this.windowMs);
+    if (count > this.limit) {
+      return { ok: false, retryAfterMs: Math.max(0, resetAt.getTime() - Date.now()) };
+    }
     return { ok: true };
   }
 }

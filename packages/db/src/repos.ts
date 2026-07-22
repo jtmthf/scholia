@@ -16,6 +16,7 @@ import {
   githubSiteState,
   manifestEntries,
   mentions,
+  rateLimits,
   reactions,
   siteTokens,
   sites,
@@ -1958,4 +1959,30 @@ export async function findPRBackedSites(
       slug: r.slug,
       mirrorBinding: r.mirrorBinding as MirrorBinding,
     }));
+}
+
+export interface RateLimitHit {
+  count: number;
+  resetAt: Date;
+}
+
+// Atomic fixed-window increment for `PostgresRateLimiter` (M11, ADR-0015): one
+// row per key, single round trip. A window resets by overwriting count+resetAt
+// when the stored resetAt has passed; otherwise increments in place. Safe under
+// concurrent hits across many serverless instances (unlike the in-memory
+// FixedWindowRateLimiter's per-process Map).
+export async function hitRateLimit(db: Db, key: string, windowMs: number): Promise<RateLimitHit> {
+  const newResetAt = sql`now() + ${windowMs} * interval '1 millisecond'`;
+  const [row] = await db
+    .insert(rateLimits)
+    .values({ key, count: 1, resetAt: newResetAt })
+    .onConflictDoUpdate({
+      target: rateLimits.key,
+      set: {
+        count: sql`case when ${rateLimits.resetAt} <= now() then 1 else ${rateLimits.count} + 1 end`,
+        resetAt: sql`case when ${rateLimits.resetAt} <= now() then ${newResetAt} else ${rateLimits.resetAt} end`,
+      },
+    })
+    .returning({ count: rateLimits.count, resetAt: rateLimits.resetAt });
+  return row!;
 }
