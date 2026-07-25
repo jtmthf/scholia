@@ -374,16 +374,25 @@ root one keeps relative links.
       `actions/setup-node@v4`, and `pnpm/action-setup@v4` target the
       deprecated Node 20 and are forced onto Node 24. Harmless today; bump the
       action majors when convenient.
-- [ ] Tag the release in git (`git tag`) — repo has no tags. **Decided: wait
-      until the npm publish**, so the tag matches exactly what ships and the
-      CHANGELOG's `0.1.0` entry stays honestly marked "unreleased" until then.
+- [x] **`scholia@0.1.0` is published.** Registry record: MIT, 517 files,
+      15.6 MB unpacked, `bin` → `dist/cli.js`, runtime deps `cac` + `open` only,
+      `engines.node >=22`, published `2026-07-25T01:57:33Z`. Rather than trust
+      the local build, the **published tarball was installed from the registry
+      into a clean directory and run**: `--version` prints `scholia/0.1.0`, and
+      `127.0.0.1`, `localhost`, and `[::1]` all return 200 with the expected
+      content — so the dual-stack fix below is genuinely in the artifact users
+      get, not just in the repo.
+- [x] Tagged `v0.1.0` at the published tree (waited for the publish, as
+      decided, so the tag matches exactly what shipped). The CHANGELOG's `0.1.0`
+      entry is now dated **2026-07-25**, matching the registry's UTC publish
+      timestamp rather than the maintainer's local date, so the file agrees with
+      `npm view scholia time`.
 - [x] **Publish access settled:** the `scholia` npm org exists and 2FA is
       enabled on the account.
       *Two things to know before the first publish:*
       (1) The npm org reserves the **`@scholia/*` scope**, not the unscoped
-      name. `npm view scholia` is still a 404 — nothing holds `scholia` until
-      the first `npm publish` claims it, so that window is open until you push
-      the release.
+      name — nothing held `scholia` until the first publish claimed it.
+      **Now claimed** as of 2026-07-25, so that window is closed.
       (2) With 2FA on, an unattended CI publish needs either a **granular
       access token** with 2FA-bypass-for-automation or **trusted publishing**
       (OIDC, no long-lived token in repo secrets). Prefer trusted publishing;
@@ -405,7 +414,8 @@ root one keeps relative links.
       git-ignored and untracked. Going public also made branch protection free
       (see above) and made the absolute `github.com/jtmthf/scholia/...` links
       in the README, `package.json`, and CHANGELOG resolve.
-- [ ] GitHub release notes pointing at the CHANGELOG entry.
+- [x] GitHub release published for `v0.1.0`, pointing at the CHANGELOG entry
+      and the npm package.
 
 ## 7. Post-launch
 

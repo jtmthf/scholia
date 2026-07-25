@@ -9,7 +9,7 @@ are internal and unpublished; changes to them appear here only where they affect
 
 ## [Unreleased]
 
-## [0.1.0] — unreleased
+## [0.1.0] — 2026-07-25
 
 First release. Ships **Local Preview** only: `scholia <path>` renders a local markdown
 file or folder in your browser. No network calls, no account, no credentials.
