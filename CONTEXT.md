@@ -18,12 +18,20 @@ A non-Page file in a Site (image, CSS, JS, font, or any non-`.md`/`.html` file).
 _Avoid_: resource, attachment
 
 **Entry Page**:
-The Page the Site's Share URL root resolves to. Chosen by precedence with no config: `index.html` → `index.md` → `README.md` → otherwise the first top-level `.md`/`.html` alphabetically (Owner-overridable later).
-_Avoid_: home, root page, landing
+The Page a directory path resolves to — at the Site root (the Share URL itself) or at any folder within it. Chosen by precedence with no config: `index.html` → `index.md` → `README.md` → otherwise the first Page directly inside that directory by filename (Owner-overridable later). The root is the degenerate case where the directory is the Site itself, so one precedence rule serves both.
+_Avoid_: home, root page, landing, directory index
 
 **Nav**:
-The auto-generated navigation tree for a multi-Page Site, derived from Page paths (folder structure → collapsible tree), each Page labeled by its first `<h1>`/title falling back to filename. Relative links between Pages are rewritten to navigate within the Site and keep the comment chrome. No manual nav config.
+The auto-generated navigation tree for a multi-Page Site, derived from Page paths (folder structure → collapsible tree), each Page labeled by its first `<h1>`/title falling back to filename. Siblings are ordered Entry Page first, then any explicit order, then by **filename** — never by label, so numbered conventions like `0001-…` stay in sequence even though the reader sees the prose title. Relative links between Pages are rewritten to navigate within the Site and keep the comment chrome. No manual nav config.
 _Avoid_: sidebar, menu, toc
+
+**Outline**:
+The list of a single Page's own headings, shown alongside it and tracking scroll position as the reader moves through the Page. Distinct from Nav: Nav moves between Pages, the Outline moves within one. Derived from the Page's headings with no config.
+_Avoid_: toc, table of contents, on this page, minimap
+
+**Colophon**:
+The block at the foot of a Page recording where it came from: its path, when it last changed, and its Provenance. Named for the publication note at the end of a manuscript, and placed there for the same reason — it is a provenance record, not part of the reading path, so it sits after the text rather than above it.
+_Avoid_: footer, metadata, page info
 
 **Markdown Page**:
 A Page whose canonical source is markdown. It is rendered to an HTML page for reading, but comments anchor to ranges in the original markdown *source* (via a Source Map), not to the rendered DOM.
@@ -71,7 +79,7 @@ A flag marking a Conversation as addressed. For a public Thread, anyone may reso
 _Avoid_: closed, done
 
 **Provenance**:
-Best-effort git facts captured on a Version at upload time when `upload` runs inside a repo: repo remote URL, commit SHA, branch, and a dirty-working-tree flag. Surfaced to agents (so a reviewer's agent can fetch/checkout the matching commit and detect drift before grounding answers in code) and shown to humans as a trust signal ("generated from `main` @ `a1b2c3d`, uncommitted changes"). Collab never accesses the repo itself — Provenance is metadata only (see ADR-0007).
+Best-effort git facts about the directory the content came from: repo remote URL, commit SHA, branch, and a dirty-working-tree flag. In Local Preview they are read live from the working directory, so they track edits as they happen; on upload they are frozen onto the Version, since a Version is immutable and its Provenance must not drift. Surfaced to agents (so a reviewer's agent can fetch/checkout the matching commit and detect drift before grounding answers in code) and shown to humans in the Colophon as a trust signal ("generated from `main` @ `a1b2c3d`, uncommitted changes"). Collab never accesses the repo itself — Provenance is metadata only (see ADR-0007).
 _Avoid_: source ref, git info
 
 **Version**:
