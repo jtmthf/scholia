@@ -90,17 +90,24 @@ function sortTree(nodes: NavNode[]): void {
 }
 
 // Resolve the Entry Page path by precedence with no config (CONTEXT "Entry
-// Page"): top-level `index.html` -> `index.md` -> `README.md` -> otherwise the
-// first top-level Page (Markdown or HTML) alphabetically. M4 restores
-// `index.html` to the front of the precedence now that HTML is a Page kind. A
-// Site with only nested Pages falls back to the first Page by path.
-export function pickEntryPath(entries: ManifestEntry[]): string | undefined {
-  const pages = entries.filter((e) => isPage(e.kind)).map((e) => e.path);
-  if (pages.length === 0) return undefined;
+// Page"): `index.html` -> `index.md` -> `README.md` -> otherwise the first
+// Page directly inside `dir` (Markdown or HTML) alphabetically. The root is
+// the degenerate case (`dir` omitted / ""), so one rule serves both — CONTEXT
+// "Entry Page" now applies this to any directory in the Site, not just the
+// root. M4 restores `index.html` to the front of the precedence now that HTML
+// is a Page kind. A directory with only nested Pages falls back to the first
+// Page under it by path.
+export function pickEntryPath(entries: ManifestEntry[], dir = ""): string | undefined {
+  const prefix = dir ? `${dir.replace(/\/+$/, "")}/` : "";
+  const scoped = entries
+    .filter((e) => isPage(e.kind) && e.path.startsWith(prefix))
+    .map((e) => e.path);
+  if (scoped.length === 0) return undefined;
 
-  const topLevel = pages.filter((p) => !p.includes("/"));
+  const relative = (p: string) => p.slice(prefix.length);
+  const topLevel = scoped.filter((p) => !relative(p).includes("/"));
   const named = (name: string) =>
-    topLevel.find((p) => p.toLowerCase() === name);
+    topLevel.find((p) => relative(p).toLowerCase() === name);
 
   return (
     named("index.html") ??
@@ -108,6 +115,6 @@ export function pickEntryPath(entries: ManifestEntry[]): string | undefined {
     named("index.md") ??
     named("readme.md") ??
     [...topLevel].sort((a, b) => a.localeCompare(b))[0] ??
-    [...pages].sort((a, b) => a.localeCompare(b))[0]
+    [...scoped].sort((a, b) => a.localeCompare(b))[0]
   );
 }

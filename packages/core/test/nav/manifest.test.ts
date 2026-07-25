@@ -71,6 +71,22 @@ describe("pickEntryPath", () => {
   test("returns undefined when the Site has no Pages", () => {
     expect(pickEntryPath([asset("logo.png")])).toBeUndefined();
   });
+
+  test("resolves within an arbitrary directory scope, not just the Site root", () => {
+    const entries = [
+      md("README.md"),
+      md("docs/README.md"),
+      md("docs/adr/0001-foo.md"),
+      md("docs/adr/0002-bar.md"),
+    ];
+    // Root scope (default) ignores nested Pages entirely once a root Page exists.
+    expect(pickEntryPath(entries)).toBe("README.md");
+    // Scoped to "docs": its own README wins over the root's.
+    expect(pickEntryPath(entries, "docs")).toBe("docs/README.md");
+    // Scoped to "docs/adr": no index/README there, falls back to the first
+    // Page directly inside that directory, alphabetically.
+    expect(pickEntryPath(entries, "docs/adr")).toBe("docs/adr/0001-foo.md");
+  });
 });
 
 function flatten(nodes: NavNode[]): string[] {
