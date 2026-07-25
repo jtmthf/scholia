@@ -183,6 +183,28 @@ installable CLI. **Out of scope for this launch:** `share`, `chats`, `state`,
         `@collab/local` `StartOptions` (`server.ts` `findPort` throws when
         strict) + explicit-vs-default detection in `cli.ts`. Both paths
         smoke-verified from source.
+      - **dual-stack loopback → fixed (found during publish prep).** The
+        packaged binary printed `http://localhost:3000` and served it fine in a
+        browser, but `curl 127.0.0.1:3000` was **connection-refused**:
+        `localhost` is a DNS name, and on macOS it resolves to `::1` first, so
+        `serve({ hostname: "localhost" })` bound IPv6 loopback *only*
+        (confirmed via `lsof`: a single `TCP [::1]:4331 (LISTEN)`). Anything
+        reaching for `127.0.0.1` explicitly — scripts, curl, other tooling —
+        got nothing. Binding `::`/`0.0.0.0` would have "fixed" it by exposing
+        the preview on the LAN, contradicting the loopback-only promise in the
+        README, so instead `@collab/local` now **binds both loopback addresses
+        explicitly** when the host is the default `localhost`, and honours an
+        explicit `--host` verbatim. Supporting changes: `checkPort` became
+        `probePort`, which distinguishes `EADDRINUSE` (address fine, port
+        taken) from `EADDRNOTAVAIL`/`EAFNOSUPPORT` (no such stack) — conflating
+        them would make an IPv6-less machine look like 25 consecutive busy
+        ports; `findPort` now requires a port free on *every* address it will
+        bind; a failed secondary bind warns instead of aborting startup; and
+        `close()` closes all listeners. Verified on the repacked tarball:
+        `127.0.0.1`, `localhost`, and `[::1]` all 200, two listeners in `lsof`,
+        and SIGINT releases both. Two regression tests added in
+        `packages/local/test/server.test.ts` (the IPv6 leg self-skips where no
+        IPv6 stack exists).
       - *macOS only* — cross-platform is the separate item below.
 - [x] Cross-platform correctness covered by CI + dev (decided). `ci.yml`'s
       `check` job now runs a matrix on `ubuntu-latest` + `windows-latest`

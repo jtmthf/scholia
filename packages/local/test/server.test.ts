@@ -1,4 +1,5 @@
 import { expect } from "vitest";
+import { createServer } from "node:net";
 import { test as tmpTest } from "./helpers/tmp.js";
 import { startServer, type RunningServer, type StartOptions } from "../src/server.js";
 
@@ -95,6 +96,46 @@ test("serves sibling non-document files with the correct content-type", async ({
   const res = await fetch(`${url}/logo.png`);
   expect(res.status).toBe(200);
   expect(res.headers.get("content-type")).toBe("image/png");
+});
+
+// `localhost` resolves to ::1 on macOS and 127.0.0.1 elsewhere, so binding it
+// as a single name leaves the other loopback address refusing connections —
+// the browser works while `curl 127.0.0.1:<port>` fails. Both must answer.
+test("the default host answers on both IPv4 and IPv6 loopback", async ({ tmp, serve }) => {
+  await tmp.write("README.md", "# Home\n\nDual stack.\n");
+  const { port } = await serve();
+
+  const reachable = async (address: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`http://${address}:${port}/`);
+      return res.status === 200 && (await res.text()).includes("Dual stack.");
+    } catch {
+      return false;
+    }
+  };
+
+  // IPv4 loopback is always present; IPv6 only where the stack exists, and a
+  // machine without it must not fail this test.
+  expect(await reachable("127.0.0.1")).toBe(true);
+
+  const hasIpv6 = await new Promise<boolean>((res) => {
+    const probe = createServer();
+    probe.once("error", () => res(false));
+    probe.once("listening", () => probe.close(() => res(true)));
+    probe.listen(0, "::1");
+  });
+  if (hasIpv6) expect(await reachable("[::1]")).toBe(true);
+});
+
+test("an explicit --host is bound verbatim, not expanded to both stacks", async ({ tmp, serve }) => {
+  await tmp.write("README.md", "# Home\n\nIPv4 only.\n");
+  const { port } = await serve({ host: "127.0.0.1" });
+
+  const res = await fetch(`http://127.0.0.1:${port}/`);
+  expect(res.status).toBe(200);
+
+  // ::1 was never requested, so nothing should be listening there.
+  await expect(fetch(`http://[::1]:${port}/`)).rejects.toThrow();
 });
 
 test("single-file mode renders that one file for any path, without a sidebar", async ({ tmp, serve }) => {

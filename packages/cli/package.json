@@ -14,7 +14,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "scholia": "./dist/cli.js"
+    "scholia": "dist/cli.js"
   },
   "files": [
     "dist"
