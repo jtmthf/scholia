@@ -4,7 +4,7 @@ import { join, basename } from "node:path";
 import net from "node:net";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { serve } from "@hono/node-server";
+import { serve, type ServerType } from "@hono/node-server";
 import {
   renderMarkdown,
   renderMdx,
@@ -74,17 +74,56 @@ async function resolveIndex(dir: string, docs: DocRecord[]): Promise<string | nu
   return first?.fsPath ?? null;
 }
 
-function checkPort(port: number, host: string): Promise<boolean> {
+// `localhost` is a DNS name, not an address: it resolves to ::1 on macOS and to
+// 127.0.0.1 elsewhere. Binding it once therefore leaves the *other* loopback
+// address refusing connections — the browser reaches the URL we print, but
+// `curl 127.0.0.1:3000` fails against the very same server. So when the host is
+// the default `localhost`, bind both addresses. An explicit --host is a
+// deliberate choice and is honoured verbatim.
+const LOOPBACK_ADDRESSES = ["127.0.0.1", "::1"];
+
+type PortState = "free" | "busy" | "unavailable";
+
+function probePort(port: number, host: string): Promise<PortState> {
   return new Promise((res) => {
     const srv = net.createServer();
-    srv.once("error", () => res(false));
-    srv.once("listening", () => srv.close(() => res(true)));
+    srv.once("error", (err: NodeJS.ErrnoException) => {
+      // EADDRINUSE means the address works and something else holds the port;
+      // anything else (EADDRNOTAVAIL, EAFNOSUPPORT) means we can't use this
+      // address at all. Conflating the two would make a machine without IPv6
+      // look like it had 25 busy ports in a row.
+      res(err.code === "EADDRINUSE" ? "busy" : "unavailable");
+    });
+    srv.once("listening", () => srv.close(() => res("free")));
     srv.listen(port, host);
   });
 }
 
-async function findPort(preferred: number, host: string, strict: boolean): Promise<number> {
-  if (await checkPort(preferred, host)) return preferred;
+async function resolveBindHosts(host: string): Promise<string[]> {
+  if (host !== "localhost") return [host];
+  // Port 0 asks "does this address family work here at all?", independent of
+  // whether the preferred port happens to be taken.
+  const bindable: string[] = [];
+  for (const address of LOOPBACK_ADDRESSES) {
+    if ((await probePort(0, address)) === "free") bindable.push(address);
+  }
+  // Neither loopback address probed clean, which is odd but not our problem to
+  // solve — hand `localhost` back to Node and let it resolve as it sees fit
+  // rather than refusing to start.
+  return bindable.length > 0 ? bindable : [host];
+}
+
+async function findPort(preferred: number, hosts: string[], strict: boolean): Promise<number> {
+  // A port is only usable if it's free on *every* address we intend to bind,
+  // otherwise we'd claim one stack and fail on the other.
+  const freeOnAll = async (port: number): Promise<boolean> => {
+    for (const host of hosts) {
+      if ((await probePort(port, host)) !== "free") return false;
+    }
+    return true;
+  };
+
+  if (await freeOnAll(preferred)) return preferred;
   // The caller asked for this exact port — don't silently move.
   if (strict) {
     throw new Error(
@@ -92,11 +131,20 @@ async function findPort(preferred: number, host: string, strict: boolean): Promi
     );
   }
   for (let p = preferred + 1; p < preferred + 25; p++) {
-    if (await checkPort(p, host)) return p;
+    if (await freeOnAll(p)) return p;
   }
   throw new Error(
     `no open port found in the range ${preferred}-${preferred + 24}. Free one up, or pass --port <port>.`,
   );
+}
+
+function listen(fetch: Parameters<typeof serve>[0]["fetch"], port: number, hostname: string): Promise<ServerType> {
+  return new Promise((resolve, reject) => {
+    const srv = serve({ fetch, port, hostname }, () => resolve(srv));
+    // Stays attached after resolution on purpose: an 'error' with no listener
+    // is an uncaught exception, and this server outlives the promise.
+    srv.once("error", reject);
+  });
 }
 
 export async function startServer(opts: StartOptions): Promise<RunningServer> {
@@ -276,8 +324,22 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       .catch((err) => console.error("[collab] refresh failed:", err));
   });
 
-  const port = await findPort(opts.port, opts.host, opts.strictPort ?? false);
-  const server = serve({ fetch: app.fetch, port, hostname: opts.host });
+  const hosts = await resolveBindHosts(opts.host);
+  const port = await findPort(opts.port, hosts, opts.strictPort ?? false);
+
+  // One listener per address. The first has to succeed; a later one failing
+  // (something grabbed the port between probe and bind) leaves the preview
+  // working on the address that did bind instead of killing startup.
+  const servers: ServerType[] = [];
+  for (const hostname of hosts) {
+    try {
+      servers.push(await listen(app.fetch, port, hostname));
+    } catch (err) {
+      if (servers.length === 0) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[scholia] could not also bind ${hostname}:${port} — ${message}`);
+    }
+  }
 
   const displayHost = opts.host === "0.0.0.0" ? "localhost" : opts.host;
   const url = `http://${displayHost}:${port}`;
@@ -287,7 +349,9 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     port,
     close: async () => {
       await watcher.close();
-      await new Promise<void>((res) => server.close(() => res()));
+      await Promise.all(
+        servers.map((s) => new Promise<void>((res) => s.close(() => res()))),
+      );
     },
   };
 }

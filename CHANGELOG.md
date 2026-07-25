@@ -24,6 +24,10 @@ file or folder in your browser. No network calls, no account, no credentials.
   (`index.html` → `index.md` → `README.md`).
 - Port handling that matches Vite/Next: an explicit `--port` that is taken is a hard
   error, while the default port falls back to the next open one and prints a notice.
+- The default host binds **both** loopback addresses (`127.0.0.1` and `::1`), so the
+  server answers whichever one you reach for. Binding the name `localhost` alone
+  resolves to only one of them — `::1` on macOS — leaving the other refusing
+  connections. An explicit `--host` is still bound verbatim.
 - `packages/cli/README.md` as the npm-facing page, documenting the MDX trust boundary
   (`.mdx` is compiled and executed in the CLI process; `--no-mdx` disables it, and plain
   `.md` is never evaluated) — see ADR-0012.
