@@ -98,6 +98,35 @@ function initScrollSpy(): void {
   for (const h of heads) outlineObserver.observe(h);
 }
 
+// ---- Copy markdown ----
+// The raw source is embedded server-side (`#collab-source-md`, a JSON string
+// so entities never need decoding) — reused here rather than a fetch, since
+// the server already read it to render the page.
+function initCopyMarkdown(): void {
+  document.addEventListener("click", (e) => {
+    if (!(e.target instanceof Element)) return;
+    const btn = e.target.closest<HTMLButtonElement>("#collab-copy-md");
+    if (!btn) return;
+
+    const raw = document.getElementById("collab-source-md")?.textContent ?? "";
+    let source: string;
+    try {
+      source = JSON.parse(raw);
+    } catch {
+      return;
+    }
+
+    const original = btn.textContent ?? "Copy markdown";
+    void navigator.clipboard
+      ?.writeText(source)
+      .then(() => {
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = original), 1500);
+      })
+      .catch(() => {});
+  });
+}
+
 // ---- Mobile navigation drawer ----
 function initNav(): void {
   document.getElementById("collab-menu-toggle")?.addEventListener("click", () => {
@@ -142,7 +171,7 @@ async function liveReloadSwap(): Promise<void> {
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
-    for (const sel of [".outline", ".nav-pane"]) {
+    for (const sel of [".outline", ".nav-pane", ".page-header", "#collab-source-md"]) {
       const next = doc.querySelector(sel);
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
@@ -300,6 +329,7 @@ connectLiveReload();
 initTheme();
 initNav();
 initSearch();
+initCopyMarkdown();
 addCopyButtons();
 initScrollSpy();
 void renderMermaid();

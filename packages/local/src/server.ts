@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { basename } from "node:path";
+import { basename, resolve as resolvePath } from "node:path";
 import net from "node:net";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -162,13 +162,20 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
   // Rendered HTML cached by file path + mtime, so repeat page loads skip the
   // unified/Shiki/KaTeX pipeline entirely. Invalidated when mtime advances.
+  // `source` rides along too, so a cache hit can still serve "Copy markdown"
+  // without a second read of the file.
   interface CacheEntry {
     mtimeMs: number;
     html: string;
     title: string;
     headings: Heading[];
+    source: string;
   }
   const renderCache = new Map<string, CacheEntry>();
+
+  // Project identity for the topbar (ADR-0016/0017 furniture) — the served
+  // root's own directory name, not the current Page's title.
+  const rootName = basename(resolvePath(opts.rootDir));
 
   async function refresh(): Promise<void> {
     if (dirMode) {
@@ -275,6 +282,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     let contentHtml: string;
     let title: string;
     let headings: Heading[] = [];
+    let source: string;
 
     const info = await stat(fsPath).catch(() => null);
     const cached = info ? renderCache.get(fsPath) : undefined;
@@ -282,8 +290,9 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       contentHtml = cached.html;
       title = cached.title;
       headings = cached.headings;
+      source = cached.source;
     } else {
-      const source = await readFile(fsPath, "utf8");
+      source = await readFile(fsPath, "utf8");
       try {
         const result = useMdx
           ? await renderMdx(source, pathToFileURL(fsPath).href)
@@ -292,7 +301,13 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
         title = result.title ?? "collab";
         headings = result.headings;
         if (info) {
-          renderCache.set(fsPath, { mtimeMs: info.mtimeMs, html: contentHtml, title, headings });
+          renderCache.set(fsPath, {
+            mtimeMs: info.mtimeMs,
+            html: contentHtml,
+            title,
+            headings,
+            source,
+          });
         }
       } catch (err) {
         // One bad document should not break the viewer — show the error inline.
@@ -309,6 +324,8 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       nav: tree,
       currentPath,
       showNav: showNav && tree.length > 0,
+      rootName,
+      sourceMarkdown: source,
     });
     return c.html(html);
   }
