@@ -6,7 +6,7 @@ export interface LayoutOptions {
   headings: Heading[];
   nav: NavNode[];
   currentPath: string;
-  showSidebar: boolean;
+  showNav: boolean;
 }
 
 // Inline pre-paint script: apply the saved/system theme before first paint to
@@ -31,29 +31,29 @@ function renderNav(nodes: NavNode[], currentPath: string): string {
   return `<ul>${items}</ul>`;
 }
 
-function renderToc(headings: Heading[]): string {
+function renderOutline(headings: Heading[]): string {
   const usable = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
   if (usable.length === 0) return "";
   const items = usable
     .map(
       (h) =>
-        `<li class="toc-h${h.depth}"><a href="#${escapeHtml(h.id)}">${escapeHtml(
+        `<li class="outline-h${h.depth}"><a href="#${escapeHtml(h.id)}">${escapeHtml(
           h.text,
         )}</a></li>`,
     )
     .join("");
-  return `<nav class="toc" aria-label="On this page"><div class="toc-title">On this page</div><ul>${items}</ul></nav>`;
+  return `<nav class="outline" aria-label="Outline"><div class="outline-title">Outline</div><ul>${items}</ul></nav>`;
 }
 
 export function renderPage(opts: LayoutOptions): string {
-  const sidebar = opts.showSidebar
-    ? `<aside class="sidebar"><nav class="nav" aria-label="Documents">${renderNav(
+  const navPane = opts.showNav
+    ? `<aside class="nav-pane"><nav class="nav" aria-label="Documents">${renderNav(
         opts.nav,
         opts.currentPath,
       )}</nav></aside><div class="nav-backdrop"></div>`
     : "";
 
-  const menuToggle = opts.showSidebar
+  const menuToggle = opts.showNav
     ? `<button id="collab-menu-toggle" class="menu-toggle" type="button" aria-label="Toggle navigation">☰</button>`
     : "";
 
@@ -67,7 +67,7 @@ export function renderPage(opts: LayoutOptions): string {
 <link rel="stylesheet" href="/__assets/katex/katex.min.css">
 <link rel="stylesheet" href="/__assets/client.css">
 </head>
-<body class="${opts.showSidebar ? "has-sidebar" : ""}">
+<body class="${opts.showNav ? "has-nav" : ""}">
 <header class="topbar">
   <div class="topbar-inner">
     ${menuToggle}
@@ -80,13 +80,13 @@ export function renderPage(opts: LayoutOptions): string {
   </div>
 </header>
 <div class="layout">
-${sidebar}
+${navPane}
 <main class="content">
 <article class="markdown-body">
 ${opts.contentHtml}
 </article>
 </main>
-${renderToc(opts.headings)}
+${renderOutline(opts.headings)}
 </div>
 <script type="module" src="/__assets/client.js"></script>
 </body>

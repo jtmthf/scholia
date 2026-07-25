@@ -54,15 +54,15 @@ function addCopyButtons(): void {
   }
 }
 
-// ---- TOC scrollspy ----
-let tocObserver: IntersectionObserver | null = null;
+// ---- Outline scrollspy ----
+let outlineObserver: IntersectionObserver | null = null;
 
 function initScrollSpy(): void {
-  tocObserver?.disconnect();
-  tocObserver = null;
+  outlineObserver?.disconnect();
+  outlineObserver = null;
 
   const links = new Map<string, HTMLAnchorElement>();
-  for (const a of Array.from(document.querySelectorAll<HTMLAnchorElement>(".toc a"))) {
+  for (const a of Array.from(document.querySelectorAll<HTMLAnchorElement>(".outline a"))) {
     const id = decodeURIComponent((a.getAttribute("href") ?? "").replace(/^#/, ""));
     if (id) links.set(id, a);
   }
@@ -78,7 +78,7 @@ function initScrollSpy(): void {
     for (const [hid, a] of links) a.classList.toggle("active", hid === id);
   };
 
-  tocObserver = new IntersectionObserver(
+  outlineObserver = new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
         if (e.isIntersecting) visible.add((e.target as HTMLElement).id);
@@ -95,7 +95,7 @@ function initScrollSpy(): void {
     },
     { rootMargin: "-80px 0px -70% 0px", threshold: 0 },
   );
-  for (const h of heads) tocObserver.observe(h);
+  for (const h of heads) outlineObserver.observe(h);
 }
 
 // ---- Mobile navigation drawer ----
@@ -103,10 +103,10 @@ function initNav(): void {
   document.getElementById("collab-menu-toggle")?.addEventListener("click", () => {
     document.body.classList.toggle("nav-open");
   });
-  // Delegated so it survives sidebar replacement on live reload.
+  // Delegated so it survives nav-pane replacement on live reload.
   document.addEventListener("click", (e) => {
     if (!(e.target instanceof Element)) return;
-    if (e.target.closest(".nav-backdrop") || e.target.closest(".sidebar a")) {
+    if (e.target.closest(".nav-backdrop") || e.target.closest(".nav-pane a")) {
       document.body.classList.remove("nav-open");
     }
   });
@@ -142,7 +142,7 @@ async function liveReloadSwap(): Promise<void> {
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
-    for (const sel of [".toc", ".sidebar"]) {
+    for (const sel of [".outline", ".nav-pane"]) {
       const next = doc.querySelector(sel);
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
