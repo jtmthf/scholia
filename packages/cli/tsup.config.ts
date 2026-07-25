@@ -1,6 +1,6 @@
 import { defineConfig } from "tsup";
 
-// Bundles the `collab` binary for publishing: cli.ts plus the workspace
+// Bundles the `scholia` binary for publishing: cli.ts plus the workspace
 // packages it depends on (@collab/core, @collab/local, @collab/client) are
 // inlined into a single dist/cli.js, since those aren't published
 // separately. Real npm dependencies (hono, chokidar, cac, open, ...) stay

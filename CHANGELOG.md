@@ -1,0 +1,45 @@
+# Changelog
+
+All notable changes to the `scholia` CLI are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Only the published package (`scholia`) is versioned. The `@collab/*` workspace packages
+are internal and unpublished; changes to them appear here only where they affect the CLI.
+
+## [Unreleased]
+
+## [0.1.0] — unreleased
+
+First release. Ships **Local Preview** only: `scholia <path>` renders a local markdown
+file or folder in your browser. No network calls, no account, no credentials.
+
+### Added
+
+- `scholia [target]` — serve a file or directory over loopback with live reload.
+  Flags: `-p, --port`, `--host`, `--no-open`, `--no-mdx`.
+- Rendering: GitHub-flavored markdown, KaTeX math, Shiki syntax highlighting, Mermaid
+  diagrams, YAML frontmatter, and optional MDX evaluation.
+- Directory support: generated nav, client-side search, and Entry Page resolution
+  (`index.html` → `index.md` → `README.md`).
+- Port handling that matches Vite/Next: an explicit `--port` that is taken is a hard
+  error, while the default port falls back to the next open one and prints a notice.
+- `packages/cli/README.md` as the npm-facing page, documenting the MDX trust boundary
+  (`.mdx` is compiled and executed in the CLI process; `--no-mdx` disables it, and plain
+  `.md` is never evaluated) — see ADR-0012.
+
+### Not included
+
+Hosted mode is not in this release. `share`, Threads/Conversations, hosted URLs,
+accounts, and the agent API exist in the repository but are gated behind
+`COLLAB_HOSTED=1` and are not registered in published builds.
+
+### Internal
+
+- Replaced `gray-matter` with `vfile-matter` for frontmatter parsing — ESM-only, no
+  `fs` access, and consistent with `@collab/core`'s unified/remark/rehype stack.
+- The CLI is bundled with tsup; workspace packages are inlined rather than shipped as
+  runtime dependencies. Runtime dependencies are `cac` and `open` only.
+
+[unreleased]: https://github.com/jtmthf/scholia/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jtmthf/scholia/releases/tag/v0.1.0

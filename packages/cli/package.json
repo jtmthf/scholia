@@ -1,9 +1,20 @@
 {
-  "name": "@jtmthf/collab",
+  "name": "scholia",
   "version": "0.1.0",
+  "description": "Preview a local markdown file or folder in your browser. One command, no config, no account, no network.",
+  "keywords": ["markdown", "mdx", "preview", "docs", "cli", "live-reload", "katex", "mermaid"],
+  "homepage": "https://github.com/jtmthf/scholia#readme",
+  "bugs": "https://github.com/jtmthf/scholia/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jtmthf/scholia.git",
+    "directory": "packages/cli"
+  },
+  "author": "Jack Moore",
+  "license": "MIT",
   "type": "module",
   "bin": {
-    "collab": "./dist/cli.js"
+    "scholia": "./dist/cli.js"
   },
   "files": [
     "dist"
@@ -17,13 +28,13 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@collab/client": "workspace:*",
-    "@collab/core": "workspace:*",
-    "@collab/local": "workspace:*",
     "cac": "^7.0.0",
     "open": "^11.0.0"
   },
   "devDependencies": {
+    "@collab/client": "workspace:*",
+    "@collab/core": "workspace:*",
+    "@collab/local": "workspace:*",
     "fflate": "^0.8.2",
     "tsup": "^8.5.1",
     "tsx": "^4.19.2"

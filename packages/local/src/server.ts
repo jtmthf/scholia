@@ -32,10 +32,16 @@ export interface StartOptions {
   host: string;
   mdxEnabled: boolean;
   open: boolean;
+  // When true, a busy `port` is a hard error instead of falling back to the
+  // next open one — used when the caller passed an explicit --port and means it.
+  strictPort?: boolean;
 }
 
 export interface RunningServer {
   url: string;
+  // The port actually bound (may differ from the requested one when strictPort
+  // is off and the preferred port was taken).
+  port: number;
   close: () => Promise<void>;
 }
 
@@ -77,11 +83,20 @@ function checkPort(port: number, host: string): Promise<boolean> {
   });
 }
 
-async function findPort(preferred: number, host: string): Promise<number> {
-  for (let p = preferred; p < preferred + 25; p++) {
+async function findPort(preferred: number, host: string, strict: boolean): Promise<number> {
+  if (await checkPort(preferred, host)) return preferred;
+  // The caller asked for this exact port — don't silently move.
+  if (strict) {
+    throw new Error(
+      `port ${preferred} is already in use. Free it, or omit --port to let scholia pick an open one.`,
+    );
+  }
+  for (let p = preferred + 1; p < preferred + 25; p++) {
     if (await checkPort(p, host)) return p;
   }
-  return preferred;
+  throw new Error(
+    `no open port found in the range ${preferred}-${preferred + 24}. Free one up, or pass --port <port>.`,
+  );
 }
 
 export async function startServer(opts: StartOptions): Promise<RunningServer> {
@@ -261,7 +276,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       .catch((err) => console.error("[collab] refresh failed:", err));
   });
 
-  const port = await findPort(opts.port, opts.host);
+  const port = await findPort(opts.port, opts.host, opts.strictPort ?? false);
   const server = serve({ fetch: app.fetch, port, hostname: opts.host });
 
   const displayHost = opts.host === "0.0.0.0" ? "localhost" : opts.host;
@@ -269,6 +284,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
   return {
     url,
+    port,
     close: async () => {
       await watcher.close();
       await new Promise<void>((res) => server.close(() => res()));

@@ -2,6 +2,7 @@
   "name": "collab-monorepo",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "engines": {
@@ -11,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json && pnpm --filter @collab/web typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:ci": "vitest run packages/core packages/cli packages/local packages/bridge packages/github",
     "lint": "tsc -p tsconfig.json",
     "db:generate": "pnpm --filter @collab/db generate",
     "db:migrate": "pnpm --filter @collab/db migrate",

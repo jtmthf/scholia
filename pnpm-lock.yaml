@@ -48,6 +48,13 @@ importers:
 
   packages/cli:
     dependencies:
+      cac:
+        specifier: ^7.0.0
+        version: 7.0.0
+      open:
+        specifier: ^11.0.0
+        version: 11.0.0
+    devDependencies:
       '@collab/client':
         specifier: workspace:*
         version: link:../client
@@ -57,13 +64,6 @@ importers:
       '@collab/local':
         specifier: workspace:*
         version: link:../local
-      cac:
-        specifier: ^7.0.0
-        version: 7.0.0
-      open:
-        specifier: ^11.0.0
-        version: 11.0.0
-    devDependencies:
       fflate:
         specifier: ^0.8.2
         version: 0.8.3
