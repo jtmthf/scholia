@@ -18,15 +18,18 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # No `version:` here on purpose — the action errors out ("Multiple
       # versions of pnpm specified") if it's set alongside `packageManager` in
       # package.json. That field is the single source of truth and pins the
-      # exact patch, so the action reads it.
-      - uses: pnpm/action-setup@v4
+      # exact patch, so the action reads it. v6 is also the first release that
+      # officially supports the pnpm 11 line we pin.
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      # `cache: pnpm` is still explicit here on purpose: as of v6 this action
+      # only caches automatically when `packageManager` names npm.
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
