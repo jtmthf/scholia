@@ -105,3 +105,6 @@ COLLAB_HOSTED=1 pnpm collab share ./path/to/page.md
 
 Server and db tests silently skip unless `DATABASE_URL` is set — see
 [`CLAUDE.md`](./CLAUDE.md) for the exact invocation.
+
+[`CONTRIBUTING.md`](./CONTRIBUTING.md) covers the setup gotchas, the domain
+vocabulary, and how to get a PR through CI.

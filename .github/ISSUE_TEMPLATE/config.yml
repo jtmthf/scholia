@@ -1,0 +1,10 @@
+blank_issues_enabled: true
+contact_links:
+  - name: What's in v0.1 (and what isn't)
+    url: https://github.com/jtmthf/scholia#hosted-mode-not-shipped-yet
+    about: >
+      The released package is Local Preview only. Sharing, comment threads, hosted
+      URLs, accounts, and the agent API exist in this repo but ship in no release yet.
+  - name: Contributing and local development
+    url: https://github.com/jtmthf/scholia/blob/main/CONTRIBUTING.md
+    about: Setup, the test/Postgres gotchas, and how to get a PR through CI.

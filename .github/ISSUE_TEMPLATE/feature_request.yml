@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest something for the scholia CLI
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening this: the hosted side of the project — sharing, anchored
+        comment threads, versioning, the agent API — is already designed and partly
+        built, it just isn't in the released package. Check
+        [PLAN.md](https://github.com/jtmthf/scholia/blob/main/PLAN.md) and
+        [docs/adr](https://github.com/jtmthf/scholia/tree/main/docs/adr) first so we
+        don't relitigate a decision that's already recorded.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: >
+        Describe the situation you're in, not the solution you have in mind. What
+        were you trying to do when you wanted this?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried instead?
+      description: Existing flags, other tools, or workarounds — and why they fall short.

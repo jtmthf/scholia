@@ -387,8 +387,30 @@ root one keeps relative links.
 
 ## 7. Post-launch
 
-- [ ] Issue template / CONTRIBUTING pointer so early bug reports land
-      somewhere specific (not just a bare issue list).
-- [ ] Sanity-check the npm README rendering (relative links like
-      `./CONTEXT.md` won't resolve on the npm package page — either inline
-      the essentials or link to GitHub with absolute URLs).
+- [x] **Issue templates + `CONTRIBUTING.md` added.** Two GitHub issue forms
+      (`.github/ISSUE_TEMPLATE/bug_report.yml`, `feature_request.yml`) plus a
+      `config.yml` with contact links. The bug form leads with the v0.1 scope
+      note and requires `scholia --version`, `node --version`, OS, and whether
+      the target was a file or a directory — the fields you'd otherwise have to
+      ask for on every report. The feature form points at `PLAN.md` and
+      `docs/adr/` first, so already-recorded decisions don't get relitigated.
+      Blank issues stay enabled; the templates are a default, not a gate.
+      `CONTRIBUTING.md` covers setup, the traps that actually bite (tsc as the
+      only lint, `.js` extensions on relative ESM imports, and above all that
+      `pnpm test` can go green without running the hosted suite at all —
+      Postgres on 5544 via `127.0.0.1`), the `CONTEXT.md` vocabulary rule and
+      ADR expectation, and the PR flow now that `main` is protected (both named
+      matrix contexts must pass, 0 approvals, linear history). Linked from the
+      root README's Development section.
+- [x] **npm README rendering checked — clean, nothing to fix.** The concern in
+      this item doesn't apply: `packages/cli/README.md` was written with
+      absolute URLs from the start, and a scan confirms **zero** relative links
+      in it. Verified every URL it contains resolves 200 now that the repo is
+      public (repo root, `/issues`, `/tree/main/docs/adr`, and the ADR-0012
+      blob), as do the three `package.json` metadata URLs that render in the
+      npm sidebar (`homepage`, `bugs`, `repository`). Separately confirmed the
+      root README's four relative targets (`./CONTEXT.md`, `./PLAN.md`,
+      `./CLAUDE.md`, `./packages/cli/README.md`) all exist on disk — those are
+      GitHub-only and correctly *not* used in the npm README.
+      *Note:* the CHANGELOG's `compare/v0.1.0...HEAD` and release-tag links
+      still 404 by design until the tag is pushed at publish time.
