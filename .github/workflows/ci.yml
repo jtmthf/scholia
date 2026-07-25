@@ -20,9 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version:` here on purpose — the action errors out ("Multiple
+      # versions of pnpm specified") if it's set alongside `packageManager` in
+      # package.json. That field is the single source of truth and pins the
+      # exact patch, so the action reads it.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - uses: actions/setup-node@v4
         with:
