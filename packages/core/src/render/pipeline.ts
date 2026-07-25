@@ -1,6 +1,6 @@
 import { createHighlighter, type Highlighter } from "shiki";
 
-export const SHIKI_THEMES = { light: "github-light", dark: "github-dark" } as const;
+export const SHIKI_THEMES = { light: "rose-pine-dawn", dark: "rose-pine-moon" } as const;
 
 export const SHIKI_OPTIONS = {
   themes: SHIKI_THEMES,

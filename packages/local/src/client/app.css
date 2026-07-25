@@ -299,7 +299,7 @@ body.has-nav .layout {
 /* ---- Shiki (dual-theme via CSS variables) ---- */
 .shiki {
   position: relative;
-  background-color: var(--shiki-light-bg) !important;
+  background-color: var(--color-surface);
   padding: 16px;
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -324,7 +324,6 @@ body.has-nav .layout {
 .shiki:hover .copy-btn,
 .shiki .copy-btn:focus-visible { opacity: 1; }
 .shiki, .shiki span { color: var(--shiki-light); }
-html.dark .shiki { background-color: var(--shiki-dark-bg) !important; }
 html.dark .shiki, html.dark .shiki span { color: var(--shiki-dark); }
 
 /* ---- GitHub alerts / admonitions ----
