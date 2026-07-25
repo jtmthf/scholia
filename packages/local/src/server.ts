@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { join, basename } from "node:path";
+import { basename } from "node:path";
 import net from "node:net";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -18,9 +18,12 @@ import {
   contentType,
   escapeHtml,
   parseFrontmatter,
+  pickEntryPath,
+  classifyFile,
   type NavNode,
   type DocRecord,
   type Heading,
+  type ManifestEntry,
 } from "@collab/core";
 import { renderPage } from "./render/layout.js";
 import { watchPath } from "./watch.js";
@@ -45,11 +48,6 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
-const INDEX_NAMES = [
-  "README.md", "readme.md", "Readme.md",
-  "index.md", "index.mdx", "README.mdx",
-];
-
 // The browser client bundle + vendored KaTeX assets, produced by `tsup` into
 // this package's dist/assets. The server runs from source (via tsx), so we
 // resolve up one level from src/ to the package root.
@@ -64,14 +62,21 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function resolveIndex(dir: string, docs: DocRecord[]): Promise<string | null> {
-  for (const name of INDEX_NAMES) {
-    const candidate = join(dir, name);
-    if (await exists(candidate)) return candidate;
-  }
-  // Fall back to the first document under this directory.
-  const first = docs.find((d) => d.fsPath.startsWith(dir));
-  return first?.fsPath ?? null;
+// Local Preview shares the Entry Page engine with the hosted path (CONTEXT
+// "Local Preview"): build the same ManifestEntry shape from the scanned docs
+// and defer to `pickEntryPath`, scoped to `dir`, instead of a divergent local
+// copy of the precedence rule.
+function resolveIndex(rootDir: string, dir: string, docs: DocRecord[]): string | null {
+  const entries: ManifestEntry[] = docs.map((d) => ({
+    path: d.urlPath.replace(/^\/+/, ""),
+    title: d.title,
+    kind: classifyFile(d.fsPath),
+  }));
+  const dirScope = toUrlPath(rootDir, dir).replace(/^\/+/, "");
+  const entryPath = pickEntryPath(entries, dirScope);
+  if (!entryPath) return null;
+  const doc = docs.find((d) => d.urlPath.replace(/^\/+/, "") === entryPath);
+  return doc?.fsPath ?? null;
 }
 
 // `localhost` is a DNS name, not an address: it resolves to ::1 on macOS and to
@@ -245,7 +250,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
     const info = await stat(target).catch(() => null);
     if (info?.isDirectory()) {
-      const index = await resolveIndex(target, docs);
+      const index = resolveIndex(opts.rootDir, target, docs);
       if (!index) return c.notFound();
       target = index;
     } else if (!info) {

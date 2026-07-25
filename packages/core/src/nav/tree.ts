@@ -80,13 +80,15 @@ export async function scanTree(root: string): Promise<ScanResult> {
         } catch {
           // Unreadable file — skip its metadata but still list it.
         }
+        const headings = extractHeadings(content);
         const title =
           meta.titles[entry.name] ??
           (typeof fm.title === "string" ? fm.title : undefined) ??
+          headings.find((h) => h.depth === 1)?.text ??
           humanize(stripExt(entry.name));
         const urlPath = toUrlPath(root, full);
         nodes.push({ type: "file", title, urlPath, fsPath: full, order: orderOf(fm) });
-        docs.push({ urlPath, fsPath: full, title, body: content, headings: extractHeadings(content) });
+        docs.push({ urlPath, fsPath: full, title, body: content, headings });
       }
     }
 
@@ -111,7 +113,10 @@ function compare(a: NavNode, b: NavNode, metaOrder: string[]): number {
     return (am === -1 ? Infinity : am) - (bm === -1 ? Infinity : bm);
   }
 
-  // Then frontmatter order, then alphabetical by title.
+  // Then frontmatter order, then by filename (not label) with numeric-aware
+  // collation — never by title, so numbered conventions like `0001-…` stay in
+  // sequence even once the label itself comes from prose (an H1), per CONTEXT
+  // "Nav".
   if (a.order !== b.order) return a.order - b.order;
-  return a.title.localeCompare(b.title);
+  return basename(a.fsPath).localeCompare(basename(b.fsPath), undefined, { numeric: true });
 }
