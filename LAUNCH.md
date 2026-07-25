@@ -320,14 +320,22 @@ root one keeps relative links.
       `pnpm test:ci` (GitHub Actions, Ubuntu, Node 22, pnpm 11). `test:ci` is
       scoped to the shipping + pure packages and skips `@collab/server` (see
       §3 item 2). Both steps verified green locally with no Postgres.
-      *Still open:* nothing yet makes this a hard precondition for publish —
-      add branch protection requiring the `check` job, and/or a publish
-      workflow that `needs:` it, when publish is set up (§6 access item).
-      **Note on branch protection:** required status checks would also block
-      the direct-push-to-`main` flow this repo actually uses (a fresh commit
-      has no check results yet), so it forces a PR workflow. Decide that
-      deliberately rather than as a side effect — the `needs:`-a-publish-job
-      route gates releases without changing day-to-day pushing.
+- [x] **Branch protection enabled on `main`** (decided: yes, accepting that it
+      ends direct pushes — a fresh commit has no check results, so `main` is now
+      PR-only). Required checks are both matrix legs by their expanded names,
+      `check (ubuntu-latest)` and `check (windows-latest)`; a bare `check`
+      context would never match and would silently gate on nothing. Also set:
+      strict (branch must be current with `main` before merge), linear history,
+      conversation resolution required, force-push and deletion blocked.
+      Required approvals is **0** on purpose — a solo maintainer cannot approve
+      their own PR, so any nonzero count would deadlock the repo.
+      *Deliberate gap:* `enforce_admins` is **off**, so the owner can still push
+      straight to `main` and bypass CI. That's an escape hatch against being
+      locked out of a release, not an oversight — flip it on if the gate should
+      be absolute.
+      *Plan note:* both classic protection and rulesets 403 with "Upgrade to
+      GitHub Pro" on a **private** personal repo. Going public (below) is what
+      made this free; it is not available on the private path without paying.
 - [x] **CI actually runs now, and it caught a latent break on first
       execution.** The workflow had never executed — no remote existed — so
       the config was unverified. First run (`30138433091`) failed on **both**
@@ -347,8 +355,18 @@ root one keeps relative links.
 - [ ] Tag the release in git (`git tag`) — repo has no tags. **Decided: wait
       until the npm publish**, so the tag matches exactly what ships and the
       CHANGELOG's `0.1.0` entry stays honestly marked "unreleased" until then.
-- [ ] Decide publish access: who holds npm publish rights / 2FA on the
-      account that owns the chosen package name.
+- [x] **Publish access settled:** the `scholia` npm org exists and 2FA is
+      enabled on the account.
+      *Two things to know before the first publish:*
+      (1) The npm org reserves the **`@scholia/*` scope**, not the unscoped
+      name. `npm view scholia` is still a 404 — nothing holds `scholia` until
+      the first `npm publish` claims it, so that window is open until you push
+      the release.
+      (2) With 2FA on, an unattended CI publish needs either a **granular
+      access token** with 2FA-bypass-for-automation or **trusted publishing**
+      (OIDC, no long-lived token in repo secrets). Prefer trusted publishing;
+      plain `npm publish` from a workflow with a classic token will fail the
+      2FA check.
 - [x] **GitHub repo created: `jtmthf/scholia`**, remote added as `origin`,
       `main` pushed and tracking. Created fresh rather than renaming — the one
       candidate to rename, `jtmthf/mdttp` (the predecessor named in
@@ -356,11 +374,15 @@ root one keeps relative links.
       pushed within the same second on 2026-06-24, sharing no history with
       this repo's commits. Nothing there to preserve; it's left untouched, so
       decide separately whether to archive it.
-      **Created private** — reversible, where a public push is effectively
-      not (indexed and cacheable externally the moment it lands). Flip to
-      public at publish time; until then the absolute `github.com/...` links
-      in the README and `package.json` still 404 for anyone but the owner,
-      and Actions minutes are billed (Windows at 2× multiplier).
+      Created private first, then **made public** (decided: it's open source).
+      Before flipping, scanned every commit reachable from `--all` for private
+      keys and token patterns (`sk-`, `ghp_`/`gho_`/`github_pat_`, AWS `AKIA`,
+      `npm_`, PEM `BEGIN ... PRIVATE KEY`) — no hits. The only tracked env file
+      is `.env.test`, which holds just the local docker Postgres URL from
+      `CLAUDE.md` (`collab:collab@127.0.0.1:5544`); the real `.env` is
+      git-ignored and untracked. Going public also made branch protection free
+      (see above) and made the absolute `github.com/jtmthf/scholia/...` links
+      in the README, `package.json`, and CHANGELOG resolve.
 - [ ] GitHub release notes pointing at the CHANGELOG entry.
 
 ## 7. Post-launch
