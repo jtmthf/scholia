@@ -283,6 +283,19 @@ body.has-nav .layout {
 .markdown-body .task-list-item { list-style: none; }
 .markdown-body .task-list-item input { margin: 0 0.5em 0 -1.4em; }
 
+/* ---- Colophon ----
+ * CONTEXT "Colophon": a provenance record, not part of the reading path — so
+ * it sits after the article, quiet and small, and never competes with it. */
+.colophon {
+  max-width: var(--layout-content-width);
+  margin: var(--space-6) auto 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-rule);
+  color: var(--color-muted);
+  font-size: var(--font-size-xs);
+}
+.colophon-sep { margin: 0 8px; }
+
 /* ---- Shiki (dual-theme via CSS variables) ---- */
 .shiki {
   position: relative;

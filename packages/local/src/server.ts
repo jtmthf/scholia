@@ -20,6 +20,7 @@ import {
   parseFrontmatter,
   pickEntryPath,
   classifyFile,
+  getProvenance,
   type NavNode,
   type DocRecord,
   type Heading,
@@ -27,6 +28,7 @@ import {
 } from "@collab/core";
 import { renderPage } from "./render/layout.js";
 import { watchPath } from "./watch.js";
+import { resolveEditor, openInEditor } from "./editor.js";
 
 export interface StartOptions {
   rootDir: string;
@@ -177,6 +179,12 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // root's own directory name, not the current Page's title.
   const rootName = basename(resolvePath(opts.rootDir));
 
+  // Editor resolution is a one-time, best-effort probe (ADR-0017): the
+  // result gates whether "Open in editor" is ever rendered, so a miss never
+  // shows a broken button. `/__open` reuses this same resolution rather than
+  // re-probing per request.
+  const editor = await resolveEditor();
+
   async function refresh(): Promise<void> {
     if (dirMode) {
       const scan = await scanTree(opts.rootDir);
@@ -242,6 +250,54 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     if (!filePath || !(await exists(filePath))) return c.notFound();
     const buf = await readFile(filePath);
     return c.body(new Uint8Array(buf), 200, { "Content-Type": contentType(filePath) });
+  });
+
+  // ADR-0017: Local Preview spawns the user's editor from a guarded loopback
+  // route. Registered before the catch-all "*" route below, same as
+  // /__livereload, /search, and /__assets/* — a specific path must win over
+  // the wildcard. Three guards, in order — each is load-bearing on a server
+  // that binds loopback on both stacks (any tab in the user's browser can
+  // reach it):
+  //   1. POST only.
+  //   2. Sec-Fetch-Site, when present, must be same-origin.
+  //   3. The target path is resolved through the same resolveWithinRoot
+  //      guard the page route uses, so a traversal cannot reach outside the
+  //      served directory.
+  // Only after all three pass do we check whether an editor resolved at
+  // startup, and spawn it detached (no waiting on the child, no piping its
+  // output back).
+  app.all("/__open", async (c) => {
+    if (c.req.method !== "POST") {
+      return c.json({ ok: false, error: "method not allowed" }, 405);
+    }
+
+    const site = c.req.header("Sec-Fetch-Site");
+    if (site && site !== "same-origin") {
+      return c.json({ ok: false, error: "cross-site request rejected" }, 403);
+    }
+
+    const body = await c.req.json().catch(() => null);
+    const requestedPath = typeof body?.path === "string" ? body.path : null;
+    if (!requestedPath) {
+      return c.json({ ok: false, error: "missing path" }, 400);
+    }
+
+    const target = dirMode
+      ? resolveWithinRoot(opts.rootDir, requestedPath)
+      : opts.singleFile!;
+    if (!target) {
+      return c.json({ ok: false, error: "path outside served root" }, 400);
+    }
+    if (!(await exists(target))) {
+      return c.json({ ok: false, error: "file not found" }, 404);
+    }
+
+    if (!editor) {
+      return c.json({ ok: false, error: "no editor available" }, 503);
+    }
+
+    openInEditor(editor, target);
+    return c.json({ ok: true });
   });
 
   app.get("*", async (c) => {
@@ -317,6 +373,11 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       }
     }
 
+    // Provenance is read live (CONTEXT "Provenance") — recomputed per
+    // request, not cached, so a dirty-tree flag tracks edits as they happen
+    // rather than the state at server start.
+    const provenance = await getProvenance(opts.rootDir);
+
     const html = renderPage({
       title,
       contentHtml,
@@ -325,7 +386,11 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       currentPath,
       showNav: showNav && tree.length > 0,
       rootName,
+      editorAvailable: editor !== null,
       sourceMarkdown: source,
+      colophon: info
+        ? { relPath: currentPath.replace(/^\/+/, ""), mtimeMs: info.mtimeMs, provenance }
+        : null,
     });
     return c.html(html);
   }

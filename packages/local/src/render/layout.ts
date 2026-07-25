@@ -1,4 +1,11 @@
-import { escapeHtml, type Heading, type NavNode } from "@collab/core";
+import { escapeHtml, type Heading, type NavNode, type Provenance } from "@collab/core";
+
+export interface ColophonInfo {
+  /** File path relative to the served root, e.g. "docs/adr/0016-....md". */
+  relPath: string;
+  mtimeMs: number;
+  provenance?: Provenance;
+}
 
 export interface LayoutOptions {
   title: string;
@@ -9,8 +16,12 @@ export interface LayoutOptions {
   showNav: boolean;
   /** Project identity for the topbar — the served root's directory name. */
   rootName: string;
+  /** From the once-at-startup editor probe (ADR-0017) — hides the button when false. */
+  editorAvailable: boolean;
   /** Raw source text for the "Copy markdown" button, embedded to avoid a fetch round-trip. */
   sourceMarkdown: string;
+  /** Null for non-doc / error pages that have no meaningful Colophon. */
+  colophon: ColophonInfo | null;
 }
 
 // Inline pre-paint script: apply the saved/system theme before first paint to
@@ -72,8 +83,38 @@ function renderBreadcrumb(currentPath: string): string {
   )}</nav>`;
 }
 
-function renderPageActions(): string {
-  return `<div class="page-actions"><button id="collab-copy-md" class="btn" type="button">Copy markdown</button></div>`;
+function renderPageActions(editorAvailable: boolean, relPath: string): string {
+  // No editor resolved at startup: the button is never rendered, rather than
+  // rendered and failing on click (ADR-0017).
+  const openButton = editorAvailable
+    ? `<button id="collab-open-editor" class="btn" type="button" data-path="${escapeHtml(
+        relPath,
+      )}">Open in editor</button>`
+    : "";
+  return `<div class="page-actions">${openButton}<button id="collab-copy-md" class="btn" type="button">Copy markdown</button></div>`;
+}
+
+// CONTEXT "Colophon": path, mtime, Provenance — a provenance record, not
+// part of the reading path, so it sits after the article rather than above
+// it. Quiet, small text (ADR-0016) — it must not compete with the article.
+function renderColophon(info: ColophonInfo | null): string {
+  if (!info) return "";
+  const mtime = new Date(info.mtimeMs).toISOString().replace("T", " ").replace(/:\d\d\.\d+Z$/, " UTC");
+  const parts = [
+    `<span class="colophon-path">${escapeHtml(info.relPath)}</span>`,
+    `<span class="colophon-mtime">edited ${escapeHtml(mtime)}</span>`,
+  ];
+  const p = info.provenance;
+  if (p?.branch && p.sha) {
+    const shortSha = p.sha.slice(0, 7);
+    const dirty = p.dirty ? ", uncommitted changes" : "";
+    parts.push(
+      `<span class="colophon-provenance">${escapeHtml(p.branch)} @ ${escapeHtml(
+        shortSha,
+      )}${escapeHtml(dirty)}</span>`,
+    );
+  }
+  return `<footer class="colophon">${parts.join('<span class="colophon-sep">·</span>')}</footer>`;
 }
 
 // Embeds the raw source as a JSON string inside a non-executing script tag
@@ -96,6 +137,8 @@ export function renderPage(opts: LayoutOptions): string {
   const menuToggle = opts.showNav
     ? `<button id="collab-menu-toggle" class="menu-toggle" type="button" aria-label="Toggle navigation">☰</button>`
     : "";
+
+  const relPath = opts.colophon?.relPath ?? opts.currentPath.replace(/^\/+/, "");
 
   return `<!doctype html>
 <html lang="en">
@@ -125,11 +168,12 @@ ${navPane}
 <div class="page-header">
   ${renderBreadcrumb(opts.currentPath)}
   <h1 class="page-title">${escapeHtml(opts.title)}</h1>
-  ${renderPageActions()}
+  ${renderPageActions(opts.editorAvailable, relPath)}
 </div>
 <article class="markdown-body">
 ${opts.contentHtml}
 </article>
+${renderColophon(opts.colophon)}
 </main>
 ${renderOutline(opts.headings)}
 </div>

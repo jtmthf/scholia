@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { CollabClient, collectFiles, loadCredentials, saveCredential } from "@collab/client";
 import type { SiteCreatedResult, VersionAddedResult } from "@collab/client";
-import { getProvenance } from "./provenance.js";
+import { getProvenance } from "@collab/core";
 import { readSiteLink, writeSiteLink } from "./site-link.js";
 
 export interface ShareOptions {
