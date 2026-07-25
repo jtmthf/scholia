@@ -182,6 +182,9 @@ importers:
       '@collab/core':
         specifier: workspace:*
         version: link:../core
+      '@collab/theme':
+        specifier: workspace:*
+        version: link:../theme
       '@hono/node-server':
         specifier: ^2.0.6
         version: 2.0.6(hono@4.12.27)

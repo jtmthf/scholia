@@ -268,7 +268,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return c.body(new Uint8Array(buf), 200, { "Content-Type": contentType(target) });
   });
 
-  async function renderDoc(c: any, fsPath: string, showSidebar: boolean) {
+  async function renderDoc(c: any, fsPath: string, showNav: boolean) {
     const currentPath = toUrlPath(opts.rootDir, fsPath);
     const useMdx = opts.mdxEnabled && isMdx(fsPath);
 
@@ -308,7 +308,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       headings,
       nav: tree,
       currentPath,
-      showSidebar: showSidebar && tree.length > 0,
+      showNav: showNav && tree.length > 0,
     });
     return c.html(html);
   }

@@ -1,28 +1,27 @@
+/*
+ * Local Preview chrome — ADR-0016 "editorial visual identity".
+ *
+ * Palette, type families/scale, radii, spacing, and the layout figures below
+ * come from @collab/theme (tokens.css + type.css); this file only adds the
+ * Local Preview-specific chrome (topbar, Nav, Outline, search, alerts,
+ * shiki) built on top of those tokens. Don't redefine a value that already
+ * has a token — reference it instead.
+ */
+@import "@collab/theme/tokens.css";
+@import "@collab/theme/type.css";
+
 :root {
-  --bg: #ffffff;
-  --fg: #1f2328;
-  --muted: #656d76;
-  --border: #d0d7de;
-  --link: #0969da;
-  --code-bg: #f6f8fa;
-  --sidebar-bg: #f6f8fa;
-  --topbar-bg: #ffffffd9;
-  --accent: #0969da;
-  --shiki-fallback: var(--fg);
+  /* Local-only aliases: not part of the shared token set, but derived from
+     it so they stay in sync with scheme changes. */
+  --topbar-bg: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  --topbar-height: 57px;
+  --shiki-fallback: var(--color-ink);
   --mark-bg: #fff3b0;
   --mark-fg: #1f2328;
 }
 
 html.dark {
-  --bg: #0d1117;
-  --fg: #e6edf3;
-  --muted: #8b949e;
-  --border: #30363d;
-  --link: #4493f8;
-  --code-bg: #161b22;
-  --sidebar-bg: #0d1117;
-  --topbar-bg: #0d1117d9;
-  --accent: #4493f8;
+  --topbar-bg: color-mix(in srgb, var(--color-surface) 90%, transparent);
   --mark-bg: #bb8009;
   --mark-fg: #ffffff;
 }
@@ -32,14 +31,14 @@ html.dark {
 html, body { margin: 0; padding: 0; }
 
 body {
-  background: var(--bg);
-  color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
 }
 
-a { color: var(--link); text-decoration: none; }
+a { color: var(--color-accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* ---- Top bar ---- */
@@ -49,23 +48,23 @@ a:hover { text-decoration: underline; }
   z-index: 20;
   backdrop-filter: blur(8px);
   background: var(--topbar-bg);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-rule);
 }
 .topbar-inner {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
   max-width: 1400px;
   margin: 0 auto;
-  padding: 10px 20px;
+  padding: 10px var(--space-5);
 }
 .brand { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30%; }
 .menu-toggle {
   display: none;
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--fg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
   cursor: pointer;
   font-size: 16px;
   padding: 6px 10px;
@@ -74,9 +73,9 @@ a:hover { text-decoration: underline; }
 .theme-toggle {
   margin-left: auto;
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--fg);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
   cursor: pointer;
   font-size: 16px;
   padding: 6px 10px;
@@ -87,21 +86,21 @@ a:hover { text-decoration: underline; }
 .search { position: relative; flex: 1; max-width: 420px; }
 #collab-search {
   width: 100%;
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--fg);
-  font-size: 14px;
+  padding: 7px var(--space-3);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: var(--font-size-sm);
 }
 .search-results {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--color-paper);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   max-height: 60vh;
   overflow-y: auto;
@@ -110,31 +109,46 @@ a:hover { text-decoration: underline; }
 .search-results a {
   display: block;
   padding: 8px 10px;
-  border-radius: 6px;
-  color: var(--fg);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
 }
 .search-results a:hover,
-.search-results a.active { background: var(--code-bg); text-decoration: none; }
-.search-results .t { display: block; font-weight: 600; font-size: 14px; }
-.search-results .s { display: block; color: var(--muted); font-size: 12px; }
-.search-results .empty { padding: 10px; color: var(--muted); font-size: 14px; }
+.search-results a.active { background: var(--color-surface); text-decoration: none; }
+.search-results .t { display: block; font-weight: 600; font-size: var(--font-size-sm); }
+.search-results .s { display: block; color: var(--color-muted); font-size: var(--font-size-xs); }
+.search-results .empty { padding: 10px; color: var(--color-muted); font-size: var(--font-size-sm); }
 .search-results mark { background: var(--mark-bg); color: var(--mark-fg); border-radius: 3px; padding: 0 1px; }
 
-/* ---- Layout ---- */
+/* ---- Layout: "sheet on desk" ----
+ * Nav / content / Outline three-column grid. Nav and Outline sit unfilled on
+ * the --color-surface backdrop (this file's body background); only the
+ * article (.markdown-body, below) is a raised --color-paper sheet. Surface
+ * hierarchy comes from that color difference, not hairline borders. */
 .layout {
   display: grid;
   grid-template-columns: 1fr;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 var(--space-5);
 }
-body.has-sidebar .layout {
-  grid-template-columns: 240px minmax(0, 1fr) 220px;
-  gap: 32px;
+body.has-nav .layout {
+  grid-template-columns: var(--layout-nav-width) minmax(0, 1fr) var(--layout-outline-width);
+  gap: var(--layout-gap);
 }
 @media (max-width: 1000px) {
-  body.has-sidebar .layout { grid-template-columns: 220px minmax(0, 1fr); }
-  .toc { display: none; }
+  body.has-nav .layout { grid-template-columns: var(--layout-nav-width) minmax(0, 1fr); }
+  .outline { display: none; }
+}
+.nav-backdrop { display: none; }
+
+.nav-pane {
+  position: sticky;
+  top: var(--topbar-height);
+  align-self: start;
+  height: calc(100vh - var(--topbar-height));
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-2) var(--space-5) 0;
+  font-size: var(--font-size-sm);
 }
 .nav-backdrop { display: none; }
 
@@ -150,28 +164,28 @@ body.has-sidebar .layout {
 }
 
 @media (max-width: 720px) {
-  body.has-sidebar .layout { grid-template-columns: 1fr; }
-  body.has-sidebar .menu-toggle { display: inline-flex; }
-  .sidebar {
+  body.has-nav .layout { grid-template-columns: 1fr; }
+  body.has-nav .menu-toggle { display: inline-flex; }
+  .nav-pane {
     position: fixed;
-    top: 57px;
+    top: var(--topbar-height);
     left: 0;
     bottom: 0;
     z-index: 30;
     width: 80%;
     max-width: 300px;
     height: auto;
-    background: var(--sidebar-bg);
-    border-right: 1px solid var(--border);
-    padding: 16px 12px;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-rule);
+    padding: var(--space-4) var(--space-3);
     transform: translateX(-100%);
     transition: transform 0.2s ease;
   }
-  body.nav-open .sidebar { transform: translateX(0); }
+  body.nav-open .nav-pane { transform: translateX(0); }
   body.nav-open .nav-backdrop {
     display: block;
     position: fixed;
-    inset: 57px 0 0 0;
+    inset: var(--topbar-height) 0 0 0;
     z-index: 25;
     background: rgba(0, 0, 0, 0.4);
   }
@@ -179,40 +193,52 @@ body.has-sidebar .layout {
 .nav ul { list-style: none; margin: 0; padding: 0 0 0 12px; }
 .nav > ul { padding-left: 0; }
 .nav li { margin: 2px 0; }
-.nav a { display: block; padding: 4px 8px; border-radius: 6px; color: var(--fg); }
-.nav a:hover { background: var(--code-bg); text-decoration: none; }
-.nav a.active { background: var(--accent); color: #fff; }
-.nav-dir-label { display: block; font-weight: 600; color: var(--muted); padding: 8px 8px 2px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.nav a { display: block; padding: 4px 8px; border-radius: var(--radius-sm); color: var(--color-ink); }
+.nav a:hover { background: var(--color-rule); text-decoration: none; }
+.nav a.active { background: var(--color-accent); color: #fff; }
+.nav-dir-label { display: block; font-weight: 600; color: var(--color-muted); padding: 8px 8px 2px; font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em; }
 
-.content { min-width: 0; padding: 24px 0 80px; }
+.content { min-width: 0; padding: var(--space-7) 0 80px; }
 
-.toc {
+.outline {
   position: sticky;
-  top: 57px;
+  top: var(--topbar-height);
   align-self: start;
-  height: calc(100vh - 57px);
+  height: calc(100vh - var(--topbar-height));
   overflow-y: auto;
-  padding: 24px 0;
-  font-size: 13px;
+  padding: var(--space-5) 0;
+  font-size: var(--font-size-xs);
 }
-.toc-title { font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; margin-bottom: 8px; }
-.toc ul { list-style: none; margin: 0; padding: 0; }
-.toc a { display: block; padding: 3px 0; color: var(--muted); }
-.toc a:hover { color: var(--fg); text-decoration: none; }
-.toc a.active { color: var(--accent); font-weight: 600; }
-.toc-h3 { padding-left: 12px; }
+.outline-title { font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: var(--font-size-xs); margin-bottom: var(--space-2); }
+.outline ul { list-style: none; margin: 0; padding: 0; }
+.outline a { display: block; padding: 3px 0; color: var(--color-muted); }
+.outline a:hover { color: var(--color-ink); text-decoration: none; }
+.outline a.active { color: var(--color-accent); font-weight: 600; }
+.outline-h3 { padding-left: 12px; }
 
-/* ---- Markdown body ---- */
-.markdown-body { max-width: 860px; }
+/* ---- Markdown body: the sheet ----
+ * The article is the raised surface — --color-paper, a hairline rule, no
+ * shadow. Padding block/inline are the pinned sheet figures; combined with
+ * the pinned content width they yield the ~668px/68ch text measure. */
+.markdown-body {
+  max-width: var(--layout-content-width);
+  margin: 0 auto;
+  background: var(--color-paper);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-lg);
+  padding: var(--layout-sheet-padding-block) var(--layout-sheet-padding-inline);
+  font-family: var(--font-serif);
+  line-height: var(--line-height-relaxed);
+}
 .markdown-body > *:first-child { margin-top: 0; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3,
 .markdown-body h4, .markdown-body h5, .markdown-body h6 {
   margin: 1.6em 0 0.6em;
-  line-height: 1.25;
+  line-height: var(--line-height-tight);
   font-weight: 600;
 }
-.markdown-body h1 { font-size: 2em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
-.markdown-body h2 { font-size: 1.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
+.markdown-body h1 { font-size: 2em; }
+.markdown-body h2 { font-size: 1.5em; }
 .markdown-body h3 { font-size: 1.25em; }
 .markdown-body h1 a, .markdown-body h2 a, .markdown-body h3 a,
 .markdown-body h4 a, .markdown-body h5 a, .markdown-body h6 a { color: inherit; }
@@ -221,23 +247,23 @@ body.has-sidebar .layout {
 .markdown-body li { margin: 0.25em 0; }
 .markdown-body blockquote {
   padding: 0 1em;
-  color: var(--muted);
-  border-left: 0.25em solid var(--border);
+  color: var(--color-muted);
+  border-left: 0.25em solid var(--color-rule);
 }
 .markdown-body code {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.9em;
-  background: var(--code-bg);
-  padding: 0.2em 0.4em;
-  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-surface);
+  padding: 0.15em 0.35em;
+  border-radius: var(--radius-sm);
 }
 .markdown-body pre { margin: 0 0 1em; }
 .markdown-body pre code { background: none; padding: 0; font-size: 0.875em; }
 .markdown-body img { max-width: 100%; }
 .markdown-body table { border-collapse: collapse; display: block; overflow-x: auto; margin: 0 0 1em; }
-.markdown-body th, .markdown-body td { border: 1px solid var(--border); padding: 6px 13px; }
-.markdown-body tr:nth-child(2n) { background: var(--code-bg); }
-.markdown-body hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+.markdown-body th, .markdown-body td { border: 1px solid var(--color-rule); padding: 6px 13px; }
+.markdown-body tr:nth-child(2n) { background: var(--color-surface); }
+.markdown-body hr { border: none; border-top: 1px solid var(--color-rule); margin: 1.5em 0; }
 .markdown-body .task-list-item { list-style: none; }
 .markdown-body .task-list-item input { margin: 0 0.5em 0 -1.4em; }
 
@@ -246,9 +272,10 @@ body.has-sidebar .layout {
   position: relative;
   background-color: var(--shiki-light-bg) !important;
   padding: 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow-x: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-rule);
+  font-family: var(--font-mono);
 }
 .shiki .copy-btn {
   position: absolute;
@@ -256,11 +283,11 @@ body.has-sidebar .layout {
   right: 8px;
   padding: 3px 8px;
   font-size: 12px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -271,11 +298,15 @@ body.has-sidebar .layout {
 html.dark .shiki { background-color: var(--shiki-dark-bg) !important; }
 html.dark .shiki, html.dark .shiki span { color: var(--shiki-dark); }
 
-/* ---- GitHub alerts / admonitions ---- */
+/* ---- GitHub alerts / admonitions ----
+ * Caution is tuned to a cooler crimson (hue ~338°) so it doesn't read as the
+ * oxblood accent (hue ~5-15°) — same signal-separation reasoning as the
+ * shiki keyword-red swap in ADR-0016. Contrast checked >= 5.5:1 against
+ * both --color-paper and --color-surface, both schemes. */
 .markdown-alert {
   padding: 8px 16px;
   margin: 0 0 1em;
-  border-left: 0.25em solid var(--alert-color, var(--border));
+  border-left: 0.25em solid var(--alert-color, var(--color-rule));
   color: inherit;
 }
 .markdown-alert > :first-child { margin-top: 0; }
@@ -285,7 +316,7 @@ html.dark .shiki, html.dark .shiki span { color: var(--shiki-dark); }
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  color: var(--alert-color, var(--fg));
+  color: var(--alert-color, var(--color-ink));
   margin-bottom: 4px;
 }
 .markdown-alert-title svg { fill: currentColor; }
@@ -293,12 +324,12 @@ html.dark .shiki, html.dark .shiki span { color: var(--shiki-dark); }
 .markdown-alert-tip { --alert-color: #1a7f37; }
 .markdown-alert-important { --alert-color: #8250df; }
 .markdown-alert-warning { --alert-color: #9a6700; }
-.markdown-alert-caution { --alert-color: #cf222e; }
+.markdown-alert-caution { --alert-color: #a8144a; }
 html.dark .markdown-alert-note { --alert-color: #4493f8; }
 html.dark .markdown-alert-tip { --alert-color: #3fb950; }
 html.dark .markdown-alert-important { --alert-color: #ab7df8; }
 html.dark .markdown-alert-warning { --alert-color: #d29922; }
-html.dark .markdown-alert-caution { --alert-color: #f85149; }
+html.dark .markdown-alert-caution { --alert-color: #ff6b9d; }
 
 /* ---- Mermaid ---- */
 pre.mermaid {

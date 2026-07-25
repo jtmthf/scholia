@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@collab/core": "workspace:*",
+    "@collab/theme": "workspace:*",
     "@hono/node-server": "^2.0.6",
     "chokidar": "^5.0.0",
     "hono": "^4.12.26",
