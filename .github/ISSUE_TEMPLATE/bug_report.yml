@@ -1,0 +1,83 @@
+name: Bug report
+description: Something in the scholia CLI doesn't work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **v0.1 is Local Preview only** — the `scholia <path>`
+        command that renders local files in your browser. Sharing, comment threads,
+        hosted URLs, accounts, and the agent API are not in the released package, so
+        please don't open bugs against those.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what did you get instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: >
+        The exact command you ran and what you pointed it at. A minimal file that
+        triggers it helps enormously — paste the markdown if it's short.
+      placeholder: |
+        1. `npx scholia ./docs`
+        2. Open http://localhost:3000/some/page
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: scholia version
+      description: Output of `scholia --version`.
+      placeholder: scholia/0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: Output of `node --version`. scholia requires Node 22 or newer.
+      placeholder: v22.11.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: What were you previewing?
+      options:
+        - A single markdown file
+        - A directory
+        - Not sure / neither
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Terminal output
+      description: >
+        Any error or stack trace from the terminal, and anything relevant from the
+        browser console. This is rendered as code, so no backticks needed.
+      render: shell
