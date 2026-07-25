@@ -323,12 +323,44 @@ root one keeps relative links.
       *Still open:* nothing yet makes this a hard precondition for publish —
       add branch protection requiring the `check` job, and/or a publish
       workflow that `needs:` it, when publish is set up (§6 access item).
-- [ ] Tag the release in git (`git tag`) — repo currently has no tags.
+      **Note on branch protection:** required status checks would also block
+      the direct-push-to-`main` flow this repo actually uses (a fresh commit
+      has no check results yet), so it forces a PR workflow. Decide that
+      deliberately rather than as a side effect — the `needs:`-a-publish-job
+      route gates releases without changing day-to-day pushing.
+- [x] **CI actually runs now, and it caught a latent break on first
+      execution.** The workflow had never executed — no remote existed — so
+      the config was unverified. First run (`30138433091`) failed on **both**
+      matrix legs at setup: `pnpm/action-setup@v4` errors with "Multiple
+      versions of pnpm specified" when `with: version:` is set alongside
+      `packageManager` in `package.json`. Neither leg reached `typecheck`.
+      Fixed by dropping `version:` from the workflow and letting the action
+      read `packageManager`, which is the single source of truth and pins the
+      exact patch (`11.7.0`) rather than floating within major 11. Re-run
+      (`30138465125`) green on both legs. **This is also the first real
+      validation of §3's cross-platform item** — the Windows leg had only ever
+      been asserted, never executed; it now genuinely passes.
+      *Cosmetic, not fixed:* Actions warns that `actions/checkout@v4`,
+      `actions/setup-node@v4`, and `pnpm/action-setup@v4` target the
+      deprecated Node 20 and are forced onto Node 24. Harmless today; bump the
+      action majors when convenient.
+- [ ] Tag the release in git (`git tag`) — repo has no tags. **Decided: wait
+      until the npm publish**, so the tag matches exactly what ships and the
+      CHANGELOG's `0.1.0` entry stays honestly marked "unreleased" until then.
 - [ ] Decide publish access: who holds npm publish rights / 2FA on the
       account that owns the chosen package name.
-- [ ] Create/rename the GitHub repo to `jtmthf/scholia` and add the remote —
-      the README/`package.json` links written in §4 assume that slug and will
-      404 until it exists.
+- [x] **GitHub repo created: `jtmthf/scholia`**, remote added as `origin`,
+      `main` pushed and tracking. Created fresh rather than renaming — the one
+      candidate to rename, `jtmthf/mdttp` (the predecessor named in
+      `CLAUDE.md`), is private with 0 stars and 0 forks and was created and
+      pushed within the same second on 2026-06-24, sharing no history with
+      this repo's commits. Nothing there to preserve; it's left untouched, so
+      decide separately whether to archive it.
+      **Created private** — reversible, where a public push is effectively
+      not (indexed and cacheable externally the moment it lands). Flip to
+      public at publish time; until then the absolute `github.com/...` links
+      in the README and `package.json` still 404 for anyone but the owner,
+      and Actions minutes are billed (Windows at 2× multiplier).
 - [ ] GitHub release notes pointing at the CHANGELOG entry.
 
 ## 7. Post-launch
