@@ -107,6 +107,54 @@ test("a nested directory with no index/README falls back to its own first Page a
   expect(await res.text()).toContain("<title>Apple</title>");
 });
 
+// Every other test in this file writes a root README.md, so the Entry Page
+// fallback path (no index/README at all) never runs. It shares `pickEntryPath`
+// with the hosted path (CONTEXT "Local Preview"): the first top-level Page
+// alphabetically, not the first Page in nav-traversal order.
+test("falls back to the first top-level Page alphabetically when the root has no index/README", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("zebra.md", "# Zebra\n");
+  await tmp.write("apple.md", "# Apple\n");
+  await tmp.write("guide/intro.md", "# Intro\n");
+  const { url } = await serve();
+
+  const res = await fetch(`${url}/`);
+  expect(res.status).toBe(200);
+  expect(await res.text()).toContain("<title>Apple</title>");
+});
+
+// Entry Page resolution applies to any directory, not just the Site root
+// (CONTEXT "Entry Page") — a nested directory with its own README must
+// resolve to that README rather than falling through to something else.
+test("resolves a nested directory's own Entry Page, not the root's", async ({ tmp, serve }) => {
+  await tmp.write("README.md", "# Home\n");
+  await tmp.write("guide/README.md", "# Guide Home\n");
+  await tmp.write("guide/intro.md", "# Intro\n");
+  const { url } = await serve();
+
+  const res = await fetch(`${url}/guide/`);
+  expect(res.status).toBe(200);
+  expect(await res.text()).toContain("<title>Guide Home</title>");
+});
+
+// A nested directory with no index/README of its own still resolves to the
+// first top-level Page within *that* directory, not some other nav-order Page.
+test("a nested directory with no index/README falls back to its own first Page alphabetically", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("README.md", "# Home\n");
+  await tmp.write("guide/zebra.md", "# Zebra\n");
+  await tmp.write("guide/apple.md", "# Apple\n");
+  const { url } = await serve();
+
+  const res = await fetch(`${url}/guide/`);
+  expect(res.status).toBe(200);
+  expect(await res.text()).toContain("<title>Apple</title>");
+});
+
 test("resolves an extension-less URL to the matching .md file", async ({ tmp, serve }) => {
   await tmp.write("README.md", "# Home\n");
   await tmp.write("guide/intro.md", "# Intro\n\nNested body text.\n");
