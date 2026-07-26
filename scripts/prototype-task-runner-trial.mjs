@@ -26,7 +26,7 @@
  */
 
 import { execSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,6 +49,7 @@ const COLD_PATHS = [
   "node_modules/.cache",
   "node_modules/.vite",
   ".turbo",
+  ".turbo-cache",
   "packages/*/.turbo",
   "packages/*/dist",
   "packages/*/*.tsbuildinfo",
@@ -73,9 +74,12 @@ const CANDIDATES = {
     // e2e is filtered out to match the baseline: `pnpm test:ci` excludes the
     // Playwright suite, which needs the whole stack up. Including it here would
     // compare a passing baseline against a failing candidate.
-    typecheck: "pnpm turbo run typecheck",
-    test: "pnpm turbo run test --filter=!@scholia/e2e",
-    build: "pnpm turbo run build",
+    // --cache-dir is pinned so the harness can actually clear it. Turbo's default
+    // location resolved somewhere COLD_PATHS missed, which silently turned every
+    // "cold" measurement into a warm one.
+    typecheck: "pnpm turbo run typecheck --cache-dir=.turbo-cache",
+    test: "pnpm turbo run test --filter=!@scholia/e2e --cache-dir=.turbo-cache",
+    build: "pnpm turbo run build --cache-dir=.turbo-cache",
   },
   viteplus: {
     describe: "Vite+ `vp run` orchestrating the existing scripts, TypeScript 7",
@@ -110,10 +114,22 @@ function clearCaches() {
   execSync(`rm -rf ${COLD_PATHS.join(" ")}`, { cwd: REPO, shell: "/bin/bash", stdio: "ignore" });
 }
 
-function touchLeaf() {
-  if (!existsSync(TOUCH_FILE)) throw new Error(`touch target missing: ${TOUCH_FILE}`);
-  const now = new Date();
-  utimesSync(TOUCH_FILE, now, now);
+/**
+ * Turborepo and Vite+ both fingerprint file *contents*, not mtime — an mtime-only
+ * `touch` is a cache HIT for them and a full rebuild for the plain-pnpm baseline,
+ * which would have compared a no-op against real work. So edit the bytes, with a
+ * counter so no two edits hash alike, and restore the file afterwards.
+ */
+const ORIGINAL_LEAF = readFileSync(TOUCH_FILE, "utf8");
+let edits = 0;
+
+function editLeaf() {
+  if (!existsSync(TOUCH_FILE)) throw new Error(`edit target missing: ${TOUCH_FILE}`);
+  writeFileSync(TOUCH_FILE, `${ORIGINAL_LEAF}\n// trial edit ${++edits}\n`);
+}
+
+function restoreLeaf() {
+  writeFileSync(TOUCH_FILE, ORIGINAL_LEAF);
 }
 
 /** Wall-clock ms for one invocation, plus whether it actually succeeded. */
@@ -152,12 +168,15 @@ function runCandidate(label) {
 
       for (let i = 0; i < REPEATS[scenario]; i++) {
         if (scenario === "cold") clearCaches();
-        if (scenario === "inc") touchLeaf();
 
         // A cold measurement is only cold once. Warm and inc need a populated
         // cache to be meaningful, so prime it before the first timed run.
-        if (scenario !== "cold" && i === 0) sh(cmd);
-        if (scenario === "inc") touchLeaf();
+        if (scenario !== "cold" && i === 0) {
+          restoreLeaf();
+          sh(cmd);
+        }
+        // Edit AFTER priming, so the timed run is the one facing a changed file.
+        if (scenario === "inc") editLeaf();
 
         const { ms, ok, status, tail } = time(cmd);
         if (!ok && !failure) failure = { status, tail };
@@ -211,7 +230,16 @@ function report() {
 }
 
 const [, , cmd, label] = process.argv;
-if (cmd === "run") runCandidate(label);
+if (cmd === "run") {
+  // The leaf file is edited in place to force cache misses; never leave it dirty.
+  process.on("exit", restoreLeaf);
+  process.on("SIGINT", () => process.exit(130));
+  try {
+    runCandidate(label);
+  } finally {
+    restoreLeaf();
+  }
+}
 else if (cmd === "report") report();
 else {
   console.log(`${B}PROTOTYPE — task runner trial (issue #17)${R}
