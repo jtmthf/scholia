@@ -70,8 +70,11 @@ const CANDIDATES = {
   },
   turbo: {
     describe: "Turborepo orchestrating the existing scripts, TypeScript 7",
+    // e2e is filtered out to match the baseline: `pnpm test:ci` excludes the
+    // Playwright suite, which needs the whole stack up. Including it here would
+    // compare a passing baseline against a failing candidate.
     typecheck: "pnpm turbo run typecheck",
-    test: "pnpm turbo run test",
+    test: "pnpm turbo run test --filter=!@scholia/e2e",
     build: "pnpm turbo run build",
   },
   viteplus: {

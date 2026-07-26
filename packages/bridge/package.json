@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build:iframe": "node scripts/build-iframe.mjs",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --root ../.. packages/bridge"
   },
   "dependencies": {
     "dom-anchor-text-position": "^5.0.0",
