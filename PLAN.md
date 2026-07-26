@@ -4,6 +4,13 @@ This plan turns the design in `CONTEXT.md` and `docs/adr/0001–0012` into a bui
 It is sequenced as **tracer-bullet vertical slices**: every milestone is end-to-end
 and shippable on its own.
 
+> **Direction changed after M11 — read §10 before §5.** M0–M11 below are built, and
+> M1 is the only part that has *shipped* (`scholia@0.1.0`, Local Preview only; everything
+> hosted is gated behind `SCHOLIA_HOSTED`). ADR-0018 reverses the assumption underneath
+> §5: Local Preview now carries the full comment surface, and hosting becomes a later
+> promotion rather than the destination. §5 is retained as the record of what was built
+> and why; **§10 is the live roadmap.**
+
 ## 1. Stack
 
 Chosen to honor the ADRs (content-addressed blobs + Postgres; one core, thin
@@ -298,8 +305,76 @@ fan-out, so the event shape should accommodate them.
    lines GitHub's review-comment API rejects (outside the diff), to size how much the
    best-effort file-level fallback actually carries. Spike against real PRs.
 
-## 9. Suggested first PR
+## 9. Suggested first PR _(historical — done)_
 
 M0 + M1 as one stack: monorepo skeleton (folding mdttp in), the `@collab/core`
 extraction, and the `collab <path>` **Local Preview** spine — a usable tool on its own.
 The hosted tracer bullet (M2: `collab share` → upload → host → view) builds on that core.
+
+## 10. Roadmap — local-first (v0.2 onward)
+
+The live sequence. Direction and reasoning are in ADR-0018 through ADR-0023; this is the
+order of work. Milestones stay tracer-bullet vertical slices, as in §5.
+
+### M12 — Foundations _(issues #15–#22)_
+
+Rename to Scholia (#15) gates almost everything, and has a deadline: `SCHOLIA_*` env vars
+and `~/.scholia/credentials` are a find-and-replace only while hosted mode is unreleased,
+and four new packages are about to be created under a scope we've decided to abandon.
+Alongside it: a linter and formatter (#16, reversing the "tsc is the only check" stance),
+monorepo tooling and the typecheck pipeline (#17), the four failing server tests (#18) and
+CI actually running the hosted suite against Postgres (#19) — today `test:ci` excludes
+`packages/server` by construction, so the hosted path has no coverage at all. Plus
+Playwright in CI (#20), release automation (#21), and open-in-editor (#22), which is the
+one user-visible change and the affordance no hosted docs tool can offer.
+
+### M13 — Local Conversations _(issues #23–#33)_
+
+The differentiator. Two spikes run independently and gate design rather than code:
+`*.localhost` cross-origin isolation (#23) and anchor-migration accuracy against real
+agent edits (#24, PLAN §8 risk 3, now on the critical path). Two prefactors make the
+change easy — Preact SSR for Local Preview's chrome (#25, closing M1's deviation) and
+extracting `@scholia/ui` from the viewer's 685-line shell (#26).
+
+Then the vertical slices: the Sidecar store driven from the CLI (#27), which extracts the
+`ConversationRepository` port *while* writing its second adapter; the tracer bullet —
+select text in the browser, comment, it persists (#28); holding live-reload while
+composing so an agent's edit can't eat your draft (#29); continuous re-resolution and
+Outdated with the original quote (#30); private Chats kept out of git by the filesystem
+(#31); the rest of the verb set as events (#32); and opt-in committing with
+merge-survivable attributes (#33).
+
+### M14 — Agent surface _(issues #34–#35)_
+
+CLI and MCP at parity over the application layer (#34) — neither primary, per ADR-0021 —
+and capability-accurate agent docs served per instance (#35).
+
+### M15 — Tunnel _(not yet ticketed)_
+
+`scholia <path> --tunnel` over cloudflared / tailscale / ngrok. Nearly free once M13 and
+M14 land: the local server already is the application, so a reviewer's Comments land
+directly in the author's working tree. Unguessable URL is the gate (ADR-0001);
+`/__open` refuses tunnelled requests (ADR-0022); guests are Viewers, the terminal holder
+is Owner. Answers "private sites for teams" for the small-team case without building auth.
+Not asynchronous — that limit is what keeps hosting alive.
+
+### M16 — `scholia build` + docs site _(not yet ticketed)_
+
+Static export, and `scholia.live` rendered by Scholia (ADR-0023). Sequenced after M13 so
+the docs describe the actual product rather than a markdown previewer. A static export has
+no backend, so Conversations do not work on it — a publishing path only.
+
+### M17 — Hosted, reconsidered _(deferred)_
+
+M2–M11 built a deployable server, not a running service. Uptime, storage cost, abuse
+handling, moderation, and the accounts/teams work `CONTEXT.md` puts out of v1 all remain.
+Tunnelled usage is what generates the evidence for whether to run it.
+
+### Backlog
+
+Recommendations recorded, not designed: wikilinks and further markdown features (Nav-aware
+resolution makes them less trivial than they look), a VS Code extension (the natural second
+inbound adapter once the application layer exists), local Diff against `HEAD` rather than a
+previous Version, WYSIWYG with presence, and an embedded agent — held deliberately, since
+it would cost the agent-agnosticism that currently lets any agent drive Scholia.
+
