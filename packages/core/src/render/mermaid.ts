@@ -1,3 +1,4 @@
+import type { Element, Root } from "hast";
 import { visit } from "unist-util-visit";
 import { toText } from "../util/text.js";
 
@@ -5,8 +6,8 @@ import { toText } from "../util/text.js";
 // holding the raw diagram source, so the client-side mermaid runtime renders
 // them and Shiki leaves them alone. Must run BEFORE the Shiki transformer.
 export function rehypeMermaid() {
-  return (tree: any) => {
-    visit(tree, "element", (node: any, _index, parent: any) => {
+  return (tree: Root) => {
+    visit(tree, "element", (node: Element, _index, parent) => {
       if (node.tagName !== "code") return;
       const className = node.properties?.className;
       const classes = Array.isArray(className) ? className : [];
@@ -14,7 +15,7 @@ export function rehypeMermaid() {
       if (!parent || parent.type !== "element" || parent.tagName !== "pre") return;
 
       const source = toText(node);
-      parent.properties = { ...(parent.properties ?? {}), className: ["mermaid"] };
+      parent.properties = { ...parent.properties, className: ["mermaid"] };
       parent.children = [{ type: "text", value: source }];
     });
   };

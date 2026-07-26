@@ -5,13 +5,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { z } from "zod";
-import {
-  ScholiaClient,
-  collectFiles,
-  loadCredentials,
-  saveCredential,
-  type SiteCredential,
-} from "@scholia/client";
+import { ScholiaClient, collectFiles, loadCredentials, saveCredential } from "@scholia/client";
 
 // ---------------------------------------------------------------------------
 // Credential / env resolution
@@ -33,7 +27,7 @@ async function resolveConfig(): Promise<ResolvedConfig> {
   }
 
   const store = await loadCredentials();
-  const entries = Object.values(store) as SiteCredential[];
+  const entries = Object.values(store);
 
   if (envSlug) {
     const cred = entries.find((e) => e.slug === envSlug);
@@ -154,7 +148,10 @@ function buildServer(config: ResolvedConfig): McpServer {
       description: "Create a new comment thread on the Scholia site.",
       inputSchema: {
         body: z.string().min(1).describe("Comment text (markdown supported)"),
-        pagePath: z.string().optional().describe("Page path within the site to attach the thread to"),
+        pagePath: z
+          .string()
+          .optional()
+          .describe("Page path within the site to attach the thread to"),
         anchor: z
           .object({
             textQuote: z
@@ -183,7 +180,8 @@ function buildServer(config: ResolvedConfig): McpServer {
   server.registerTool(
     "chat",
     {
-      description: "Create a PRIVATE Chat (only you and your viewer see it). Requires a viewer-scoped token.",
+      description:
+        "Create a PRIVATE Chat (only you and your viewer see it). Requires a viewer-scoped token.",
       inputSchema: {
         body: z.string().min(1).describe("Chat text (markdown supported)"),
         pagePath: z.string().optional().describe("Page path within the site to attach the Chat to"),
@@ -299,8 +297,16 @@ function buildServer(config: ResolvedConfig): McpServer {
         "Without a path, returns the changed-pages summary. With a path, returns the line diff for that page.",
       inputSchema: {
         from: z.number().int().positive().describe("Source version ordinal"),
-        to: z.number().int().positive().optional().describe("Target version ordinal (defaults to latest)"),
-        path: z.string().optional().describe("Page path to diff; omit for a summary of changed pages"),
+        to: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Target version ordinal (defaults to latest)"),
+        path: z
+          .string()
+          .optional()
+          .describe("Page path to diff; omit for a summary of changed pages"),
       },
     },
     async ({ from, to, path }) => {
@@ -380,13 +386,27 @@ async function main() {
   if (httpIdx !== -1) {
     const port = parseInt(process.argv[httpIdx + 1] ?? "8888", 10);
 
-    const httpServer = createServer(async (req, res) => {
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-      });
-      const mcpServer = buildServer(config);
-      await mcpServer.connect(transport);
-      await transport.handleRequest(req, res);
+    // `createServer` wants a void-returning listener, so the async body needs its
+    // own terminal handler — a rejection here (transport setup, a malformed
+    // request body) would otherwise surface as an unhandled rejection and take
+    // the process down instead of failing the one request.
+    const httpServer = createServer((req, res) => {
+      void (async () => {
+        try {
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: undefined,
+          });
+          const mcpServer = buildServer(config);
+          await mcpServer.connect(transport);
+          await transport.handleRequest(req, res);
+        } catch (err: unknown) {
+          process.stderr.write(
+            `[scholia-mcp] request failed: ${err instanceof Error ? err.message : String(err)}\n`,
+          );
+          if (!res.headersSent) res.writeHead(500, { "content-type": "text/plain" });
+          if (!res.writableEnded) res.end("Internal Server Error");
+        }
+      })();
     });
 
     httpServer.listen(port, () => {
@@ -401,6 +421,8 @@ async function main() {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(`[scholia-mcp] fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(
+    `[scholia-mcp] fatal: ${err instanceof Error ? err.message : String(err)}\n`,
+  );
   process.exit(1);
 });

@@ -30,8 +30,11 @@
   /* Pair with type.css, which declares the @font-face rules for the
      " Variable" families below; the rest of each stack is fallback only. */
   --font-serif: "Source Serif 4 Variable", ui-serif, Georgia, "Times New Roman", serif;
-  --font-sans: "Public Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-mono: "Fira Code Variable", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans:
+    "Public Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+    sans-serif;
+  --font-mono:
+    "Fira Code Variable", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /* ---- Type scale ---- */
   --font-size-xs: 0.75rem; /* 12px */

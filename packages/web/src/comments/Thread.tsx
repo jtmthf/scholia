@@ -1,10 +1,5 @@
 import { useState } from "preact/hooks";
-import {
-  addComment,
-  ownerDeleteConversation,
-  setResolved,
-  type ConversationDTO,
-} from "../api";
+import { addComment, ownerDeleteConversation, setResolved, type ConversationDTO } from "../api";
 import { getViewer, setDisplayName } from "../viewer";
 import { Comment } from "./Comment";
 import { Composer } from "./Composer";

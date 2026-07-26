@@ -28,11 +28,11 @@ The design is chosen so that **nothing is ever mutated**:
 
 - Different Conversations are different files with unguessable names, so concurrent
   creation merges cleanly with no special handling.
-- Concurrent replies to the *same* Conversation are appends, which `merge=union` keeps
+- Concurrent replies to the _same_ Conversation are appends, which `merge=union` keeps
   both of — semantically correct for a comment log, with ordering recovered from
   timestamps rather than file position.
 - Because the header is immutable and every state change is an event, union merge can
-  never corrupt a field. This is the property that makes union merge *correct* rather than
+  never corrupt a field. This is the property that makes union merge _correct_ rather than
   a patch over a hazard.
 
 The **aggregate boundary, the storage atomicity unit, and git's merge unit all coincide**
@@ -52,11 +52,11 @@ at the Conversation. That is why this shape was chosen over anything finer or co
   permanently — in a tool whose users write about markdown for a living. YAML block
   scalars are delimited by indentation and never parsed, so no body can escape its own
   field. The rendering advantage was also mostly illusory: teammates meet these files in
-  PR *diffs*, which GitHub does not render as markdown either.
+  PR _diffs_, which GitHub does not render as markdown either.
 - **TOML.** Rejected: multi-line strings are `"""`/`'''`-delimited, reintroducing exactly
   the delimiter fragility we are escaping.
 - **A single YAML document with a top-level sequence.** Works, but only by convention — it
-  *looks* like a mutable list, and the first reformat breaks the append-only invariant. A
+  _looks_ like a mutable list, and the first reformat breaks the append-only invariant. A
   stream has no closing token, so appending is always structurally valid.
 - **ULID instead of UUIDv7.** Both are unique-without-coordination and time-sortable.
   UUIDv7 wins because `packages/db/src/schema.ts` already declares every id as a Postgres
@@ -75,5 +75,5 @@ at the Conversation. That is why this shape was chosen over anything finer or co
   implicit typing will mangle them.
 - **A `.yaml` file does not render as a thread on GitHub.** The human-readable path is
   Scholia rendering its own conversation files, or a CLI printer — not the raw file.
-- Comment *edits* and deletes are events, not rewrites, so "append-only" is a real
+- Comment _edits_ and deletes are events, not rewrites, so "append-only" is a real
   invariant rather than a convention — but it is one the writer must enforce.

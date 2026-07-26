@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "promise"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    // The reason this repo lints at all (ADR-0024): the defect class `tsc` is
+    // blind to. All five need `--type-aware`, which `pnpm lint` passes.
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-explicit-any": "error",
+
+    // Off, deliberately. Every one of the 14 hits at adoption was a synchronous
+    // implementation of an async interface — `FakeGitHubApi` satisfying
+    // `GitHubApi`, and the `defaultListTree` stubs that throw. The `async`
+    // keyword is load-bearing there (it is what makes the member match the
+    // contract), and the rule has no way to see that. It also adds little on top
+    // of no-floating-promises/no-misused-promises, which catch the defects that
+    // actually bite.
+    "typescript/require-await": "off",
+
+    // Also type-aware, and all true-positive on the trial run.
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/no-implied-eval": "error",
+    "typescript/no-for-in-array": "error",
+    "typescript/no-array-delete": "error",
+
+    "no-unused-vars": "error",
+    "eqeqeq": "error",
+
+    // Prettier owns layout; oxlint must not have an opinion on it.
+    "typescript/return-await": "off"
+  },
+  "overrides": [
+    {
+      // `any` is baselined in tests, not in src. 166 of the 207 `no-explicit-any`
+      // hits at adoption were test files casting fixture payloads and partial
+      // mocks — noise that would have to be silenced case by case to no benefit,
+      // since a bad cast in a test fails the test. Production code has no such
+      // backstop, so `src/` stays at "error" with zero grandfathered violations.
+      "files": ["**/test/**", "**/*.test.ts", "**/*.test.tsx", "e2e/**"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/require-await": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**", "**/*.d.ts"]
+}

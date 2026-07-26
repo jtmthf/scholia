@@ -191,10 +191,7 @@ export class ScholiaClient {
   }
 
   // Create a new Site from pre-uploaded blobs.
-  async createSite(
-    files: CollectedFile[],
-    provenance?: Provenance,
-  ): Promise<SiteCreatedResult> {
+  async createSite(files: CollectedFile[], provenance?: Provenance): Promise<SiteCreatedResult> {
     const manifest: FileManifestEntry[] = files.map(({ path, kind, contentHash }) => ({
       path,
       kind,
@@ -214,7 +211,9 @@ export class ScholiaClient {
   // {kind:"ref",repo,ref} or {kind:"pr",repo,prNumber}. A PR source sets the
   // Site's mirrorBinding so public Threads mirror to the GitHub PR.
   async createSiteFromSource(
-    source: { kind: "ref"; repo: string; ref: string } | { kind: "pr"; repo: string; prNumber: number },
+    source:
+      | { kind: "ref"; repo: string; ref: string }
+      | { kind: "pr"; repo: string; prNumber: number },
     provenance?: Provenance,
   ): Promise<SiteCreatedResult> {
     const res = await this.apiFetch(`${this.server}/sites`, {
@@ -255,7 +254,9 @@ export class ScholiaClient {
   // For a PR-backed Site this advances to the latest PR head.
   async refetchSource(
     slug: string,
-    source: { kind: "ref"; repo: string; ref: string } | { kind: "pr"; repo: string; prNumber: number },
+    source:
+      | { kind: "ref"; repo: string; ref: string }
+      | { kind: "pr"; repo: string; prNumber: number },
     provenance?: Provenance,
   ): Promise<VersionAddedResult> {
     const res = await this.apiFetch(`${this.server}/sites/${slug}/versions`, {
@@ -430,13 +431,10 @@ export class ScholiaClient {
   // DELETE /sites/:slug/comments/:id — owner-delete any comment (agent-authed).
   async deleteComment(opts: DeleteCommentOptions): Promise<void> {
     const slug = this.requireSlug();
-    const res = await this.apiFetch(
-      `${this.server}/sites/${slug}/comments/${opts.commentId}`,
-      {
-        method: "DELETE",
-        headers: { ...this.authHeaders() },
-      },
-    );
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/comments/${opts.commentId}`, {
+      method: "DELETE",
+      headers: { ...this.authHeaders() },
+    });
     if (!res.ok)
       throw new Error(
         `DELETE /sites/${slug}/comments/${opts.commentId} failed (${res.status}): ${await res.text()}`,
@@ -450,9 +448,7 @@ export class ScholiaClient {
       method: "GET",
     });
     if (!res.ok)
-      throw new Error(
-        `GET /sites/${slug}/versions failed (${res.status}): ${await res.text()}`,
-      );
+      throw new Error(`GET /sites/${slug}/versions failed (${res.status}): ${await res.text()}`);
     return res.json();
   }
 
@@ -517,7 +513,9 @@ export class ScholiaClient {
       headers: { ...this.authHeaders() },
     });
     if (!res.ok)
-      throw new Error(`POST /sites/${slug}/rotate-share failed (${res.status}): ${await res.text()}`);
+      throw new Error(
+        `POST /sites/${slug}/rotate-share failed (${res.status}): ${await res.text()}`,
+      );
     return (await res.json()) as { slug: string; shareUrl: string };
   }
 
@@ -529,7 +527,9 @@ export class ScholiaClient {
       headers: { ...this.authHeaders() },
     });
     if (!res.ok)
-      throw new Error(`POST /sites/${slug}/rotate-token failed (${res.status}): ${await res.text()}`);
+      throw new Error(
+        `POST /sites/${slug}/rotate-token failed (${res.status}): ${await res.text()}`,
+      );
     return (await res.json()) as { token: string; agentUrl: string };
   }
 

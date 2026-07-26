@@ -42,12 +42,8 @@ export function Rail({
   // each linking back to the Version it was made on. Everything else splits into
   // live anchored vs page-level.
   const outdated = conversations.filter((c) => c.anchorStatus === "outdated");
-  const anchored = conversations.filter(
-    (c) => c.anchor !== null && c.anchorStatus === "live",
-  );
-  const pageLevel = conversations.filter(
-    (c) => c.anchor === null && c.anchorStatus === "live",
-  );
+  const anchored = conversations.filter((c) => c.anchor !== null && c.anchorStatus === "live");
+  const pageLevel = conversations.filter((c) => c.anchor === null && c.anchorStatus === "live");
 
   const renderThread = (c: ConversationDTO) => (
     <Thread
@@ -96,8 +92,8 @@ export function Rail({
 
       {conversations.length === 0 && chats.length === 0 && (
         <div class="rail-empty">
-          No comments yet. Select text in the page to start a Thread or a private Chat, or
-          comment on the whole page.
+          No comments yet. Select text in the page to start a Thread or a private Chat, or comment
+          on the whole page.
         </div>
       )}
 
@@ -126,9 +122,7 @@ export function Rail({
       {outdated.length > 0 && (
         <div class="rail-section rail-section--outdated">
           <h3 class="rail-section-title">Outdated ({outdated.length})</h3>
-          <p class="rail-outdated-note">
-            These Threads no longer match the Latest Version.
-          </p>
+          <p class="rail-outdated-note">These Threads no longer match the Latest Version.</p>
           {outdated.map((c) => (
             <div key={c.id} class="outdated-thread">
               <a

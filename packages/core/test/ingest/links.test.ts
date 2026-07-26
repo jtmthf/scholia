@@ -24,18 +24,14 @@ describe("rewriteInterPageLinks", () => {
     expect(rewrite('<a href="./advanced.md">x</a>', "guide/intro.md")).toContain(
       "/s/abc/guide/advanced.md",
     );
-    expect(rewrite('<a href="../about.md">x</a>', "guide/intro.md")).toContain(
-      "/s/abc/about.md",
-    );
+    expect(rewrite('<a href="../about.md">x</a>', "guide/intro.md")).toContain("/s/abc/about.md");
     expect(rewrite('<a href="intro.md">x</a>', "guide/advanced.md")).toContain(
       "/s/abc/guide/intro.md",
     );
   });
 
   test("drops a query/hash when matching but the route points at the Page", () => {
-    expect(rewrite('<a href="about.md#section">x</a>', "index.md")).toContain(
-      "/s/abc/about.md",
-    );
+    expect(rewrite('<a href="about.md#section">x</a>', "index.md")).toContain("/s/abc/about.md");
   });
 
   test("leaves Asset, external, absolute, and in-page links untouched", () => {

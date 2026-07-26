@@ -25,12 +25,7 @@ export const manifestKind = pgEnum("manifest_kind", ["markdown", "html", "asset"
 export const visibility = pgEnum("visibility", ["private", "public"]);
 export const anchorStatus = pgEnum("anchor_status", ["live", "outdated"]);
 export const commentOrigin = pgEnum("comment_origin", ["scholia", "github"]);
-export const mirrorStatus = pgEnum("mirror_status", [
-  "pending",
-  "synced",
-  "failed",
-  "detached",
-]);
+export const mirrorStatus = pgEnum("mirror_status", ["pending", "synced", "failed", "detached"]);
 
 // ---- jsonb shapes (documented as TS types; stored as jsonb) ----
 export interface MirrorBinding {
@@ -288,18 +283,15 @@ export const githubInstallations = pgTable("github_installations", {
 // Per-PR-backed-Site reconciliation cursor + last-seen PR head. The reconcile
 // poll re-fetches review comments since `lastPrCommentId`/`lastPrReviewId` and
 // detects head-advance by comparing `lastHeadSha`. One row created lazily.
-export const githubSiteState = pgTable(
-  "github_site_state",
-  {
-    siteId: uuid("site_id")
-      .primaryKey()
-      .references(() => sites.id, { onDelete: "cascade" }),
-    lastPrCommentId: bigint("last_pr_comment_id", { mode: "number" }),
-    lastPrReviewId: bigint("last_pr_review_id", { mode: "number" }),
-    lastHeadSha: text("last_head_sha"),
-    lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
-  },
-);
+export const githubSiteState = pgTable("github_site_state", {
+  siteId: uuid("site_id")
+    .primaryKey()
+    .references(() => sites.id, { onDelete: "cascade" }),
+  lastPrCommentId: bigint("last_pr_comment_id", { mode: "number" }),
+  lastPrReviewId: bigint("last_pr_review_id", { mode: "number" }),
+  lastHeadSha: text("last_head_sha"),
+  lastReconciledAt: timestamp("last_reconciled_at", { withTimezone: true }),
+});
 
 // Shared fixed-window counters for `PostgresRateLimiter` (M11, ADR-0015) — the
 // multi-instance-safe alternative to the in-memory limiter, needed once a

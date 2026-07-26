@@ -1,5 +1,10 @@
 import { describe, test, expect } from "vitest";
-import { emitCommentCreated, emitResolve, emitPromotion, type EmitDeps } from "../src/mirror/emit.js";
+import {
+  emitCommentCreated,
+  emitResolve,
+  emitPromotion,
+  type EmitDeps,
+} from "../src/mirror/emit.js";
 
 const bondGithub: EmitDeps["mirrorBinding"] = { provider: "github", repo: "o/r", prNumber: 1 };
 const bondOther: EmitDeps["mirrorBinding"] = { provider: "gitlab", repo: "o/r", prNumber: 1 };
@@ -60,14 +65,28 @@ describe("mirror emit skip logic", () => {
     const rPub = recorder();
     emitResolve(
       { mirrorBinding: bondGithub, siteId: "s", siteState: "open", mirrorBus: rPub.bus },
-      { conversationId: "c", pagePath: "doc.md", createdVersionId: "v", resolved: true, resolvedBy: "x", visibility: "public" },
+      {
+        conversationId: "c",
+        pagePath: "doc.md",
+        createdVersionId: "v",
+        resolved: true,
+        resolvedBy: "x",
+        visibility: "public",
+      },
     );
     expect(rPub.events).toHaveLength(1);
 
     const rPriv = recorder();
     emitResolve(
       { mirrorBinding: bondGithub, siteId: "s", siteState: "open", mirrorBus: rPriv.bus },
-      { conversationId: "c", pagePath: "doc.md", createdVersionId: "v", resolved: true, resolvedBy: "x", visibility: "private" },
+      {
+        conversationId: "c",
+        pagePath: "doc.md",
+        createdVersionId: "v",
+        resolved: true,
+        resolvedBy: "x",
+        visibility: "private",
+      },
     );
     expect(rPriv.events).toHaveLength(0);
   });
@@ -95,14 +114,25 @@ describe("mirror emit skip logic", () => {
     const r = recorder();
     emitPromotion(
       { mirrorBinding: bondGithub, siteId: "s", siteState: "open", mirrorBus: r.bus },
-      { conversationId: "c", pagePath: "doc.md", createdVersionId: "v", visibility: "public", comments: [] },
+      {
+        conversationId: "c",
+        pagePath: "doc.md",
+        createdVersionId: "v",
+        visibility: "public",
+        comments: [],
+      },
     );
     expect(r.events).toHaveLength(0);
   });
 });
 
 function mkId() {
-  return { name: "Jane", kind: "human" as const, tier: "viewer" as const, source: "native" as const };
+  return {
+    name: "Jane",
+    kind: "human" as const,
+    tier: "viewer" as const,
+    source: "native" as const,
+  };
 }
 
 function mkComment(over: { visibility: "public" | "private" }) {

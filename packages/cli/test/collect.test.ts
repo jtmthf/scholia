@@ -16,7 +16,9 @@ describe("collectFiles — directory", () => {
     expect(paths).toEqual(["README.md", "guide/intro.md", "img/logo.png"]);
   });
 
-  test("classifies .md/.markdown as markdown, .html as html, everything else as asset", async ({ tmp }) => {
+  test("classifies .md/.markdown as markdown, .html as html, everything else as asset", async ({
+    tmp,
+  }) => {
     await tmp.write("doc.md", "content");
     await tmp.write("notes.MARKDOWN", "notes");
     await tmp.write("page.html", "<html>");

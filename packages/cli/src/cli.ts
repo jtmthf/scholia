@@ -30,15 +30,46 @@ const { version } = createRequire(import.meta.url)("../package.json") as { versi
 // bring them back for local hosted-path development.
 const HOSTED_ENABLED = process.env.SCHOLIA_HOSTED === "1";
 
-// Resolve the owner credential for an ops command the same way `share`/`chats` do:
-// an explicit --site, else the newest stored credential; token from --token,
-// SCHOLIA_TOKEN, or the stored credential. Owner ops need the OWNER token.
-async function resolveOwner(options: {
+// cac hands action handlers a bare options bag. These describe what each command
+// actually declares via `.option()`, so a renamed flag is a type error at the
+// handler rather than an `undefined` at runtime.
+interface OwnerOptions {
   server: string;
   site?: string;
   token?: string;
-}): Promise<{ server: string; slug: string; token: string; cred?: SiteCredential }> {
-  const server = (options.server as string).replace(/\/+$/, "");
+}
+
+interface ShareOptions {
+  server: string;
+  site?: string;
+  new?: boolean;
+  pr?: string;
+  ref?: string;
+}
+
+interface ChatsOptions extends OwnerOptions {
+  since?: string;
+  path?: string;
+}
+
+interface DeleteSiteOptions extends OwnerOptions {
+  yes?: boolean;
+}
+
+interface PreviewOptions {
+  port?: string | number;
+  host: string;
+  open: boolean;
+  mdx: boolean;
+}
+
+// Resolve the owner credential for an ops command the same way `share`/`chats` do:
+// an explicit --site, else the newest stored credential; token from --token,
+// SCHOLIA_TOKEN, or the stored credential. Owner ops need the OWNER token.
+async function resolveOwner(
+  options: OwnerOptions,
+): Promise<{ server: string; slug: string; token: string; cred?: SiteCredential }> {
+  const server = options.server.replace(/\/+$/, "");
   const store = await loadCredentials();
   const entries = Object.values(store);
   const cred = options.site
@@ -51,7 +82,9 @@ async function resolveOwner(options: {
   const token = options.token ?? process.env.SCHOLIA_TOKEN ?? cred?.token;
   if (!slug) throw new Error("no site — pass --site <slug> or run `scholia share` first");
   if (!token)
-    throw new Error("no owner token — pass --token, set SCHOLIA_TOKEN, or run `scholia share` first");
+    throw new Error(
+      "no owner token — pass --token, set SCHOLIA_TOKEN, or run `scholia share` first",
+    );
   return { server, slug, token, cred };
 }
 
@@ -72,7 +105,7 @@ function registerHostedCommands(cli: CAC): void {
     .option("--site <slug>", "Re-upload a new Version to this specific Site slug")
     .option("--pr <spec>", "Create from a GitHub PR: owner/repo#123")
     .option("--ref <spec>", "Create from a GitHub ref: owner/repo@<ref>")
-    .action(async (path: string | undefined, options: any) => {
+    .action(async (path: string | undefined, options: ShareOptions) => {
       try {
         await share(path, {
           server: options.server,
@@ -97,12 +130,15 @@ function registerHostedCommands(cli: CAC): void {
       default: process.env.SCHOLIA_SERVER ?? "http://localhost:8787",
     })
     .option("--site <slug>", "Site slug to query (defaults to the newest stored credential)")
-    .option("--token <token>", "Viewer-scoped token (defaults to SCHOLIA_TOKEN or the stored credential)")
+    .option(
+      "--token <token>",
+      "Viewer-scoped token (defaults to SCHOLIA_TOKEN or the stored credential)",
+    )
     .option("--since <iso>", "ISO 8601 timestamp; only Chats with a comment newer than this")
     .option("--path <p>", "Filter to Chats anchored to this page path")
-    .action(async (options: any) => {
+    .action(async (options: ChatsOptions) => {
       try {
-        const server = (options.server as string).replace(/\/+$/, "");
+        const server = options.server.replace(/\/+$/, "");
         const store = await loadCredentials();
         const entries = Object.values(store);
         const cred = options.site
@@ -114,7 +150,10 @@ function registerHostedCommands(cli: CAC): void {
         const slug: string | undefined = options.site ?? cred?.slug ?? process.env.SCHOLIA_SITE;
         const token: string | undefined = options.token ?? process.env.SCHOLIA_TOKEN ?? cred?.token;
         if (!slug) throw new Error("no site — pass --site <slug> or run `scholia share` first");
-        if (!token) throw new Error("no token — pass --token, set SCHOLIA_TOKEN, or run `scholia share` first");
+        if (!token)
+          throw new Error(
+            "no token — pass --token, set SCHOLIA_TOKEN, or run `scholia share` first",
+          );
 
         const client = new ScholiaClient({ server, token, slug });
         const { chats } = await client.listChats({ since: options.since, path: options.path });
@@ -135,7 +174,7 @@ function registerHostedCommands(cli: CAC): void {
     .option("--server <url>", "Scholia server base URL", OPS_DEFAULT_SERVER)
     .option("--site <slug>", "Site slug (defaults to the newest stored credential)")
     .option("--token <token>", "Owner token (defaults to SCHOLIA_TOKEN or the stored credential)")
-    .action(async (state: string, options: any) => {
+    .action(async (state: string, options: OwnerOptions) => {
       try {
         if (!["open", "read_only", "frozen"].includes(state)) {
           throw new Error(`invalid state "${state}" — expected open, read_only, or frozen`);
@@ -156,7 +195,7 @@ function registerHostedCommands(cli: CAC): void {
     .option("--server <url>", "Scholia server base URL", OPS_DEFAULT_SERVER)
     .option("--site <slug>", "Site slug (defaults to the newest stored credential)")
     .option("--token <token>", "Owner token (defaults to SCHOLIA_TOKEN or the stored credential)")
-    .action(async (options: any) => {
+    .action(async (options: OwnerOptions) => {
       try {
         const { server, slug, token, cred } = await resolveOwner(options);
         const client = new ScholiaClient({ server, token, slug });
@@ -180,7 +219,7 @@ function registerHostedCommands(cli: CAC): void {
     .option("--server <url>", "Scholia server base URL", OPS_DEFAULT_SERVER)
     .option("--site <slug>", "Site slug (defaults to the newest stored credential)")
     .option("--token <token>", "Owner token (defaults to SCHOLIA_TOKEN or the stored credential)")
-    .action(async (options: any) => {
+    .action(async (options: OwnerOptions) => {
       try {
         const { server, slug, token, cred } = await resolveOwner(options);
         const client = new ScholiaClient({ server, token, slug });
@@ -202,7 +241,7 @@ function registerHostedCommands(cli: CAC): void {
     .option("--site <slug>", "Site slug (defaults to the newest stored credential)")
     .option("--token <token>", "Owner token (defaults to SCHOLIA_TOKEN or the stored credential)")
     .option("--yes", "Confirm the deletion (required — this is irreversible)")
-    .action(async (options: any) => {
+    .action(async (options: DeleteSiteOptions) => {
       try {
         const { server, slug, token } = await resolveOwner(options);
         if (!options.yes) {
@@ -229,11 +268,14 @@ const DEFAULT_PORT = 3000;
 
 cli
   .command("[target]", "Preview a local markdown file or directory")
-  .option("-p, --port <port>", `Port to listen on (default: ${DEFAULT_PORT}; errors if an explicit port is taken)`)
+  .option(
+    "-p, --port <port>",
+    `Port to listen on (default: ${DEFAULT_PORT}; errors if an explicit port is taken)`,
+  )
   .option("--host <host>", "Host to bind", { default: "localhost" })
   .option("--no-open", "Do not open the browser automatically")
   .option("--no-mdx", "Disable MDX rendering (.mdx served as plain markdown)")
-  .action(async (target: string | undefined, options: any) => {
+  .action(async (target: string | undefined, options: PreviewOptions) => {
     const input = resolve(target ?? ".");
 
     const info = await stat(input).catch(() => null);
@@ -289,8 +331,8 @@ cli
       await server.close();
       process.exit(0);
     };
-    process.on("SIGINT", shutdown);
-    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", () => void shutdown());
+    process.on("SIGTERM", () => void shutdown());
   });
 
 // The two things a first-time user most needs from `--help` and won't find in the

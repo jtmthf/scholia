@@ -1,0 +1,11 @@
+pnpm-lock.yaml
+CHANGELOG.md
+
+# Generated or vendored — see .gitignore for the rest; Prettier reads it too.
+**/dist/
+**/*.d.ts
+
+# Fixtures are formatted the way the test asserts on them.
+e2e/fixtures/
+packages/*/test/fixtures/
+packages/*/tests/fixtures/

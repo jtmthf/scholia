@@ -54,7 +54,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     });
     const { missing } = (await diff.json()) as { missing: string[] };
     for (const h of missing) {
-      await app.request(`/blobs/${h}`, { method: "PUT", body: bytes.buffer as ArrayBuffer });
+      await app.request(`/blobs/${h}`, { method: "PUT", body: bytes.buffer });
     }
     const res = await app.request("/sites", {
       method: "POST",
@@ -96,7 +96,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
       displayName: "Jane",
     });
     expect(created.status).toBe(201);
-    const conv = (await created.json()) as any;
+    const conv = await created.json();
     expect(conv.pagePath).toBe("README.md");
     expect(conv.anchor.textQuote.exact).toBe("anchoring");
     // mapSmIdsToSourceRange wired end-to-end: smIds[1] resolves to a source span.
@@ -108,15 +108,17 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     expect(conv.comments[0].mine).toBe(true);
 
     // List it back for the page (with viewerId → mine flags).
-    const listed = await (await app.request(`/sites/${slug}/conversations?path=README.md&viewerId=${viewerId}`)).json();
+    const listed = await (
+      await app.request(`/sites/${slug}/conversations?path=README.md&viewerId=${viewerId}`)
+    ).json();
     expect(listed).toHaveLength(1);
-    expect((listed as any)[0].id).toBe(conv.id);
+    expect(listed[0].id).toBe(conv.id);
   });
 
   test("reply, react (toggle + palette), resolve/reopen", async () => {
     const slug = await makeSite();
     const viewerId = await mintViewer(slug);
-    const conv = (await (
+    const conv = await (
       await json(`/sites/${slug}/conversations`, "POST", {
         pagePath: "README.md",
         anchor: { textQuote: { exact: "paragraph" }, smIds: [1] },
@@ -124,7 +126,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
         viewerId,
         displayName: "Jane",
       })
-    ).json()) as any;
+    ).json();
     const commentId = conv.comments[0].id;
 
     // Reply.
@@ -165,21 +167,21 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     expect(bad.status).toBe(400);
 
     // Resolve, then reopen (anyone may).
-    const resolved = (await (
+    const resolved = await (
       await json(`/sites/${slug}/conversations/${conv.id}/resolve`, "POST", {
         viewerId,
         displayName: "Jane",
       })
-    ).json()) as any;
+    ).json();
     expect(resolved.resolved).toBe(true);
     expect(resolved.resolvedBy).toBe("Jane");
 
-    const reopened = (await (
+    const reopened = await (
       await json(`/sites/${slug}/conversations/${conv.id}/resolve`, "DELETE", {
         viewerId,
         displayName: "Jane",
       })
-    ).json()) as any;
+    ).json();
     expect(reopened.resolved).toBe(false);
   });
 
@@ -187,7 +189,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     const slug = await makeSite();
     const jane = await mintViewer(slug);
     const bob = await mintViewer(slug);
-    const conv = (await (
+    const conv = await (
       await json(`/sites/${slug}/conversations`, "POST", {
         pagePath: "README.md",
         anchor: { textQuote: { exact: "scholia" }, smIds: [1] },
@@ -195,7 +197,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
         viewerId: jane,
         displayName: "Jane",
       })
-    ).json()) as any;
+    ).json();
     const commentId = conv.comments[0].id;
 
     // Bob cannot edit Jane's comment.
@@ -211,7 +213,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
       viewerId: jane,
     });
     expect(janeEdit.status).toBe(200);
-    const edited = (await janeEdit.json()) as any;
+    const edited = await janeEdit.json();
     expect(edited.body).toBe("edited");
     expect(edited.editedAt).not.toBeNull();
 
@@ -220,7 +222,9 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     expect(bobDel.status).toBe(403);
 
     // Jane deletes her own → tombstone (deleted, empty body).
-    const janeDel = await json(`/sites/${slug}/comments/${commentId}`, "DELETE", { viewerId: jane });
+    const janeDel = await json(`/sites/${slug}/comments/${commentId}`, "DELETE", {
+      viewerId: jane,
+    });
     expect(janeDel.status).toBe(204);
 
     const listed = (await (
@@ -241,12 +245,14 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
       displayName: "Jane",
     });
     expect(created.status).toBe(201);
-    const conv = (await created.json()) as any;
+    const conv = await created.json();
     expect(conv.pagePath).toBeNull();
     expect(conv.anchor).toBeNull();
 
     // Page-level list (no path param).
-    const listed = (await (await app.request(`/sites/${slug}/conversations?viewerId=${viewerId}`)).json()) as any[];
+    const listed = (await (
+      await app.request(`/sites/${slug}/conversations?viewerId=${viewerId}`)
+    ).json()) as any[];
     expect(listed).toHaveLength(1);
     expect(listed[0].anchor).toBeNull();
   });
@@ -267,10 +273,18 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
 
     // Unknown slug / conversation / comment.
     expect((await json(`/sites/nope/viewers`, "POST")).status).toBe(404);
-    expect((await json(`/sites/${slug}/conversations/00000000-0000-0000-0000-000000000000/comments`, "POST", {
-      body: "x",
-      viewerId,
-      displayName: "Jane",
-    })).status).toBe(404);
+    expect(
+      (
+        await json(
+          `/sites/${slug}/conversations/00000000-0000-0000-0000-000000000000/comments`,
+          "POST",
+          {
+            body: "x",
+            viewerId,
+            displayName: "Jane",
+          },
+        )
+      ).status,
+    ).toBe(404);
   });
 });

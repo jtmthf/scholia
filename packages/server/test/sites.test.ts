@@ -20,15 +20,14 @@ const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
 const enc = new TextEncoder();
 
 const README_MD = "# Hello M3\n\nThis is the **entry** page.\n";
-const INTRO_MD =
-  "# Intro\n\nSee [the README](../README.md) or [an image](../logo.png).\n";
+const INTRO_MD = "# Intro\n\nSee [the README](../README.md) or [an image](../logo.png).\n";
 // Small PNG (1x1 transparent pixel).
 const LOGO_PNG = new Uint8Array([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
-  0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f,
-  0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x62, 0x00,
-  0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+  0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x62, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+  0x42, 0x60, 0x82,
 ]);
 
 describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
@@ -92,9 +91,11 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
   }
 
   test("single markdown file — 201, share URL, token, entryPath", async () => {
-    const res = await uploadSite([{ path: "README.md", kind: "markdown", bytes: enc.encode(README_MD) }]);
+    const res = await uploadSite([
+      { path: "README.md", kind: "markdown", bytes: enc.encode(README_MD) },
+    ]);
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.slug).toBeTruthy();
     expect(body.shareUrl).toBe(`http://viewer.test/s/${body.slug}`);
     expect(typeof body.token).toBe("string");
@@ -109,10 +110,10 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
       { path: "logo.png", kind: "asset", bytes: LOGO_PNG },
     ]);
     expect(res.status).toBe(201);
-    const { slug } = (await res.json()) as any;
+    const { slug } = await res.json();
 
     // Metadata
-    const meta = (await (await app.request(`/sites/${slug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${slug}`)).json();
     expect(meta.slug).toBe(slug);
     expect(meta.state).toBe("open");
     expect(meta.version).toBe(1);
@@ -161,10 +162,10 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
       { path: "README.md", kind: "markdown", bytes: enc.encode(README_MD) },
     ]);
     expect(res.status).toBe(201);
-    const { slug } = (await res.json()) as any;
+    const { slug } = await res.json();
 
     // index.html wins entry precedence (CONTEXT "Entry Page", restored in M4).
-    const meta = (await (await app.request(`/sites/${slug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${slug}`)).json();
     expect(meta.entryPath).toBe("index.html");
     expect(meta.pages.find((p: any) => p.path === "index.html")?.kind).toBe("html");
     // HTML Pages appear in the Nav alongside Markdown Pages.
@@ -203,7 +204,7 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
       }),
     });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(Array.isArray(body.missing)).toBe(true);
     expect(body.missing).toHaveLength(1);
   });
@@ -214,10 +215,10 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
     const wrongBytes = enc.encode("different content");
     const res = await app.request(`/blobs/${correctHash}`, {
       method: "PUT",
-      body: wrongBytes.buffer as ArrayBuffer,
+      body: wrongBytes.buffer,
     });
     expect(res.status).toBe(400);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.error).toMatch(/mismatch/i);
   });
 

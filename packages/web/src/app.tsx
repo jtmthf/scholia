@@ -310,7 +310,12 @@ export function App() {
       <div class="body">
         {showNav && (
           <nav class="nav">
-            <NavTree nodes={meta.nav} currentPath={currentPath} slug={meta.slug} onNavigate={navigate} />
+            <NavTree
+              nodes={meta.nav}
+              currentPath={currentPath}
+              slug={meta.slug}
+              onNavigate={navigate}
+            />
           </nav>
         )}
         <PageView
@@ -376,7 +381,10 @@ function PageView({
   const bridgeRef = useRef<BridgeHandle | null>(null);
   const [conversations, setConversations] = useState<ConversationDTO[]>([]);
   const [chats, setChats] = useState<ConversationDTO[]>([]);
-  const [selection, setSelection] = useState<{ candidate: SelectionCandidate; rect: DOMRectInit } | null>(null);
+  const [selection, setSelection] = useState<{
+    candidate: SelectionCandidate;
+    rect: DOMRectInit;
+  } | null>(null);
   const [composer, setComposer] = useState<ComposerState | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -541,14 +549,22 @@ function PageView({
       {selection && floatingPos && !composer && (
         <div
           class="floating-actions"
-          style={{ left: `${floatingPos.left}px`, top: `${floatingPos.top}px`, transform: "translate(-50%, -120%)" }}
+          style={{
+            left: `${floatingPos.left}px`,
+            top: `${floatingPos.top}px`,
+            transform: "translate(-50%, -120%)",
+          }}
           // Don't let the click steal focus / collapse the selection before we read it.
           onMouseDown={(e) => e.preventDefault()}
         >
           <button
             class="floating-action-btn floating-comment-btn"
             onClick={() =>
-              setComposer({ anchor: candidateToAnchor(selection.candidate), at: floatingPos, mode: "thread" })
+              setComposer({
+                anchor: candidateToAnchor(selection.candidate),
+                at: floatingPos,
+                mode: "thread",
+              })
             }
           >
             💬 Comment
@@ -556,7 +572,11 @@ function PageView({
           <button
             class="floating-action-btn floating-ask-btn"
             onClick={() =>
-              setComposer({ anchor: candidateToAnchor(selection.candidate), at: floatingPos, mode: "chat" })
+              setComposer({
+                anchor: candidateToAnchor(selection.candidate),
+                at: floatingPos,
+                mode: "chat",
+              })
             }
           >
             🔒 Ask
@@ -585,9 +605,7 @@ function PageView({
                   : "Comment on this page"
             }
             placeholder={
-              composer.mode === "chat"
-                ? "Ask your agent about this selection…"
-                : "Write a comment…"
+              composer.mode === "chat" ? "Ask your agent about this selection…" : "Write a comment…"
             }
             submitLabel={composer.mode === "chat" ? "Ask" : "Comment"}
             needsName={!viewerName}
@@ -618,9 +636,21 @@ function NavTree({
     <ul class="nav-list">
       {nodes.map((node) =>
         node.type === "dir" ? (
-          <NavDir key={node.fsPath} node={node} currentPath={currentPath} slug={slug} onNavigate={onNavigate} />
+          <NavDir
+            key={node.fsPath}
+            node={node}
+            currentPath={currentPath}
+            slug={slug}
+            onNavigate={onNavigate}
+          />
         ) : (
-          <NavFile key={node.fsPath} node={node} currentPath={currentPath} slug={slug} onNavigate={onNavigate} />
+          <NavFile
+            key={node.fsPath}
+            node={node}
+            currentPath={currentPath}
+            slug={slug}
+            onNavigate={onNavigate}
+          />
         ),
       )}
     </ul>
@@ -646,7 +676,12 @@ function NavDir({
         {node.title}
       </button>
       {open && node.children && (
-        <NavTree nodes={node.children} currentPath={currentPath} slug={slug} onNavigate={onNavigate} />
+        <NavTree
+          nodes={node.children}
+          currentPath={currentPath}
+          slug={slug}
+          onNavigate={onNavigate}
+        />
       )}
     </li>
   );

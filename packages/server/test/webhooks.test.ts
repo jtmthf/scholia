@@ -7,11 +7,10 @@ import { createHmac } from "node:crypto";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema, type Db, upsertGitHubInstallation, getMirrorRow } from "@scholia/db";
-import { hashBytes, FsBlobStore } from "@scholia/core";
+import { FsBlobStore } from "@scholia/core";
 import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
-import { importInbound } from "../src/mirror/importer.js";
 import { reconcileOneSite } from "../src/mirror/reconcile.js";
 import { migrateWithLock } from "./helpers/migrate.js";
 
@@ -62,11 +61,7 @@ function reviewCommentPayload(
 }
 
 // Build an `issue_comment` webhook payload.
-function issueCommentPayload(
-  commentId: number,
-  body: string,
-  login = "octocat",
-): string {
+function issueCommentPayload(commentId: number, body: string, login = "octocat"): string {
   return JSON.stringify({
     action: "created",
     comment: {
@@ -121,29 +116,28 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
   let blobDir: string;
   let fakeApi: FakeGitHubApi;
   let siteSlug: string;
-  let ownerToken: string;
 
   beforeAll(async () => {
     sql = postgres(DB_URL!, { max: 1 });
-    db = drizzle(sql, { schema }) as unknown as Db;
-    await migrateWithLock(sql, db as unknown as ReturnType<typeof drizzle>, MIGRATIONS);
+    db = drizzle(sql, { schema });
+    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-inbound-"));
 
     // Seed the fake GitHub API.
     fakeApi = new FakeGitHubApi();
-    fakeApi.seedPr(
+    fakeApi.seedPr({ owner: "octocat", name: "inbound-test" }, 1, {
+      headSha: HEAD_SHA,
+      branch: "feature",
+      title: "Test PR",
+      files: [
+        { filename: "README.md", status: "added", sha: "blob-1", content: enc.encode(PAGE_MD) },
+      ],
+    });
+    fakeApi.setDiffLines(
       { owner: "octocat", name: "inbound-test" },
-      1,
-      {
-        headSha: HEAD_SHA,
-        branch: "feature",
-        title: "Test PR",
-        files: [
-          { filename: "README.md", status: "added", sha: "blob-1", content: enc.encode(PAGE_MD) },
-        ],
-      },
+      "README.md",
+      new Set([1, 3, 5]),
     );
-    fakeApi.setDiffLines({ owner: "octocat", name: "inbound-test" }, "README.md", new Set([1, 3, 5]));
 
     await upsertGitHubInstallation(db, {
       installationId: 88,
@@ -188,9 +182,8 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: JSON.stringify({ contentSource: { kind: "pr", repo: REPO, prNumber: 1 } }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     siteSlug = body.slug;
-    ownerToken = body.token;
   });
 
   afterAll(async () => {
@@ -210,13 +203,13 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: payload,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.accepted).toBe(1);
 
     // Verify a Thread was created with a github-sourced comment.
     const commentsRes = await app.request(`/sites/${siteSlug}/comments`);
     expect(commentsRes.status).toBe(200);
-    const commentsBody = (await commentsRes.json()) as any;
+    const commentsBody = await commentsRes.json();
     const imported = commentsBody.comments.find((c: any) => c.body === "Looks risky here.");
     expect(imported).toBeTruthy();
     expect(imported.author.kind).toBe("human");
@@ -240,7 +233,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as any).accepted).toBe(0);
+    expect((await res.json()).accepted).toBe(0);
   });
 
   test("unsigned payload → 401", async () => {
@@ -282,11 +275,11 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as any).accepted).toBe(1);
+    expect((await res.json()).accepted).toBe(1);
 
     // Verify a page-level comment was created.
     const commentsRes = await app.request(`/sites/${siteSlug}/comments`);
-    const commentsBody = (await commentsRes.json()) as any;
+    const commentsBody = await commentsRes.json();
     const imported = commentsBody.comments.find((c: any) => c.body === "Overall nice work.");
     expect(imported).toBeTruthy();
     expect(imported.anchor).toBeNull();
@@ -327,7 +320,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       externalUrl: "https://github.com/fake",
       status: "synced",
     });
-// Now send a webhook with externalId=id(5) → should be deduped (mirrorExistsByExternal).
+    // Now send a webhook with externalId=id(5) → should be deduped (mirrorExistsByExternal).
 
     const payload = reviewCommentPayload(id(5), "Echo loop comment.", "README.md", 3);
     const res = await app.request("/webhooks/github", {
@@ -340,7 +333,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as any).accepted).toBe(0);
+    expect((await res.json()).accepted).toBe(0);
   });
 
   test("deleted on a github-origin comment → tombstone", async () => {
@@ -357,11 +350,11 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as any).accepted).toBe(1);
+    expect((await res.json()).accepted).toBe(1);
 
     // Verify the comment is now tombstoned (deletedAt set).
     const { schema } = await import("@scholia/db");
-    const { eq, isNull } = await import("drizzle-orm");
+    const { eq } = await import("drizzle-orm");
     const [row] = await db
       .select({ deletedAt: schema.comments.deletedAt })
       .from(schema.comments)
@@ -385,7 +378,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as any).accepted).toBe(1);
+    expect((await res.json()).accepted).toBe(1);
 
     // Verify the mirror row is detached (query by externalId since we don't
     // have the commentId directly).
@@ -410,7 +403,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
   test("webhook with no GITHUB_WEBHOOK_SECRET configured → 404", async () => {
     // Create an app without github config (no webhook secret).
     const sql2 = postgres(DB_URL!, { max: 1 });
-    const db2 = drizzle(sql2, { schema }) as unknown as Db;
+    const db2 = drizzle(sql2, { schema });
     const app2 = createApp({
       db: db2,
       store: new FsBlobStore(await mkdtemp(join(tmpdir(), "scholia-blobs-nosig-"))),
@@ -430,37 +423,41 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
   test("reconciliation poll imports missed comments", async () => {
     // Seed the fake GitHub API with a review comment that was "missed" by the
     // webhook (never delivered). The reconcile poller should pick it up.
-    fakeApi.seedReviewComment(
-      { owner: "octocat", name: "inbound-test" },
-      1,
-      {
-        id: id(6),
-        nodeId: "PRRC_3001",
-        url: "https://github.com/octocat/inbound-test/pull/1#discussion_r3001",
-        path: "README.md",
-        line: 3,
-        side: "RIGHT",
-        commitId: HEAD_SHA,
-        body: "Missed by webhook — imported via poll.",
-      },
-    );
+    fakeApi.seedReviewComment({ owner: "octocat", name: "inbound-test" }, 1, {
+      id: id(6),
+      nodeId: "PRRC_3001",
+      url: "https://github.com/octocat/inbound-test/pull/1#discussion_r3001",
+      path: "README.md",
+      line: 3,
+      side: "RIGHT",
+      commitId: HEAD_SHA,
+      body: "Missed by webhook — imported via poll.",
+    });
 
     // Run the reconcile poller directly.
     const deps = {
       db,
       store: new FsBlobStore(blobDir),
-      mirror: [new GitHubMirrorProvider({
-        api: fakeApi,
-        db,
-        config: {
-          appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-          webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
-          reconcileIntervalMs: 60_000,
-        },
-      })],
+      mirror: [
+        new GitHubMirrorProvider({
+          api: fakeApi,
+          db,
+          config: {
+            appId: "1",
+            appSlug: "scholia",
+            privateKeyPem: "fake",
+            webhookSecret: WEBHOOK_SECRET,
+            apiBase: "https://api.github.com",
+            reconcileIntervalMs: 60_000,
+          },
+        }),
+      ],
       github: {
-        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-        webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
+        appId: "1",
+        appSlug: "scholia",
+        privateKeyPem: "fake",
+        webhookSecret: WEBHOOK_SECRET,
+        apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     } as any;
@@ -476,7 +473,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
 
     // Verify the comment was imported.
     const commentsRes = await app.request(`/sites/${siteSlug}/comments`);
-    const commentsBody = (await commentsRes.json()) as any;
+    const commentsBody = await commentsRes.json();
     const imported = commentsBody.comments.find(
       (c: any) => c.body === "Missed by webhook — imported via poll.",
     );
@@ -523,11 +520,14 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       body: payload,
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as any).accepted).toBe(1);
+    expect((await res.json()).accepted).toBe(1);
 
     const { eq } = await import("drizzle-orm");
     const [row] = await db
-      .select({ resolvedAt: schema.conversations.resolvedAt, resolvedBy: schema.conversations.resolvedBy })
+      .select({
+        resolvedAt: schema.conversations.resolvedAt,
+        resolvedBy: schema.conversations.resolvedBy,
+      })
       .from(schema.conversations)
       .where(eq(schema.conversations.id, result.conversationId))
       .limit(1);
@@ -544,7 +544,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       },
       body: payload,
     });
-    expect((await res2.json() as any).accepted).toBe(0);
+    expect((await res2.json()).accepted).toBe(0);
 
     // Unresolve → resolvedAt goes back to null.
     const unresolvePayload = threadResolvedPayload("unresolved", id(20), "reviewer1");
@@ -557,7 +557,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       },
       body: unresolvePayload,
     });
-    expect((await res3.json() as any).accepted).toBe(1);
+    expect((await res3.json()).accepted).toBe(1);
     const [row2] = await db
       .select({ resolvedAt: schema.conversations.resolvedAt })
       .from(schema.conversations)
@@ -596,27 +596,35 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
 
     // Seed the fake API's thread state as already resolved (as if resolved
     // natively on GitHub, with no webhook delivered).
-    fakeApi.seedReviewThread(
-      { owner: "octocat", name: "inbound-test" },
-      1,
-      { id: `PRRT_${id(21)}`, isResolved: true, comments: [{ databaseId: id(21) }] },
-    );
+    fakeApi.seedReviewThread({ owner: "octocat", name: "inbound-test" }, 1, {
+      id: `PRRT_${id(21)}`,
+      isResolved: true,
+      comments: [{ databaseId: id(21) }],
+    });
 
     const deps = {
       db,
       store: new FsBlobStore(blobDir),
-      mirror: [new GitHubMirrorProvider({
-        api: fakeApi,
-        db,
-        config: {
-          appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-          webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
-          reconcileIntervalMs: 60_000,
-        },
-      })],
+      mirror: [
+        new GitHubMirrorProvider({
+          api: fakeApi,
+          db,
+          config: {
+            appId: "1",
+            appSlug: "scholia",
+            privateKeyPem: "fake",
+            webhookSecret: WEBHOOK_SECRET,
+            apiBase: "https://api.github.com",
+            reconcileIntervalMs: 60_000,
+          },
+        }),
+      ],
       github: {
-        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-        webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
+        appId: "1",
+        appSlug: "scholia",
+        privateKeyPem: "fake",
+        webhookSecret: WEBHOOK_SECRET,
+        apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     } as any;

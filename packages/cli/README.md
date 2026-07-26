@@ -37,14 +37,14 @@ scholia [target]
 Point it at a single file to preview just that file; point it at a folder to get
 the whole tree with navigation and search.
 
-| Flag                | Description                                                             |
-| ------------------- | ----------------------------------------------------------------------- |
-| `-p, --port <port>` | Port to listen on. Default `3000`. An explicit port that is taken is a hard error; without this flag, a busy default falls back to the next open port and says so. |
+| Flag                | Description                                                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-p, --port <port>` | Port to listen on. Default `3000`. An explicit port that is taken is a hard error; without this flag, a busy default falls back to the next open port and says so.    |
 | `--host <host>`     | Host to bind. Default `localhost`, which binds both loopback addresses (`127.0.0.1` and `::1`) so either one reaches the server. An explicit value is bound verbatim. |
-| `--no-open`         | Don't open the browser automatically.                                    |
-| `--no-mdx`          | Render `.mdx` as plain markdown instead of evaluating it. See below.     |
-| `-h, --help`        | Show help.                                                               |
-| `-v, --version`     | Show the version.                                                        |
+| `--no-open`         | Don't open the browser automatically.                                                                                                                                 |
+| `--no-mdx`          | Render `.mdx` as plain markdown instead of evaluating it. See below.                                                                                                  |
+| `-h, --help`        | Show help.                                                                                                                                                            |
+| `-v, --version`     | Show the version.                                                                                                                                                     |
 
 ## What renders
 

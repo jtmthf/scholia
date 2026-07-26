@@ -8,7 +8,10 @@ export type Db = ReturnType<typeof createDb>;
 // lifecycle; pass the same url the migrations ran against. `options` passes
 // through to postgres-js (e.g. `{ max: 1 }` for a serverless-function-sized
 // pool — ADR-0015); self-host callers omit it and get postgres-js's defaults.
-export function createDb(url = process.env.DATABASE_URL, options?: postgres.Options<Record<string, never>>) {
+export function createDb(
+  url = process.env.DATABASE_URL,
+  options?: postgres.Options<Record<string, never>>,
+) {
   if (!url) {
     throw new Error("DATABASE_URL is not set");
   }

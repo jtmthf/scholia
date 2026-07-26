@@ -3,9 +3,7 @@ import { parseFrontmatter } from "../../src/util/frontmatter.js";
 
 describe("parseFrontmatter", () => {
   test("extracts YAML data and returns the body without the fence", () => {
-    const { data, content } = parseFrontmatter(
-      "---\ntitle: Hello\norder: 2\n---\n# Body\n\ntext",
-    );
+    const { data, content } = parseFrontmatter("---\ntitle: Hello\norder: 2\n---\n# Body\n\ntext");
     expect(data).toEqual({ title: "Hello", order: 2 });
     expect(content).toBe("# Body\n\ntext");
   });

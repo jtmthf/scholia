@@ -24,10 +24,7 @@ export function isFileEntry(v: unknown): v is FileEntry {
 // Which of the submitted content hashes are not yet in the blob store. A
 // non-empty result means the client must upload them before the manifest is
 // accepted (M3 content-hash negotiation).
-export async function missingBlobs(
-  store: BlobStore,
-  files: FileEntry[],
-): Promise<string[]> {
+export async function missingBlobs(store: BlobStore, files: FileEntry[]): Promise<string[]> {
   const checks = await Promise.all(
     files.map(async (f) => ({ path: f.path, has: await store.has(f.contentHash) })),
   );
@@ -95,10 +92,7 @@ export async function checkUploadLimits(
 // (rendered + Source Map'd from their stored source), everything else is a raw
 // Asset. Idempotent by content hash (ADR-0004), so re-storing an unchanged Page
 // across Versions is a no-op.
-export async function buildManifestPages(
-  store: BlobStore,
-  files: FileEntry[],
-): Promise<NewPage[]> {
+export async function buildManifestPages(store: BlobStore, files: FileEntry[]): Promise<NewPage[]> {
   return Promise.all(
     files.map(async (f): Promise<NewPage> => {
       if (f.kind === "asset") {

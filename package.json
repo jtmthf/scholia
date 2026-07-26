@@ -4,16 +4,14 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "packageManager": "pnpm@11.7.0",
-  "engines": {
-    "node": ">=22"
-  },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json && pnpm --filter @scholia/web typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run packages/core packages/cli packages/local packages/bridge packages/github",
-    "lint": "tsc -p tsconfig.json",
+    "lint": "oxlint --type-aware",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "db:generate": "pnpm --filter @scholia/db generate",
     "db:migrate": "pnpm --filter @scholia/db migrate",
     "dev:server": "pnpm --filter @scholia/server dev",
@@ -24,8 +22,16 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "oxfmt": "^0.60.0",
+    "oxlint": "^1.75.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "prettier": "^3.9.6",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.7.0"
 }

@@ -37,7 +37,7 @@ describe("renderMarkdown (full unified pipeline)", () => {
     expect(html).toContain("katex");
   });
 
-  test("rewrites a ```mermaid block into a <pre class=\"mermaid\"> the client can render", async () => {
+  test('rewrites a ```mermaid block into a <pre class="mermaid"> the client can render', async () => {
     const { html } = await renderMarkdown("```mermaid\ngraph TD; A-->B;\n```\n");
     expect(html).toContain('class="mermaid"');
     expect(html).toContain("graph TD");

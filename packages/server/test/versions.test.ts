@@ -21,10 +21,8 @@ const enc = new TextEncoder();
 
 // v1: two anchorable spans + a second Page. v2: keeps "quick brown fox", drops
 // "line to be deleted", and removes extra.md.
-const README_V1 =
-  "# Title\n\nThe quick brown fox jumps.\n\nA line to be deleted.\n";
-const README_V2 =
-  "# Title\n\nThe quick brown fox jumps.\n\nA brand new line.\n";
+const README_V1 = "# Title\n\nThe quick brown fox jumps.\n\nA line to be deleted.\n";
+const README_V2 = "# Title\n\nThe quick brown fox jumps.\n\nA brand new line.\n";
 const EXTRA_V1 = "# Extra\n\nThis page goes away in v2.\n";
 
 describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
@@ -53,7 +51,7 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
   const json = (path: string, method: string, body?: unknown, headers?: Record<string, string>) =>
     app.request(path, {
       method,
-      headers: { "content-type": "application/json", ...(headers ?? {}) },
+      headers: { "content-type": "application/json", ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
@@ -78,7 +76,7 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
     const { missing } = (await diff.json()) as { missing: string[] };
     for (const h of missing) {
       const f = files.find((x) => hashBytes(enc.encode(x.text)) === h)!;
-      await app.request(`/blobs/${h}`, { method: "PUT", body: enc.encode(f.text).buffer as ArrayBuffer });
+      await app.request(`/blobs/${h}`, { method: "PUT", body: enc.encode(f.text).buffer });
     }
     const url = opts.slug ? `/sites/${opts.slug}/versions` : "/sites";
     const res = await json(
@@ -113,7 +111,7 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
       displayName: "Jane",
     });
     expect(res.status).toBe(201);
-    return (await res.json()) as any;
+    return await res.json();
   }
 
   test("re-upload creates a new Version and migrates anchors (live vs Outdated)", async () => {
@@ -124,7 +122,7 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
     // which is removed entirely.
     const convA = await anchoredThread(slug, viewerId, "README.md", "quick brown fox");
     const convB = await anchoredThread(slug, viewerId, "README.md", "line to be deleted");
-    const pageConv = (await (
+    const pageConv = await (
       await json(`/sites/${slug}/conversations`, "POST", {
         pagePath: "extra.md",
         anchor: null,
@@ -132,7 +130,7 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
         viewerId,
         displayName: "Jane",
       })
-    ).json()) as any;
+    ).json();
 
     // Re-upload v2 (drops extra.md, rewrites the deleted line).
     const v2 = await upload([{ path: "README.md", kind: "markdown", text: README_V2 }], {
@@ -163,7 +161,9 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
 
   test("owner-token gate on re-upload (401 missing, 403 wrong)", async () => {
     const { slug } = await makeSite();
-    const noAuth = await upload([{ path: "README.md", kind: "markdown", text: README_V2 }], { slug });
+    const noAuth = await upload([{ path: "README.md", kind: "markdown", text: README_V2 }], {
+      slug,
+    });
     expect(noAuth.status).toBe(401);
     const badAuth = await upload([{ path: "README.md", kind: "markdown", text: README_V2 }], {
       slug,
@@ -176,19 +176,19 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
     const { slug, token } = await makeSite();
     await upload([{ path: "README.md", kind: "markdown", text: README_V2 }], { slug, token });
 
-    const { versions } = (await (await app.request(`/sites/${slug}/versions`)).json()) as any;
+    const { versions } = await (await app.request(`/sites/${slug}/versions`)).json();
     expect(versions).toHaveLength(2);
     expect(versions[0].ordinal).toBe(2);
     expect(versions[0].isLatest).toBe(true);
 
     // Latest metadata.
-    const latest = (await (await app.request(`/sites/${slug}`)).json()) as any;
+    const latest = await (await app.request(`/sites/${slug}`)).json();
     expect(latest.version).toBe(2);
     expect(latest.latestVersion).toBe(2);
     expect(latest.isLatest).toBe(true);
 
     // Pinned v1: read-only historical view.
-    const v1 = (await (await app.request(`/sites/${slug}?v=1`)).json()) as any;
+    const v1 = await (await app.request(`/sites/${slug}?v=1`)).json();
     expect(v1.version).toBe(1);
     expect(v1.latestVersion).toBe(2);
     expect(v1.isLatest).toBe(false);
@@ -208,15 +208,13 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
     const { slug, token } = await makeSite();
     await upload([{ path: "README.md", kind: "markdown", text: README_V2 }], { slug, token });
 
-    const summary = (await (await app.request(`/sites/${slug}/diff?from=1&to=2`)).json()) as any;
+    const summary = await (await app.request(`/sites/${slug}/diff?from=1&to=2`)).json();
     const readme = summary.pages.find((p: any) => p.path === "README.md");
     const extra = summary.pages.find((p: any) => p.path === "extra.md");
     expect(readme.status).toBe("modified");
     expect(extra.status).toBe("removed");
 
-    const page = (await (
-      await app.request(`/sites/${slug}/diff?from=1&to=2&path=README.md`)
-    ).json()) as any;
+    const page = await (await app.request(`/sites/${slug}/diff?from=1&to=2&path=README.md`)).json();
     expect(page.status).toBe("modified");
     expect(page.diff.added).toBeGreaterThanOrEqual(1);
     expect(page.diff.removed).toBeGreaterThanOrEqual(1);
@@ -233,16 +231,14 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
     expect(ls.status).toBe(200);
     await upload([{ path: "README.md", kind: "markdown", text: README_V2 }], { slug, token });
 
-    const summary = (await (
-      await app.request(`/sites/${slug}/summary?viewerId=${viewerId}`)
-    ).json()) as any;
+    const summary = await (await app.request(`/sites/${slug}/summary?viewerId=${viewerId}`)).json();
     expect(summary.latestVersion).toBe(2);
     expect(summary.lastSeenVersion).toBe(1);
     expect(summary.newVersions).toBe(1);
 
     // A fresh Viewer with no Last Seen has nothing new.
     const other = await mintViewer(slug);
-    const s2 = (await (await app.request(`/sites/${slug}/summary?viewerId=${other}`)).json()) as any;
+    const s2 = await (await app.request(`/sites/${slug}/summary?viewerId=${other}`)).json();
     expect(s2.newVersions).toBe(0);
   });
 });

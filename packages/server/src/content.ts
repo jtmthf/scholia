@@ -106,7 +106,8 @@ export function prepareHtmlDocument(servedHtml: string): string {
 
   if (/<\/head>/i.test(html)) html = html.replace(/<\/head>/i, `${meta}</head>`);
   else if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}${meta}`);
-  else if (/<html[^>]*>/i.test(html)) html = html.replace(/<html[^>]*>/i, (m) => `${m}<head>${meta}</head>`);
+  else if (/<html[^>]*>/i.test(html))
+    html = html.replace(/<html[^>]*>/i, (m) => `${m}<head>${meta}</head>`);
   else html = `${meta}${html}`;
 
   if (/<\/body>/i.test(html)) html = html.replace(/<\/body>/i, `${script}</body>`);

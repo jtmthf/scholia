@@ -23,8 +23,10 @@ function parsePrSpec(spec: string): { repo: string; prNumber: number } {
   if (idx < 0) throw new Error(`--pr expects "owner/repo#123" (got "${spec}")`);
   const repo = spec.slice(0, idx);
   const prNumber = Number(spec.slice(idx + 1));
-  if (!Number.isInteger(prNumber) || prNumber < 1) throw new Error(`--pr PR number must be a positive integer (got "${spec}")`);
-  if (!/^[^/\s]+\/[^/\s]+$/.test(repo)) throw new Error(`--pr repo must be "owner/repo" (got "${repo}")`);
+  if (!Number.isInteger(prNumber) || prNumber < 1)
+    throw new Error(`--pr PR number must be a positive integer (got "${spec}")`);
+  if (!/^[^/\s]+\/[^/\s]+$/.test(repo))
+    throw new Error(`--pr repo must be "owner/repo" (got "${repo}")`);
   return { repo, prNumber };
 }
 
@@ -35,7 +37,8 @@ function parseRefSpec(spec: string): { repo: string; ref: string } {
   const repo = spec.slice(0, idx);
   const ref = spec.slice(idx + 1);
   if (!ref) throw new Error(`--ref ref must not be empty (got "${spec}")`);
-  if (!/^[^/\s]+\/[^/\s]+$/.test(repo)) throw new Error(`--ref repo must be "owner/repo" (got "${repo}")`);
+  if (!/^[^/\s]+\/[^/\s]+$/.test(repo))
+    throw new Error(`--ref repo must be "owner/repo" (got "${repo}")`);
   return { repo, ref };
 }
 
@@ -82,7 +85,8 @@ export async function share(target: string | undefined, options: ShareOptions): 
     return;
   }
 
-  if (!target) throw new Error("expected a path, or --pr/--ref to create from a GitHub content source");
+  if (!target)
+    throw new Error("expected a path, or --pr/--ref to create from a GitHub content source");
   const resolved = resolve(target);
 
   const files = await collectFiles(resolved);
@@ -136,9 +140,7 @@ async function createSite(
   console.log(`\n  scholia — published ${fileCount} file${fileCount === 1 ? "" : "s"}`);
   console.log(`  ➜  Share URL: ${body.shareUrl}`);
   console.log(`  ➜  Entry:     ${body.entryPath}`);
-  console.log(
-    `\n  Owner token saved to ~/.scholia/credentials; a .scholia marker was written so`,
-  );
+  console.log(`\n  Owner token saved to ~/.scholia/credentials; a .scholia marker was written so`);
   console.log(`  re-running \`scholia share\` here uploads a new Version.\n`);
 }
 
@@ -180,7 +182,9 @@ async function reupload(
 async function createSiteFromSource(
   client: ScholiaClient,
   server: string,
-  source: { kind: "pr"; repo: string; prNumber: number } | { kind: "ref"; repo: string; ref: string },
+  source:
+    | { kind: "pr"; repo: string; prNumber: number }
+    | { kind: "ref"; repo: string; ref: string },
 ): Promise<void> {
   const body: SiteCreatedResult = await client.createSiteFromSource(source);
 
@@ -192,16 +196,22 @@ async function createSiteFromSource(
     createdAt: new Date().toISOString(),
   });
 
-  const label = source.kind === "pr" ? `PR ${source.repo}#${source.prNumber}` : `${source.repo}@${source.ref}`;
+  const label =
+    source.kind === "pr" ? `PR ${source.repo}#${source.prNumber}` : `${source.repo}@${source.ref}`;
   console.log(`\n  scholia — published from ${label}`);
   console.log(`  ➜  Share URL: ${body.shareUrl}`);
   console.log(`  ➜  Entry:     ${body.entryPath}`);
-  if (body.mirrorBinding) console.log(`  ➜  Mirror:    ${body.mirrorBinding.repo}#${body.mirrorBinding.prNumber}`);
+  if (body.mirrorBinding)
+    console.log(`  ➜  Mirror:    ${body.mirrorBinding.repo}#${body.mirrorBinding.prNumber}`);
   console.log(`\n  Owner token saved to ~/.scholia/credentials.`);
   if (source.kind === "pr") {
-    console.log(`  Re-run \`scholia share --pr ${source.repo}#${source.prNumber} --site ${body.slug}\` to advance.\n`);
+    console.log(
+      `  Re-run \`scholia share --pr ${source.repo}#${source.prNumber} --site ${body.slug}\` to advance.\n`,
+    );
   } else {
-    console.log(`  Re-run \`scholia share --ref ${source.repo}@${source.ref} --site ${body.slug}\` to advance.\n`);
+    console.log(
+      `  Re-run \`scholia share --ref ${source.repo}@${source.ref} --site ${body.slug}\` to advance.\n`,
+    );
   }
 }
 
@@ -209,7 +219,9 @@ async function createSiteFromSource(
 async function refetchSource(
   server: string,
   slug: string,
-  source: { kind: "pr"; repo: string; prNumber: number } | { kind: "ref"; repo: string; ref: string },
+  source:
+    | { kind: "pr"; repo: string; prNumber: number }
+    | { kind: "ref"; repo: string; ref: string },
 ): Promise<void> {
   const creds = await loadCredentials();
   const cred = creds[slug];

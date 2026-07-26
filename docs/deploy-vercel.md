@@ -24,11 +24,11 @@ registers the Cron job that drives outbound-mirror retry + inbound reconcile
 Same variables as self-host (`.env.example`: `DATABASE_URL`, `S3_*`,
 `PUBLIC_URL`, `VIEWER_URL`, `GITHUB_*`), plus:
 
-| Var | Notes |
-| --- | --- |
-| `GITHUB_APP_PRIVATE_KEY` | Required (not `_PATH`) if GitHub integration is on — Vercel has no mountable secret-file volume. The adapter throws at boot if `GITHUB_APP_PRIVATE_KEY_PATH` is set. |
-| `SCHOLIA_INTERNAL_SECRET` | Required. Gates `POST/GET /internal/drain`. Set it to the **same value** as Vercel's `CRON_SECRET` (see below). |
-| `CONTENT_URL` | Set to your wildcard content domain (see below) rather than `PUBLIC_URL`. |
+| Var                       | Notes                                                                                                                                                                |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_APP_PRIVATE_KEY`  | Required (not `_PATH`) if GitHub integration is on — Vercel has no mountable secret-file volume. The adapter throws at boot if `GITHUB_APP_PRIVATE_KEY_PATH` is set. |
+| `SCHOLIA_INTERNAL_SECRET` | Required. Gates `POST/GET /internal/drain`. Set it to the **same value** as Vercel's `CRON_SECRET` (see below).                                                      |
+| `CONTENT_URL`             | Set to your wildcard content domain (see below) rather than `PUBLIC_URL`.                                                                                            |
 
 `SCHOLIA_RATELIMIT_STORE` doesn't need setting — the adapter forces
 `PostgresRateLimiter` regardless, since the in-memory limiter is silently wrong
@@ -59,8 +59,8 @@ poll are no-ops without a registered provider.
 **Root Directory:** `packages/web`. Standard Vite static build
 (`pnpm build` → `dist/`).
 
-| Var | Notes |
-| --- | --- |
+| Var            | Notes                                      |
+| -------------- | ------------------------------------------ |
 | `VITE_API_URL` | Base URL of the `server` deployment above. |
 
 ## Wildcard content origin

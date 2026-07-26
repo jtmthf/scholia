@@ -35,20 +35,14 @@ describe("buildNav", () => {
   });
 
   test("excludes Assets from the tree but includes HTML Pages (M4)", () => {
-    const tree = buildNav([
-      md("index.md", "Home"),
-      html("api.html", "API"),
-      asset("logo.png"),
-    ]);
+    const tree = buildNav([md("index.md", "Home"), html("api.html", "API"), asset("logo.png")]);
     expect(flatten(tree).sort()).toEqual(["API", "Home"]);
   });
 });
 
 describe("pickEntryPath", () => {
   test("precedence: index.html > index.md > README.md > first top-level Page (M4)", () => {
-    expect(pickEntryPath([html("index.html"), md("index.md"), md("README.md")])).toBe(
-      "index.html",
-    );
+    expect(pickEntryPath([html("index.html"), md("index.md"), md("README.md")])).toBe("index.html");
     expect(pickEntryPath([md("README.md"), md("index.md"), md("a.md")])).toBe("index.md");
     expect(pickEntryPath([md("README.md"), md("a.md"), md("b.md")])).toBe("README.md");
     expect(pickEntryPath([md("zebra.md"), md("apple.md")])).toBe("apple.md");

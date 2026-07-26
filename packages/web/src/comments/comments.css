@@ -90,7 +90,9 @@
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.1s, color 0.1s;
+  transition:
+    border-color 0.1s,
+    color 0.1s;
 }
 .page-comment-btn:hover {
   border-color: var(--nav-active-fg);
@@ -195,7 +197,9 @@
   font-family: inherit;
   padding: 3px 8px;
   cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
+  transition:
+    color 0.1s,
+    border-color 0.1s;
 }
 .thread-action-btn:hover {
   color: var(--fg);
@@ -287,7 +291,9 @@
   padding: 2px 4px;
   cursor: pointer;
   border-radius: 3px;
-  transition: color 0.1s, background 0.1s;
+  transition:
+    color 0.1s,
+    background 0.1s;
 }
 .comment-action-btn:hover {
   color: var(--fg);
@@ -313,7 +319,9 @@
   padding: 2px 7px;
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
   user-select: none;
 }
 .reaction-chip:hover {
@@ -444,7 +452,9 @@
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  transition: border-color 0.1s, color 0.1s;
+  transition:
+    border-color 0.1s,
+    color 0.1s;
 }
 .btn-secondary:hover {
   border-color: var(--muted);
@@ -472,7 +482,9 @@
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: background 0.1s, transform 0.1s;
+  transition:
+    background 0.1s,
+    transform 0.1s;
   pointer-events: auto;
 }
 .floating-action-btn:hover {
@@ -532,7 +544,9 @@
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.1s, color 0.1s;
+  transition:
+    border-color 0.1s,
+    color 0.1s;
 }
 .bring-agent-btn:hover {
   border-color: var(--agent-badge-bg);

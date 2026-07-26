@@ -1,9 +1,16 @@
-// Recursively extract the text content of a hast node.
-export function toText(node: any): string {
+import type { Nodes } from "hast";
+
+// Recursively extract the text content of a hast node. Takes the loose shape
+// rather than `Nodes` itself because plugins hand it subtrees mid-rewrite, when
+// a node may not yet satisfy the full type.
+type TextLike = { type?: string; value?: string; children?: TextLike[] };
+
+export function toText(node: Nodes | TextLike | null | undefined): string {
   if (!node) return "";
-  if (node.type === "text") return node.value ?? "";
-  if (Array.isArray(node.children)) {
-    return node.children.map(toText).join("");
+  const n = node as TextLike;
+  if (n.type === "text") return n.value ?? "";
+  if (Array.isArray(n.children)) {
+    return n.children.map(toText).join("");
   }
   return "";
 }

@@ -2,17 +2,17 @@
   "name": "@scholia/mcp",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "bin": {
     "scholia-mcp": "./src/index.ts"
   },
+  "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@scholia/client": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@scholia/client": "workspace:*",
     "zod": "^3.24.0"
   },
   "devDependencies": {

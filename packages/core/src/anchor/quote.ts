@@ -10,10 +10,7 @@ import type { TextQuote } from "./types.js";
 // In M5 the iframe captures/expands the quote against the rendered DOM (via
 // dom-anchor-text-quote); this function is the pure, server-side/string-side
 // equivalent and the migration key.
-export function searchQuote(
-  text: string,
-  quote: TextQuote,
-): { start: number; end: number } | null {
+export function searchQuote(text: string, quote: TextQuote): { start: number; end: number } | null {
   const { exact, prefix, suffix } = quote;
 
   // Empty exact string cannot anchor to anything meaningful.

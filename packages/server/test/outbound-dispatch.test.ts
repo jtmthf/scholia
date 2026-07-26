@@ -42,28 +42,23 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
   let siteSlug: string;
   let siteId: string;
   let versionId: string;
-  let ownerToken: string;
 
   beforeAll(async () => {
     sql = postgres(DB_URL!, { max: 1 });
-    db = drizzle(sql, { schema }) as unknown as Db;
-    await migrateWithLock(sql, db as unknown as ReturnType<typeof drizzle>, MIGRATIONS);
+    db = drizzle(sql, { schema });
+    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-dispatch-"));
 
     // Seed the fake GitHub API with a PR.
     fakeApi = new FakeGitHubApi();
-    fakeApi.seedPr(
-      { owner: "octocat", name: "dispatch-test" },
-      7,
-      {
-        headSha: HEAD_SHA,
-        branch: "feature",
-        title: "Test PR",
-        files: [
-          { filename: "page.md", status: "added", sha: "blob-1", content: enc.encode(PAGE_MD) },
-        ],
-      },
-    );
+    fakeApi.seedPr({ owner: "octocat", name: "dispatch-test" }, 7, {
+      headSha: HEAD_SHA,
+      branch: "feature",
+      title: "Test PR",
+      files: [
+        { filename: "page.md", status: "added", sha: "blob-1", content: enc.encode(PAGE_MD) },
+      ],
+    });
     // Line 3 and 5 are in the diff (added lines); line 1 is context.
     fakeApi.setDiffLines({ owner: "octocat", name: "dispatch-test" }, "page.md", new Set([3, 5]));
 
@@ -104,7 +99,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     };
 
     // Create a real PR-backed Site so we have a siteId + versionId for the events.
-    const { upsertGitHubInstallation, createSiteWithVersion } = await import("@scholia/db");
+    const { upsertGitHubInstallation } = await import("@scholia/db");
     await upsertGitHubInstallation(db, {
       installationId: 77,
       account: "octocat",
@@ -125,9 +120,8 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
       body: JSON.stringify({ contentSource: { kind: "pr", repo: REPO, prNumber: 7 } }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     siteSlug = body.slug;
-    ownerToken = body.token;
 
     // Fetch the siteId + versionId from the DB.
     const { getSiteBySlug, getLatestVersionId } = await import("@scholia/db");
@@ -179,7 +173,12 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
       pagePath: "page.md",
       createdVersionId: versionId,
       commentId: ids.commentId,
-      author: over.author ?? { name: "Jane", kind: "human" as const, tier: "viewer" as const, source: "native" as const },
+      author: over.author ?? {
+        name: "Jane",
+        kind: "human" as const,
+        tier: "viewer" as const,
+        source: "native" as const,
+      },
       body: over.body ?? "Nice work.",
       anchor: over.anchor ?? null,
       origin: "scholia",
@@ -324,7 +323,10 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
           commentId: promoThread1.commentId,
           author: { name: "Jane", kind: "human", tier: "viewer", source: "native" },
           body: "First promoted comment.",
-          anchor: { textQuote: { exact: "Some **bold** text." }, sourceRange: { start: 9, end: 28 } },
+          anchor: {
+            textQuote: { exact: "Some **bold** text." },
+            sourceRange: { start: 9, end: 28 },
+          },
         },
         {
           commentId: promoThread2.commentId,

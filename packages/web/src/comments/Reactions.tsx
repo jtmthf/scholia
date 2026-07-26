@@ -11,13 +11,7 @@ interface ReactionsProps {
   onNeedViewer: () => Promise<{ viewerId: string; displayName: string }>;
 }
 
-export function Reactions({
-  slug,
-  commentId,
-  reactions,
-  onUpdated,
-  onNeedViewer,
-}: ReactionsProps) {
+export function Reactions({ slug, commentId, reactions, onUpdated, onNeedViewer }: ReactionsProps) {
   const [pending, setPending] = useState<string | null>(null);
 
   // Build a map of emoji → ReactionGroup for all palette entries.

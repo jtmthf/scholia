@@ -55,11 +55,11 @@ adapter implements the same interface. The abstraction is the use case, not the 
 - **No port; reimplement the comment routes in the local server.** Rejected: guaranteed
   drift between two implementations of the same product.
 - **A verb registry in the REST client**, with CLI and MCP rendering from it. Rejected once
-  hexagonal was adopted: it puts the verb set in an *adapter* and makes the CLI a client of
+  hexagonal was adopted: it puts the verb set in an _adapter_ and makes the CLI a client of
   another inbound adapter — adapter calling adapter, with a needless hop.
 - **Generating the verb set from the OpenAPI spec** (ADR-0014). Rejected: the REST API and
   the agent verb set are not the same shape. `list_comments --unresolved --since
-  --mentions` spans several REST concerns, and agent verbs need prose descriptions written
+--mentions` spans several REST concerns, and agent verbs need prose descriptions written
   for an LLM, which is tool-design copy rather than API documentation.
 - **Always going over HTTP, even locally**, with the local server as sole writer.
   Rejected: it requires a daemon, a discovery file and auto-spawn, and it means an agent

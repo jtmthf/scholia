@@ -12,18 +12,8 @@
 // The bus is injectable on `AppDeps`; tests and local dev use `NoopMirrorBus`.
 
 import type { Db } from "@scholia/db";
-import {
-  bumpMirrorAttempts,
-  getMirrorRow,
-  pendingMirrorRows,
-  touchMirrorRow,
-} from "@scholia/db";
-import type {
-  MirrorBinding,
-  MirrorContext,
-  MirrorEvent,
-  MirrorProvider,
-} from "@scholia/core";
+import { bumpMirrorAttempts, getMirrorRow, pendingMirrorRows, touchMirrorRow } from "@scholia/db";
+import type { MirrorBinding, MirrorContext, MirrorEvent, MirrorProvider } from "@scholia/core";
 import { isGitHubMirror } from "@scholia/core";
 
 // The serialized form of a MirrorEvent stored on `comment_mirrors.payload` for
@@ -83,11 +73,17 @@ class InProcessMirrorBus implements MirrorBus {
   emit(event: MirrorEvent): void {
     // Never throw into the request — enqueue + persist best-effort.
     try {
-      const p = this.handle(event).catch(() => {
-        // Swallow; state is in the DB row.
-      });
+      // Chain the cleanup into `p` itself rather than off a second, unowned
+      // promise — `inFlight` then tracks the settled-and-cleaned promise, so a
+      // `stop()` that awaits the set can't return while a delete is still
+      // pending. The self-reference resolves fine: `.finally` only runs a
+      // microtask later, long after the binding is initialized.
+      const p: Promise<void> = this.handle(event)
+        .catch(() => {
+          // Swallow; state is in the DB row.
+        })
+        .finally(() => this.inFlight.delete(p));
       this.inFlight.add(p);
-      p.finally(() => this.inFlight.delete(p));
     } catch {
       // ignore
     }
@@ -173,7 +169,11 @@ class InProcessMirrorBus implements MirrorBus {
   // (`drainNow`, driven by `runMirrorDrain`) is the sole retry path for a row
   // still `pending`/`failed`-under-cap. This is what makes the bus safe under a
   // serverless function that terminates at the response.
-  private async dispatchOne(provider: MirrorProvider, event: MirrorEvent, commentId: string): Promise<void> {
+  private async dispatchOne(
+    provider: MirrorProvider,
+    event: MirrorEvent,
+    commentId: string,
+  ): Promise<void> {
     const ctx = this.contextFor(event.mirrorBinding);
     try {
       await provider.dispatch([event], ctx);
@@ -224,7 +224,7 @@ function serializeEvent(event: MirrorEvent, commentId: string): MirrorEvent {
       body: c.body,
       anchor: c.anchor,
       origin: "scholia",
-    } as MirrorEvent;
+    };
   }
   return event;
 }

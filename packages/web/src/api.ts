@@ -1,7 +1,10 @@
 // The viewer talks to the REST API over CORS. In dev that's the local server
 // on :8787; in prod it's the app origin. Page content is loaded from the
 // absolute `contentBase` the API returns (the content origin), not from here.
-export const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8787").replace(/\/+$/, "");
+export const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8787").replace(
+  /\/+$/,
+  "",
+);
 
 export interface NavNode {
   type: "file" | "dir";
@@ -100,10 +103,7 @@ export async function listVersions(slug: string): Promise<VersionSummary[]> {
   return versions;
 }
 
-export async function fetchSummary(
-  slug: string,
-  viewerId: string | null,
-): Promise<ViewerSummary> {
+export async function fetchSummary(slug: string, viewerId: string | null): Promise<ViewerSummary> {
   const qs = viewerId ? `?viewerId=${encodeURIComponent(viewerId)}` : "";
   const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/summary${qs}`);
   return jsonOrThrow(res, "Fetch summary");
@@ -368,14 +368,11 @@ export async function editComment(
   commentId: string,
   input: { body: string; viewerId: string },
 ): Promise<CommentDTO> {
-  const res = await fetch(
-    `${API_BASE}/sites/${encodeURIComponent(slug)}/comments/${commentId}`,
-    {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input),
-    },
-  );
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/comments/${commentId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
   return jsonOrThrow(res, "Edit comment");
 }
 
@@ -384,14 +381,11 @@ export async function deleteComment(
   commentId: string,
   viewerId: string,
 ): Promise<void> {
-  const res = await fetch(
-    `${API_BASE}/sites/${encodeURIComponent(slug)}/comments/${commentId}`,
-    {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ viewerId }),
-    },
-  );
+  const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/comments/${commentId}`, {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ viewerId }),
+  });
   if (!res.ok) throw new Error(`Delete comment failed (${res.status}).`);
 }
 

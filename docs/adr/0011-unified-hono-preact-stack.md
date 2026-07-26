@@ -37,7 +37,7 @@ We unify on **Hono** (server) and **Preact** (view), everywhere:
   merge exists to remove), the cross-origin content is a blob server not app routes, and
   the viewer's per-Viewer data is gated behind a client-held localStorage secret (Viewer
   is minted client-side) with `noindex` content in an iframe — so server route-loaders,
-  a meta-framework's headline feature, are the part this app can use *least*. The
+  a meta-framework's headline feature, are the part this app can use _least_. The
   valuable part (a typed client data layer) is TanStack **Query**, which is framework-
   agnostic and decoupled from the meta-framework.
 - **`hono/jsx` for the viewer.** Attractive for native SSR and zero extra deps, but its
@@ -53,7 +53,7 @@ We unify on **Hono** (server) and **Preact** (view), everywhere:
 - Fastify and React both drop out of the PLAN; mdttp's Preact MDX runtime is kept.
 - We own routing, SSR wiring, and code-splitting ourselves (Vite-native) instead of
   getting them from a framework — a bounded cost for a single-shell viewer.
-- The iframe boundary is a clean seam: if the hosted *product* later grows route-and-
+- The iframe boundary is a clean seam: if the hosted _product_ later grows route-and-
   load-heavy surfaces (accounts, dashboards, teams, marketing), a Vite-based framework
-  can be introduced for *that* app only, without disturbing the viewer, the content
+  can be introduced for _that_ app only, without disturbing the viewer, the content
   origin, or the local tool. That is the revisit trigger.

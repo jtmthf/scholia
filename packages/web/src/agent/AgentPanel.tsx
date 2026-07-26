@@ -15,12 +15,11 @@ export function AgentPanel({ slug, token, onClose }: AgentPanelProps) {
 
   useEffect(() => {
     let active = true;
-    (async () => {
+    void (async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/sites/${encodeURIComponent(slug)}/agent-prompt`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/agent-prompt`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
         const text = await res.text();
         if (active) setPrompt(text);
@@ -55,9 +54,9 @@ export function AgentPanel({ slug, token, onClose }: AgentPanelProps) {
         </div>
 
         <div class="agent-panel-warning">
-          <strong>Owner-only — do not share with human reviewers.</strong> Human reviewers
-          receive the Share URL. This prompt contains the owner token which grants full write
-          access; paste it only into a trusted agent environment.
+          <strong>Owner-only — do not share with human reviewers.</strong> Human reviewers receive
+          the Share URL. This prompt contains the owner token which grants full write access; paste
+          it only into a trusted agent environment.
         </div>
 
         {error ? (
@@ -76,7 +75,7 @@ export function AgentPanel({ slug, token, onClose }: AgentPanelProps) {
           <button
             class={`btn-primary agent-panel-copy${copied ? " agent-panel-copy--copied" : ""}`}
             disabled={!prompt}
-            onClick={handleCopy}
+            onClick={() => void handleCopy()}
           >
             {copied ? "Copied!" : "Copy agent prompt"}
           </button>

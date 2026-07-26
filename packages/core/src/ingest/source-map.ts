@@ -7,6 +7,7 @@
 // `data-sm` id, and that id maps to the element's start/end **character offsets**
 // in the source string. Offsets (not just line/col) are used so anchoring can run
 // against the source string directly.
+import type { Element, Root } from "hast";
 import { visit } from "unist-util-visit";
 
 export const SOURCE_MAP_VERSION = 1 as const;
@@ -33,11 +34,11 @@ export interface SourceMap {
 // id -> source-offset map into `entries`. Best-effort: elements a plugin has
 // synthesized (no `position`) are simply skipped.
 export function rehypeSourceMap(entries: SourceMapEntry[]) {
-  return (tree: any) => {
-    visit(tree, "element", (node: any) => {
+  return (tree: Root) => {
+    visit(tree, "element", (node: Element) => {
       const start = node.position?.start?.offset;
       const end = node.position?.end?.offset;
-      if (start == null || end == null) return;
+      if (start === undefined || end === undefined) return;
       const id = entries.length;
       node.properties = node.properties ?? {};
       node.properties[SOURCE_MAP_ATTR] = String(id);

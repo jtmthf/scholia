@@ -8,11 +8,7 @@ import {
 } from "./rate-limit.js";
 import { buildMirrorContext } from "./mirror/context.js";
 import { createMirrorBus, type MirrorBus } from "./mirror/bus.js";
-import {
-  githubFromEnv,
-  loadMirrorProviders,
-  type GitHubOperatorConfig,
-} from "./github-config.js";
+import { githubFromEnv, loadMirrorProviders, type GitHubOperatorConfig } from "./github-config.js";
 
 // Operator retention/quota knobs (CONTEXT "Retention & limits", PLAN §5 M9). All
 // default-unset — infinite retention — and enforced only at upload time with a

@@ -17,20 +17,22 @@ duplicate them here:
 
 ## Packages (`packages/*`, all `@scholia/*`)
 
-| Package  | Role |
-| -------- | ---- |
-| `core`   | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. **No HTTP/db** — keep it that way. |
-| `db`     | Drizzle schema + client + repositories (Postgres). |
-| `server` | Hono REST API + content origin. |
-| `web`    | Preact + Vite viewer SPA (sandboxed content iframe). |
-| `local`  | Local Preview server (Hono), ex-mdttp. |
-| `cli`    | The `scholia` command (`scholia <path>` previews, `scholia share` publishes). |
-| `client`, `mcp`, `github`, `bridge` | Thin clients / integrations over the above. |
+| Package                             | Role                                                                                                            |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `core`                              | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. **No HTTP/db** — keep it that way. |
+| `db`                                | Drizzle schema + client + repositories (Postgres).                                                              |
+| `server`                            | Hono REST API + content origin.                                                                                 |
+| `web`                               | Preact + Vite viewer SPA (sandboxed content iframe).                                                            |
+| `local`                             | Local Preview server (Hono), ex-mdttp.                                                                          |
+| `cli`                               | The `scholia` command (`scholia <path>` previews, `scholia share` publishes).                                   |
+| `client`, `mcp`, `github`, `bridge` | Thin clients / integrations over the above.                                                                     |
 
 ## Commands
 
 ```sh
-pnpm typecheck                          # tsc across the workspace (this is also "lint")
+pnpm typecheck                          # tsc across the workspace
+pnpm lint                               # oxlint --type-aware (catches what tsc misses)
+pnpm format                             # oxfmt (Prettier-compatible)
 pnpm test                               # vitest — but see the Postgres note below
 pnpm --filter @scholia/server typecheck  # one package
 pnpm e2e                                # Playwright (needs the stack running)
@@ -39,7 +41,8 @@ pnpm dev:web                            # viewer SPA on :5173
 pnpm scholia <path>                      # Local Preview
 ```
 
-No ESLint/Prettier/Biome — `tsc` is the only check. TS is ESM/NodeNext: **relative
+oxlint (`pnpm lint`) + oxfmt (`pnpm format`) from the oxc project (ADR-0024).
+`tsc` remains the type gate. TS is ESM/NodeNext: **relative
 imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp } from
 "../src/app.js"`).
 

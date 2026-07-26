@@ -53,13 +53,12 @@ test("select -> comment creates an anchored public Thread in the rail", async ({
   await expect
     .poll(
       () =>
-        frame
-          .locator("body")
-          .evaluate(() => {
-            const h = (globalThis as unknown as { CSS?: { highlights?: { has(n: string): boolean } } })
-              .CSS?.highlights;
-            return h ? h.has("scholia-anchor") : false;
-          }),
+        frame.locator("body").evaluate(() => {
+          const h = (
+            globalThis as unknown as { CSS?: { highlights?: { has(n: string): boolean } } }
+          ).CSS?.highlights;
+          return h ? h.has("scholia-anchor") : false;
+        }),
       { timeout: 10_000 },
     )
     .toBe(true);
@@ -89,7 +88,9 @@ test("anchored Thread persists and re-highlights after reload", async ({ page })
 
 test("page-level comment (no selection) posts to the Page Thread section", async ({ page }) => {
   await page.goto(`/s/${site.slug}`);
-  await expect(page.frameLocator("iframe.content").locator("article.markdown-body h1")).toBeVisible();
+  await expect(
+    page.frameLocator("iframe.content").locator("article.markdown-body h1"),
+  ).toBeVisible();
 
   await page.locator(".page-comment-btn").click();
   const panel = page.locator(".floating-composer-panel");

@@ -60,10 +60,7 @@ export interface CreatedSite {
 // Create a Site, its owner token, the first Version (ordinal 1, Latest), and the
 // Version's manifest — atomically. The slug and token hash are minted by the
 // caller (server/tokens).
-export async function createSiteWithVersion(
-  db: Db,
-  input: CreateSiteInput,
-): Promise<CreatedSite> {
+export async function createSiteWithVersion(db: Db, input: CreateSiteInput): Promise<CreatedSite> {
   return db.transaction(async (tx) => {
     const [site] = await tx
       .insert(sites)
@@ -142,7 +139,7 @@ export async function getSiteBySlug(db: Db, slug: string): Promise<SiteRow | nul
     id: row.id,
     slug: row.slug,
     state: row.state,
-    mirrorBinding: (row.mirrorBinding as MirrorBinding | null) ?? null,
+    mirrorBinding: row.mirrorBinding ?? null,
   };
 }
 
@@ -160,11 +157,7 @@ function pickEntry(pages: PageEntry[]): PageEntry | undefined {
 
 // Resolve a Page of the Latest Version of a Site. With no `path`, returns the
 // Entry Page. The full multi-Page Nav arrives in M3.
-export async function getLatestPage(
-  db: Db,
-  slug: string,
-  path?: string,
-): Promise<SitePage | null> {
+export async function getLatestPage(db: Db, slug: string, path?: string): Promise<SitePage | null> {
   const site = await getSiteBySlug(db, slug);
   if (!site) return null;
 
@@ -206,10 +199,7 @@ export interface SiteManifest {
 
 // All manifest entries (markdown + asset) for the Latest Version, ordered by
 // path. Used for Site metadata, Nav, and content routing in M3+.
-export async function getLatestManifest(
-  db: Db,
-  slug: string,
-): Promise<SiteManifest | null> {
+export async function getLatestManifest(db: Db, slug: string): Promise<SiteManifest | null> {
   const site = await getSiteBySlug(db, slug);
   if (!site) return null;
 
@@ -237,7 +227,7 @@ export async function getLatestManifest(
     sourceMapHash: r.sourceMapHash,
   }));
 
-  return { site, ordinal: latest.ordinal, provenance: (latest.provenance as Provenance | null) ?? null, pages };
+  return { site, ordinal: latest.ordinal, provenance: latest.provenance ?? null, pages };
 }
 
 // ---- M6: Versioning ----
@@ -276,7 +266,7 @@ export async function getManifestByOrdinal(
     sourceMapHash: r.sourceMapHash,
   }));
 
-  return { site, ordinal: version.ordinal, provenance: (version.provenance as Provenance | null) ?? null, pages };
+  return { site, ordinal: version.ordinal, provenance: version.provenance ?? null, pages };
 }
 
 export interface VersionSummary {
@@ -302,7 +292,7 @@ export async function listVersions(db: Db, siteId: string): Promise<VersionSumma
   return rows.map((r) => ({
     ordinal: r.ordinal,
     createdAt: r.createdAt.toISOString(),
-    provenance: (r.provenance as Provenance | null) ?? null,
+    provenance: r.provenance ?? null,
     isLatest: r.isLatest,
   }));
 }
@@ -417,12 +407,7 @@ export async function ownerDeleteConversation(
 ): Promise<boolean> {
   const result = await db
     .delete(conversations)
-    .where(
-      and(
-        eq(conversations.id, input.conversationId),
-        eq(conversations.siteId, input.siteId),
-      ),
-    )
+    .where(and(eq(conversations.id, input.conversationId), eq(conversations.siteId, input.siteId)))
     .returning({ id: conversations.id });
   return result.length > 0;
 }
@@ -499,9 +484,7 @@ export async function listTokens(db: Db, siteId: string): Promise<TokenSummary[]
   }));
 }
 
-export type RevokeTokenResult =
-  | { ok: true }
-  | { ok: false; reason: "not_found" | "last_owner" };
+export type RevokeTokenResult = { ok: true } | { ok: false; reason: "not_found" | "last_owner" };
 
 // Revoke a single token by id (CONTEXT "Owner": rotate/revoke a leaked capability).
 // Refuses to revoke the last live owner token — that would lock the Owner out of
@@ -628,8 +611,8 @@ export async function listConversationsForMigration(
   return rows.map((r) => ({
     id: r.id,
     pagePath: r.pagePath,
-    anchor: (r.anchor as Anchor | null) ?? null,
-    anchorStatus: r.anchorStatus as "live" | "outdated",
+    anchor: r.anchor ?? null,
+    anchorStatus: r.anchorStatus,
   }));
 }
 
@@ -740,10 +723,7 @@ export async function summaryForViewer(
 // Mint a new anonymous Viewer for a Site. The caller (server) persists the id
 // in the client's localStorage (CONTEXT "Viewer").
 export async function mintViewer(db: Db, siteId: string): Promise<{ viewerId: string }> {
-  const [row] = await db
-    .insert(viewers)
-    .values({ siteId })
-    .returning({ viewerId: viewers.id });
+  const [row] = await db.insert(viewers).values({ siteId }).returning({ viewerId: viewers.id });
   return { viewerId: row!.viewerId };
 }
 
@@ -909,10 +889,7 @@ export interface AddCommentInput {
 }
 
 // Add a reply comment to an existing Conversation. Returns the new comment id.
-export async function addComment(
-  db: Db,
-  input: AddCommentInput,
-): Promise<{ commentId: string }> {
+export async function addComment(db: Db, input: AddCommentInput): Promise<{ commentId: string }> {
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(comments)
@@ -1209,7 +1186,7 @@ async function assembleConversationDTOs(
     const deleted = c.deletedAt !== null;
     list.push({
       id: c.id,
-      author: c.author as Identity,
+      author: c.author,
       body: deleted ? "" : c.body,
       createdAt: c.createdAt.toISOString(),
       editedAt: c.editedAt ? c.editedAt.toISOString() : null,
@@ -1299,9 +1276,7 @@ export async function listChats(
 
   if (!input.since) return dtos;
   const sinceMs = new Date(input.since).getTime();
-  return dtos.filter((d) =>
-    d.comments.some((cm) => new Date(cm.createdAt).getTime() > sinceMs),
-  );
+  return dtos.filter((d) => d.comments.some((cm) => new Date(cm.createdAt).getTime() > sinceMs));
 }
 
 export interface ConversationMeta {
@@ -1338,11 +1313,11 @@ export async function getConversationMeta(
   if (!row) return null;
   return {
     id: row.id,
-    visibility: row.visibility as "public" | "private",
+    visibility: row.visibility,
     ownerViewerId: row.ownerViewerId,
     pagePath: row.pagePath,
     createdVersionId: row.createdVersionId,
-    anchor: (row.anchor as Anchor | null) ?? null,
+    anchor: row.anchor ?? null,
   };
 }
 
@@ -1379,13 +1354,14 @@ export interface PromoteConversationInput {
 // carry over untouched. An optional summary is prepended as a new visible Comment
 // bound to the Conversation's latest Version. Verifies the Conversation is
 // currently private (the route already checked the caller is the owning Viewer).
-export async function promoteConversation(
-  db: Db,
-  input: PromoteConversationInput,
-): Promise<void> {
+export async function promoteConversation(db: Db, input: PromoteConversationInput): Promise<void> {
   await db.transaction(async (tx) => {
     const [conv] = await tx
-      .select({ id: conversations.id, siteId: conversations.siteId, visibility: conversations.visibility })
+      .select({
+        id: conversations.id,
+        siteId: conversations.siteId,
+        visibility: conversations.visibility,
+      })
       .from(conversations)
       .where(eq(conversations.id, input.conversationId))
       .limit(1);
@@ -1581,12 +1557,12 @@ export async function listSiteComments(
       conversationId: r.conversationId,
       commentId: r.commentId,
       pagePath: r.pagePath,
-      anchor: (r.anchor as Anchor | null) ?? null,
-      anchorStatus: r.anchorStatus as "live" | "outdated",
+      anchor: r.anchor ?? null,
+      anchorStatus: r.anchorStatus,
       resolved: r.resolvedAt !== null,
       version: r.versionOrdinal,
       createdOrdinal: ordinalByVersion.get(r.createdVersionId) ?? 0,
-      author: r.author as Identity,
+      author: r.author,
       body: r.body,
       createdAt: r.createdAt.toISOString(),
       editedAt: r.editedAt ? r.editedAt.toISOString() : null,
@@ -1620,7 +1596,7 @@ export interface MirrorRow {
 
 export interface PendingMirrorRow extends MirrorRow {
   provider: string;
-  payload: unknown | null;
+  payload: unknown;
   attempts: number;
 }
 
@@ -1689,17 +1665,12 @@ export async function getMirrorForComment(
   const [row] = await db
     .select()
     .from(commentMirrors)
-    .where(
-      and(
-        eq(commentMirrors.commentId, commentId),
-        eq(commentMirrors.provider, provider),
-      ),
-    )
+    .where(and(eq(commentMirrors.commentId, commentId), eq(commentMirrors.provider, provider)))
     .limit(1);
   if (!row) return null;
   return {
     commentId: row.commentId,
-    status: row.status as "pending" | "synced" | "failed" | "detached",
+    status: row.status,
     externalId: row.externalId,
     externalUrl: row.externalUrl,
   };
@@ -1709,21 +1680,16 @@ export async function getMirrorRow(
   db: Db,
   commentId: string,
   provider: string,
-): Promise<(MirrorRow & { payload: unknown | null; attempts: number }) | null> {
+): Promise<(MirrorRow & { payload: unknown; attempts: number }) | null> {
   const [row] = await db
     .select()
     .from(commentMirrors)
-    .where(
-      and(
-        eq(commentMirrors.commentId, commentId),
-        eq(commentMirrors.provider, provider),
-      ),
-    )
+    .where(and(eq(commentMirrors.commentId, commentId), eq(commentMirrors.provider, provider)))
     .limit(1);
   if (!row) return null;
   return {
     commentId: row.commentId,
-    status: row.status as "pending" | "synced" | "failed" | "detached",
+    status: row.status,
     externalId: row.externalId,
     externalUrl: row.externalUrl,
     payload: row.payload,
@@ -1732,10 +1698,7 @@ export async function getMirrorRow(
 }
 
 // Startup replay: every pending (and recently-failed, retried) row for a provider.
-export async function pendingMirrorRows(
-  db: Db,
-  provider: string,
-): Promise<PendingMirrorRow[]> {
+export async function pendingMirrorRows(db: Db, provider: string): Promise<PendingMirrorRow[]> {
   const rows = await db
     .select()
     .from(commentMirrors)
@@ -1749,7 +1712,7 @@ export async function pendingMirrorRows(
   return rows.map((r) => ({
     commentId: r.commentId,
     provider: r.provider,
-    status: r.status as "pending" | "synced" | "failed" | "detached",
+    status: r.status,
     externalId: r.externalId,
     externalUrl: r.externalUrl,
     payload: r.payload,
@@ -1767,12 +1730,7 @@ export async function mirrorExistsByExternal(
   const [row] = await db
     .select({ commentId: commentMirrors.commentId })
     .from(commentMirrors)
-    .where(
-      and(
-        eq(commentMirrors.provider, provider),
-        eq(commentMirrors.externalId, externalId),
-      ),
-    )
+    .where(and(eq(commentMirrors.provider, provider), eq(commentMirrors.externalId, externalId)))
     .limit(1);
   return row !== undefined;
 }
@@ -1797,18 +1755,13 @@ export async function getMirrorWithOrigins(
     })
     .from(commentMirrors)
     .innerJoin(comments, eq(commentMirrors.commentId, comments.id))
-    .where(
-      and(
-        eq(commentMirrors.provider, provider),
-        eq(commentMirrors.externalId, externalId),
-      ),
-    )
+    .where(and(eq(commentMirrors.provider, provider), eq(commentMirrors.externalId, externalId)))
     .limit(1);
   if (!row) return null;
   return {
     commentId: row.commentId,
     conversationId: row.conversationId,
-    commentOrigin: row.commentOrigin as "scholia" | "github",
+    commentOrigin: row.commentOrigin,
   };
 }
 
@@ -1949,7 +1902,7 @@ export async function findPRBackedSites(
         .where(sql`${sites.mirrorBinding}->>'provider' = 'github'`);
   return rows
     .filter((r) => {
-      const b = r.mirrorBinding as MirrorBinding | null;
+      const b = r.mirrorBinding;
       if (!b) return false;
       if (prNumber !== undefined && b.prNumber !== prNumber) return false;
       return true;

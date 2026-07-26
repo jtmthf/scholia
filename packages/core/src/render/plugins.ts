@@ -8,10 +8,11 @@ import remarkMath from "remark-math";
 import { remarkAlert } from "remark-github-blockquote-alert";
 import { rehypeMermaid } from "./mermaid.js";
 import { rehypeCollectToc } from "./toc.js";
+import type { PluggableList } from "unified";
 import { SHIKI_OPTIONS } from "./pipeline.js";
 import type { Heading } from "../types.js";
 
-export function remarkPlugins(): any[] {
+export function remarkPlugins(): PluggableList {
   // remarkAlert adds GitHub-style admonitions (> [!NOTE], > [!WARNING], ...).
   return [remarkGfm, remarkMath, remarkAlert];
 }
@@ -19,7 +20,7 @@ export function remarkPlugins(): any[] {
 // Rehype chain shared by the markdown and MDX renderers. Order matters:
 // mermaid pass-through and katex first, then slug -> toc collection ->
 // autolink, with Shiki highlighting last over the remaining code blocks.
-export function rehypePlugins(highlighter: Highlighter, headings: Heading[]): any[] {
+export function rehypePlugins(highlighter: Highlighter, headings: Heading[]): PluggableList {
   return [
     rehypeMermaid,
     // Render math errors inline (red) instead of throwing, and don't fail on
