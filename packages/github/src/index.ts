@@ -1,4 +1,4 @@
-// @collab/github — the GitHub `MirrorProvider` (ADR-0008/0009). App-installation
+// @scholia/github — the GitHub `MirrorProvider` (ADR-0008/0009). App-installation
 // authed REST/GraphQL client (no clone/push, no stored PATs), webhook parsing,
 // and PR/ref byte fetch. The `GitHubMirrorProvider` (outbound dispatch + reconcile)
 // lives in provider.ts; everything here is the surface it builds on.

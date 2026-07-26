@@ -1,4 +1,4 @@
-# Welcome to Collab
+# Welcome to Scholia
 
 This is the **entry page** for the end-to-end fixture Site.
 

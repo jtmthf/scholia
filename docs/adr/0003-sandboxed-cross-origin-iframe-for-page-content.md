@@ -4,6 +4,9 @@
 
 accepted
 
+> **Update (2026-07-26):** "Collab" below refers to what is now named Scholia
+> (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 Collab hosts arbitrary, agent-generated content and overlays a commenting UI on it. **Both Page kinds** render inside the same sandboxed `<iframe>` served from a **separate origin** (e.g. `*.usercontent.collab.app`): HTML Pages directly, and Markdown Pages after server-side conversion to HTML. The Collab chrome — comment rail, text selection, anchor markers — lives in the parent document on the main origin. Markdown's Source Map is produced at render time on the server and used by the bridge to turn an iframe selection into a markdown source range; this is just the Markdown flavor of the same anchor-resolution bridge HTML Pages use.

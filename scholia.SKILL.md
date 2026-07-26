@@ -1,12 +1,12 @@
-# Collab Agent Skill
+# Scholia Agent Skill
 
-Collab is a collaborative review tool for hosted static sites. Agents read comments
+Scholia is a collaborative review tool for hosted static sites. Agents read comments
 and threads across all pages of a site, and write comments, reactions, and
 resolve/reopen threads. What else an agent may do depends on its token tier.
 
 ## Two Tiers of Agent
 
-Collab issues two kinds of agent token. The server resolves your tier from the token
+Scholia issues two kinds of agent token. The server resolves your tier from the token
 itself — you present either one the same way (`Authorization: Bearer <token>` or
 `?token=<token>`).
 
@@ -25,9 +25,9 @@ is not an agent verb.
 Set these env vars (or extract from the Agent URL below):
 
 ```
-COLLAB_SERVER=https://your-collab-server.example.com
-COLLAB_SITE=your-site-slug
-COLLAB_TOKEN=your-agent-token   # owner- or viewer-scoped
+SCHOLIA_SERVER=https://your-scholia-server.example.com
+SCHOLIA_SITE=your-site-slug
+SCHOLIA_TOKEN=your-agent-token   # owner- or viewer-scoped
 ```
 
 ## Agent URL
@@ -176,7 +176,7 @@ Body: { state: "open" | "read_only" | "frozen" }
 ```
 
 Rotating the Share URL / owner token and deleting the whole Site are **human-only**
-ops actions (CLI `collab rotate-share|rotate-token|delete-site` or the web owner
+ops actions (CLI `scholia rotate-share|rotate-token|delete-site` or the web owner
 panel) — deliberately not agent verbs.
 
 ### list_versions
@@ -211,7 +211,7 @@ REST: POST /sites/{slug}/versions   (re-upload to existing site)
 
 ### PR-backed Sites (M10)
 
-A Site may be bound to a GitHub PR (`mirrorBinding` set in the site metadata). For PR-backed Sites, **public Threads mirror to GitHub PR comments** authored by the Collab bot. Private Chats stay Collab-only. The site metadata returned by `GET /sites/:slug` includes:
+A Site may be bound to a GitHub PR (`mirrorBinding` set in the site metadata). For PR-backed Sites, **public Threads mirror to GitHub PR comments** authored by the Scholia bot. Private Chats stay Scholia-only. The site metadata returned by `GET /sites/:slug` includes:
 
 - `mirrorBinding`: `{ provider: "github", repo: "owner/repo", prNumber: 42 }` when bound, absent otherwise.
 - `githubAppSlug`: the GitHub App slug, present when the server has GitHub integration configured.
@@ -220,10 +220,10 @@ Mirrored comments carry an `externalUrl` — the URL of the corresponding GitHub
 
 ### Content sources (CLI)
 
-`collab share` accepts new flags for creating Sites from GitHub content sources (ADR-0009):
+`scholia share` accepts new flags for creating Sites from GitHub content sources (ADR-0009):
 
-- `collab share --pr owner/repo#123` — create a Site from a PR's changed `.md`/`.html` files; the server fetches bytes from GitHub, no local files needed.
-- `collab share --ref owner/repo@main` — create a Site from a Git ref (branch/tag/commit).
+- `scholia share --pr owner/repo#123` — create a Site from a PR's changed `.md`/`.html` files; the server fetches bytes from GitHub, no local files needed.
+- `scholia share --ref owner/repo@main` — create a Site from a Git ref (branch/tag/commit).
 
 These produce a **clean Provenance** (pinned ref/PR head) — no dirty-tree problem. Re-running with the same flags and a `--site` argument re-fetches and appends a new Version, migrating conversations forward.
 
@@ -257,4 +257,4 @@ slug-tolerant: "Owner's agent" matches `@owners-agent`).
 
 ## Read More
 
-`GET /agent-docs` on your Collab server — full verb reference and trust framing.
+`GET /agent-docs` on your Scholia server — full verb reference and trust framing.

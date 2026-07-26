@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema, type Db } from "@collab/db";
-import { hashBytes, type MirrorContext, type MirrorEvent, type Anchor } from "@collab/core";
-import { FakeGitHubApi } from "@collab/github";
+import { schema, type Db } from "@scholia/db";
+import { hashBytes, type MirrorContext, type MirrorEvent, type Anchor } from "@scholia/core";
+import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
 import { migrateWithLock } from "./helpers/migrate.js";
@@ -48,7 +48,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     sql = postgres(DB_URL!, { max: 1 });
     db = drizzle(sql, { schema }) as unknown as Db;
     await migrateWithLock(sql, db as unknown as ReturnType<typeof drizzle>, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-dispatch-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-dispatch-"));
 
     // Seed the fake GitHub API with a PR.
     fakeApi = new FakeGitHubApi();
@@ -68,7 +68,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     fakeApi.setDiffLines({ owner: "octocat", name: "dispatch-test" }, "page.md", new Set([3, 5]));
 
     // Store the source blob so the context can retrieve it.
-    const { FsBlobStore } = await import("@collab/core");
+    const { FsBlobStore } = await import("@scholia/core");
     const store = new FsBlobStore(blobDir);
     if (!(await store.has(PAGE_HASH))) await store.put(enc.encode(PAGE_MD));
 
@@ -77,7 +77,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
       db,
       config: {
         appId: "1",
-        appSlug: "collab",
+        appSlug: "scholia",
         privateKeyPem: "fake",
         webhookSecret: "fake",
         apiBase: "https://api.github.com",
@@ -104,7 +104,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     };
 
     // Create a real PR-backed Site so we have a siteId + versionId for the events.
-    const { upsertGitHubInstallation, createSiteWithVersion } = await import("@collab/db");
+    const { upsertGitHubInstallation, createSiteWithVersion } = await import("@scholia/db");
     await upsertGitHubInstallation(db, {
       installationId: 77,
       account: "octocat",
@@ -130,7 +130,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     ownerToken = body.token;
 
     // Fetch the siteId + versionId from the DB.
-    const { getSiteBySlug, getLatestVersionId } = await import("@collab/db");
+    const { getSiteBySlug, getLatestVersionId } = await import("@scholia/db");
     const site = await getSiteBySlug(db, siteSlug);
     expect(site).toBeTruthy();
     siteId = site!.id;
@@ -150,7 +150,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     body?: string;
     anchor?: Anchor | null;
   }): Promise<{ conversationId: string; commentId: string }> {
-    const { createConversation } = await import("@collab/db");
+    const { createConversation } = await import("@scholia/db");
     const result = await createConversation(db, {
       siteId,
       createdVersionId: versionId,
@@ -182,7 +182,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
       author: over.author ?? { name: "Jane", kind: "human" as const, tier: "viewer" as const, source: "native" as const },
       body: over.body ?? "Nice work.",
       anchor: over.anchor ?? null,
-      origin: "collab",
+      origin: "scholia",
     };
   }
 
@@ -208,12 +208,12 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     expect(rec.input.path).toBe("page.md");
     expect(rec.input.line).toBe(3);
     expect(rec.input.side).toBe("RIGHT");
-    expect(rec.input.body).toContain("**Jane** (via Collab)");
+    expect(rec.input.body).toContain("**Jane** (via Scholia)");
     expect(rec.input.body).toContain("This bold text is great.");
     expect(rec.input.commitId).toBe(HEAD_SHA);
 
     // comment_mirrors row is synced.
-    const { getMirrorRow } = await import("@collab/db");
+    const { getMirrorRow } = await import("@scholia/db");
     const row = await getMirrorRow(db, inDiffIds.commentId, "github");
     expect(row?.status).toBe("synced");
     expect(row?.externalId).toBe(String(rec.created.id));
@@ -236,10 +236,10 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
       (r) => r.pr === 7 && r.body.includes("The title should be different."),
     );
     expect(issueRecs).toHaveLength(1);
-    expect(issueRecs[0]!.body).toContain("**Jane** (via Collab)");
+    expect(issueRecs[0]!.body).toContain("**Jane** (via Scholia)");
     expect(issueRecs[0]!.body).toContain("> # Title");
 
-    const { getMirrorRow } = await import("@collab/db");
+    const { getMirrorRow } = await import("@scholia/db");
     const row = await getMirrorRow(db, ids.commentId, "github");
     expect(row?.status).toBe("synced");
   });
@@ -258,7 +258,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     expect(issueRecs).toHaveLength(1);
     expect(issueRecs[0]!.body).not.toContain(">");
 
-    const { getMirrorRow } = await import("@collab/db");
+    const { getMirrorRow } = await import("@scholia/db");
     const row = await getMirrorRow(db, ids.commentId, "github");
     expect(row?.status).toBe("synced");
   });
@@ -347,7 +347,7 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
     expect(issueRec.body).toContain("Second promoted comment.");
 
     // Both have comment_mirrors rows.
-    const { getMirrorRow } = await import("@collab/db");
+    const { getMirrorRow } = await import("@scholia/db");
     expect((await getMirrorRow(db, promoThread1.commentId, "github"))?.status).toBe("synced");
     expect((await getMirrorRow(db, promoThread2.commentId, "github"))?.status).toBe("synced");
   });

@@ -41,7 +41,7 @@ jobs:
 
       # v0.1 ships Local Preview only. `test:ci` runs the shipping + pure
       # packages (core, cli, local, bridge, github) and deliberately excludes
-      # @collab/server, whose suite needs Postgres (host port 5544) and has
+      # @scholia/server, whose suite needs Postgres (host port 5544) and has
       # known hosted-path failures tracked in LAUNCH.md. Wire the server suite
       # into CI (with a Postgres service) when hosted mode ships.
       - name: Test

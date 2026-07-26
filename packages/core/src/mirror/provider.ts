@@ -1,18 +1,18 @@
 // The MirrorProvider port (M10, ADR-0008). A PR-backed Site mirrors its PUBLIC
 // discussion to/from a native provider comment store (GitHub PR comments in v1).
 // Postgres stays authoritative; providers are projections + an optional content
-// fetch path. The port lives in `@collab/core` because it is pure domain shape —
-// no HTTP, no db, no provider-specifics. `@collab/github` is the v1 impl; the
+// fetch path. The port lives in `@scholia/core` because it is pure domain shape —
+// no HTTP, no db, no provider-specifics. `@scholia/github` is the v1 impl; the
 // server is where providers meet HTTP + db.
 //
 // `MirrorBinding` and `ContentSourceFetch` are re-declared here (rather than
-// imported from `@collab/db`) so `core` stays free of the db package. The db's
+// imported from `@scholia/db`) so `core` stays free of the db package. The db's
 // `MirrorBinding`/`ContentSource` jsonb shapes are structurally identical and
 // the server bridges between them at the boundary.
 
 import type { Anchor } from "../anchor/types.js";
 
-// ---- Identity (mirrors `@collab/db` Identity structurally; re-declared for core purity) ----
+// ---- Identity (mirrors `@scholia/db` Identity structurally; re-declared for core purity) ----
 
 export interface MirrorIdentity {
   name: string;
@@ -22,7 +22,7 @@ export interface MirrorIdentity {
   source: "native" | "github";
 }
 
-// ---- Provenance (mirrors `@collab/db` Provenance) ----
+// ---- Provenance (mirrors `@scholia/db` Provenance) ----
 
 export interface MirrorProvenance {
   remote?: string;
@@ -62,7 +62,7 @@ export interface MirrorEventBase {
   mirrorBinding: MirrorBinding;
   conversationId: string;
   pagePath: string | null;
-  /** The Collab Version the comment is bound to (CONTEXT "Comment"). */
+  /** The Scholia Version the comment is bound to (CONTEXT "Comment"). */
   createdVersionId: string;
 }
 
@@ -74,8 +74,8 @@ export interface CommentMirrorEvent extends MirrorEventBase {
   body: string;
   /** Source-range used to place the review comment; null for page-level. */
   anchor: Anchor | null;
-  /** Outbound only fires for native Collab comments (`origin === "collab"`). */
-  origin: "collab";
+  /** Outbound only fires for native Scholia comments (`origin === "scholia"`). */
+  origin: "scholia";
 }
 
 export interface ResolveMirrorEvent extends MirrorEventBase {

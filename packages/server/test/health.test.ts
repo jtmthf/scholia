@@ -8,6 +8,6 @@ describe("health check", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { status: string; service: string };
     expect(body.status).toBe("ok");
-    expect(body.service).toBe("collab-server");
+    expect(body.service).toBe("scholia-server");
   });
 });

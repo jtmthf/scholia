@@ -4,6 +4,9 @@
 
 accepted (narrows ADR-0007)
 
+> **Update (2026-07-26):** "Collab" below refers to what is now named Scholia
+> (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 ADR-0007 deliberately gave Collab **zero repo access** — no clone, pull, push, or stored credentials; Provenance is metadata only. The GitHub comment mirror (ADR-0008) cannot honor that absolutely: it must **read PR file bytes at the head commit** (to render Pages and slice anchors) and **read/write PR comments**.

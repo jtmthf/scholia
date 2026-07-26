@@ -793,8 +793,8 @@ export interface CreateConversationInput {
     authorViewerId: string | null;
     /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
     mentions?: string[];
-    /** M10: "github" for inbound-mirrored comments, "collab" (default) otherwise. */
-    origin?: "collab" | "github";
+    /** M10: "github" for inbound-mirrored comments, "scholia" (default) otherwise. */
+    origin?: "scholia" | "github";
   };
   /**
    * M10 inbound import: insert the `comment_mirrors` row for the first comment
@@ -840,7 +840,7 @@ export async function createConversation(
         body: input.firstComment.body,
         author: input.firstComment.author,
         authorViewerId: input.firstComment.authorViewerId ?? null,
-        origin: input.firstComment.origin ?? "collab",
+        origin: input.firstComment.origin ?? "scholia",
       })
       .returning({ id: comments.id });
 
@@ -869,7 +869,7 @@ export async function createConversation(
 // Persist a human Viewer's display name onto its `viewers` row (CONTEXT "Viewer":
 // the name is "supplied on first comment"). It lives on each Comment's author JSON
 // too, but the canonical row is what a Viewer-scoped agent token resolves to when
-// Collab labels that agent "Reviewer <name>'s agent" (M8, ADR-0006). Only human
+// Scholia labels that agent "Reviewer <name>'s agent" (M8, ADR-0006). Only human
 // viewer authors carry a name here; agent authors have authorViewerId=null. Runs
 // inside the caller's transaction. Latest supplied name wins (reflects renames).
 async function persistViewerDisplayName(
@@ -904,8 +904,8 @@ export interface AddCommentInput {
   authorViewerId: string | null;
   /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
   mentions?: string[];
-  /** M10: "github" for inbound-mirrored comments, "collab" (default) otherwise. */
-  origin?: "collab" | "github";
+  /** M10: "github" for inbound-mirrored comments, "scholia" (default) otherwise. */
+  origin?: "scholia" | "github";
 }
 
 // Add a reply comment to an existing Conversation. Returns the new comment id.
@@ -922,7 +922,7 @@ export async function addComment(
         body: input.body,
         author: input.author,
         authorViewerId: input.authorViewerId ?? null,
-        origin: input.origin ?? "collab",
+        origin: input.origin ?? "scholia",
       })
       .returning({ commentId: comments.id });
     await insertMentions(tx, row!.commentId, input.mentions);
@@ -1009,9 +1009,9 @@ export async function tombstoneComment(db: Db, commentId: string): Promise<boole
 }
 
 // M10: Mark a `comment_mirrors` row as `detached` — the external (GitHub) side
-// deleted a `collab`-origin comment. We respect the external delete and do NOT
-// re-push. The Collab comment itself is left intact (the human/agent can still
-// see it in Collab).
+// deleted a `scholia`-origin comment. We respect the external delete and do NOT
+// re-push. The Scholia comment itself is left intact (the human/agent can still
+// see it in Scholia).
 export async function detachMirror(
   db: Db,
   input: { commentId: string; provider: string },
@@ -1443,7 +1443,7 @@ export async function promoteConversation(
 // ---- M7: Agent surface — site-wide comment feed (`list_comments`) ----
 
 // Normalize a mention target / identity name for case- and punctuation-insensitive
-// matching. Mirrors `mentionsMatch` in @collab/core (kept local so @collab/db stays
+// matching. Mirrors `mentionsMatch` in @scholia/core (kept local so @scholia/db stays
 // dependency-free); keep the two in sync. The possessive "'s" is dropped so the
 // natural handle `@owner-agent` routes to the default "Owner's agent" label.
 function normalizeMention(s: string): string {
@@ -1628,7 +1628,7 @@ export interface PendingMirrorRow extends MirrorRow {
 //  - emit (status="pending") when an outbound event is first scheduled;
 //  - dispatch success (status="synced", externalId/url set, lastSyncedAt=now);
 //  - dispatch terminal failure (status="failed");
-//  - inbound `deleted` on a collab-origin mirror (status="detached").
+//  - inbound `deleted` on a scholia-origin mirror (status="detached").
 export async function touchMirrorRow(
   db: Db,
   input: {
@@ -1779,7 +1779,7 @@ export async function mirrorExistsByExternal(
 
 // Resolve the (commentId, conversationId, commentOrigin) for an externally-known
 // GitHub comment — the importer uses this on `deleted` to decide between tombstone
-// (origin="github") and detach (origin="collab" — respect the external delete).
+// (origin="github") and detach (origin="scholia" — respect the external delete).
 export async function getMirrorWithOrigins(
   db: Db,
   provider: string,
@@ -1787,7 +1787,7 @@ export async function getMirrorWithOrigins(
 ): Promise<{
   commentId: string;
   conversationId: string;
-  commentOrigin: "collab" | "github";
+  commentOrigin: "scholia" | "github";
 } | null> {
   const [row] = await db
     .select({
@@ -1808,7 +1808,7 @@ export async function getMirrorWithOrigins(
   return {
     commentId: row.commentId,
     conversationId: row.conversationId,
-    commentOrigin: row.commentOrigin as "collab" | "github",
+    commentOrigin: row.commentOrigin as "scholia" | "github",
   };
 }
 
@@ -1842,7 +1842,7 @@ export async function upsertGitHubInstallation(
 
 // Find any installation whose cached `repos` includes `repo` (exact `owner/name`).
 // Returns null when the repo isn't under any known installation — the caller surfaces
-// a clear "install the Collab GitHub App on owner/repo" error.
+// a clear "install the Scholia GitHub App on owner/repo" error.
 export async function findInstallationForRepo(
   db: Db,
   repo: string,

@@ -6,7 +6,7 @@
 // accidentally accept unsigned payloads.
 
 import { Hono } from "hono";
-import { verifySignature, parseWebhook, WebhookSignatureError } from "@collab/github";
+import { verifySignature, parseWebhook, WebhookSignatureError } from "@scholia/github";
 import { importInbound } from "../mirror/importer.js";
 import { handleLifecycle } from "../mirror/lifecycle.js";
 import { botLoginFor } from "../github-config.js";

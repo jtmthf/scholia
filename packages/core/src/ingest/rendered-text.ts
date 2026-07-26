@@ -2,7 +2,7 @@
 // representation cross-Version anchor migration matches against (M6).
 //
 // An Anchor's text-quote is captured in the content iframe from `body.textContent`
-// (see @collab/bridge iframe entry, `buildUniqueQuote`). To re-resolve that quote
+// (see @scholia/bridge iframe entry, `buildUniqueQuote`). To re-resolve that quote
 // against a NEW Version server-side we need the same text the browser would see,
 // derived from the Version's stored rendered fragment (`renderedHash`). The stored
 // fragment is clean — the bridge script is injected only at serve time, so no

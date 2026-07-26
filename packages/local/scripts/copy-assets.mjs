@@ -17,10 +17,10 @@ async function main() {
   await cp(katexCssPath, join(outDir, "katex.min.css"));
   await cp(join(katexDist, "fonts"), join(outDir, "fonts"), { recursive: true });
 
-  console.log("[collab] vendored KaTeX assets -> dist/assets/katex");
+  console.log("[scholia] vendored KaTeX assets -> dist/assets/katex");
 }
 
 main().catch((err) => {
-  console.error("[collab] copy-assets failed:", err);
+  console.error("[scholia] copy-assets failed:", err);
   process.exit(1);
 });

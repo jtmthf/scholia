@@ -4,7 +4,7 @@ import { runShare, type SharedSite } from "../helpers/share.js";
 
 // M4: an HTML Page renders in the same sandboxed iframe as Markdown, keeps its
 // uploaded JS, and is served with the content-origin CSP. One shared Site for
-// the file: `collab share <html-site>` runs once, then the assertions run.
+// the file: `scholia share <html-site>` runs once, then the assertions run.
 let site: SharedSite;
 
 test.beforeAll(async () => {
@@ -37,7 +37,7 @@ test("rewrites an HTML Page's inter-Page link to top-navigate the viewer", async
 
   await link.click();
   await expect(page).toHaveURL(new RegExp(`/s/${site.slug}/about\\.md$`));
-  await expect(page.locator(".chrome .brand")).toHaveText("collab");
+  await expect(page.locator(".chrome .brand")).toHaveText("scholia");
   await expect(frame.locator("h1")).toHaveText("About");
 });
 

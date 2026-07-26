@@ -22,7 +22,7 @@ import {
   intEnv,
 } from "../config.js";
 import { NoopRateLimiter, PostgresRateLimiter, type RateLimiter } from "../rate-limit.js";
-import type { Db } from "@collab/db";
+import type { Db } from "@scholia/db";
 
 if (process.env.GITHUB_APP_PRIVATE_KEY_PATH) {
   throw new Error(
@@ -31,14 +31,14 @@ if (process.env.GITHUB_APP_PRIVATE_KEY_PATH) {
   );
 }
 
-// Forces Postgres regardless of `COLLAB_RATELIMIT_STORE` — multi-instance
+// Forces Postgres regardless of `SCHOLIA_RATELIMIT_STORE` — multi-instance
 // hosting makes the in-memory limiter silently wrong, not just a worse
 // default, so this is a hard override rather than a tunable. Explicit
-// `COLLAB_RATELIMIT_DISABLED` is still honored (a deliberate operator choice).
+// `SCHOLIA_RATELIMIT_DISABLED` is still honored (a deliberate operator choice).
 function rateLimiterForVercel(db: Db): RateLimiter {
-  if (process.env.COLLAB_RATELIMIT_DISABLED === "true") return new NoopRateLimiter();
-  const limit = intEnv("COLLAB_RATELIMIT_COMMENTS") ?? 20;
-  const windowMs = intEnv("COLLAB_RATELIMIT_WINDOW_MS") ?? 60_000;
+  if (process.env.SCHOLIA_RATELIMIT_DISABLED === "true") return new NoopRateLimiter();
+  const limit = intEnv("SCHOLIA_RATELIMIT_COMMENTS") ?? 20;
+  const windowMs = intEnv("SCHOLIA_RATELIMIT_WINDOW_MS") ?? 60_000;
   return new PostgresRateLimiter(db, limit, windowMs);
 }
 

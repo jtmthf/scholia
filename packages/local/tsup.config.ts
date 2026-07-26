@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 // Builds the browser client bundle that the Local Preview server serves at
-// /__assets/. The Node server itself runs from source via tsx (the `collab`
+// /__assets/. The Node server itself runs from source via tsx (the `scholia`
 // CLI), so only the browser entry needs bundling here.
 //
 // Emits dist/assets/client.js (+ client.css), and vendors KaTeX's stylesheet
@@ -19,7 +19,7 @@ export default defineConfig({
   minify: true,
   // mermaid and friends must be bundled, not externalized, for the browser.
   noExternal: [/.*/],
-  // app.css imports @collab/theme/type.css, which declares @font-face rules
+  // app.css imports @scholia/theme/type.css, which declares @font-face rules
   // with relative url("./fonts/*.woff2"); esbuild needs an explicit loader
   // to bundle those binaries (Vite does this natively, esbuild does not).
   loader: { ".woff2": "file" },

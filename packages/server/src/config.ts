@@ -1,5 +1,5 @@
-import { createDb, type Db } from "@collab/db";
-import { S3BlobStore, type BlobStore, type MirrorProvider } from "@collab/core";
+import { createDb, type Db } from "@scholia/db";
+import { S3BlobStore, type BlobStore, type MirrorProvider } from "@scholia/core";
 import {
   FixedWindowRateLimiter,
   NoopRateLimiter,
@@ -114,7 +114,7 @@ export function dbFromEnv(options?: Parameters<typeof createDb>[1]): Db {
 
 export function storeFromEnv(): BlobStore {
   return new S3BlobStore({
-    bucket: process.env.S3_BUCKET ?? "collab-blobs",
+    bucket: process.env.S3_BUCKET ?? "scholia-blobs",
     endpoint: process.env.S3_ENDPOINT,
     region: process.env.S3_REGION,
     accessKeyId: process.env.S3_ACCESS_KEY_ID,
@@ -137,9 +137,9 @@ export function urlsFromEnv(): Urls {
 
 export function limitsFromEnv(): UploadLimits {
   return {
-    maxFileBytes: intEnv("COLLAB_MAX_FILE_BYTES"),
-    maxSiteBytes: intEnv("COLLAB_MAX_SITE_BYTES"),
-    maxFileCount: intEnv("COLLAB_MAX_FILE_COUNT"),
+    maxFileBytes: intEnv("SCHOLIA_MAX_FILE_BYTES"),
+    maxSiteBytes: intEnv("SCHOLIA_MAX_SITE_BYTES"),
+    maxFileCount: intEnv("SCHOLIA_MAX_FILE_COUNT"),
   };
 }
 
@@ -167,23 +167,23 @@ export function mirrorFromEnv(opts: {
 }
 
 // Build the rate limiter from env. Default: 20 comment-creates per 60s per
-// identity. `COLLAB_RATELIMIT_DISABLED=true` turns it off; the count and window
-// are overridable. `COLLAB_RATELIMIT_STORE=postgres` selects the multi-instance-
+// identity. `SCHOLIA_RATELIMIT_DISABLED=true` turns it off; the count and window
+// are overridable. `SCHOLIA_RATELIMIT_STORE=postgres` selects the multi-instance-
 // safe implementation (default `memory`; no platform auto-detection here — a
 // platform adapter may choose a default for itself, e.g. the Vercel adapter
 // defaults to postgres, but config.ts never branches on the platform).
 export function rateLimiterFromEnv(db: Db): RateLimiter {
-  if (process.env.COLLAB_RATELIMIT_DISABLED === "true") return new NoopRateLimiter();
-  const limit = intEnv("COLLAB_RATELIMIT_COMMENTS") ?? 20;
-  const windowMs = intEnv("COLLAB_RATELIMIT_WINDOW_MS") ?? 60_000;
-  if (process.env.COLLAB_RATELIMIT_STORE === "postgres") {
+  if (process.env.SCHOLIA_RATELIMIT_DISABLED === "true") return new NoopRateLimiter();
+  const limit = intEnv("SCHOLIA_RATELIMIT_COMMENTS") ?? 20;
+  const windowMs = intEnv("SCHOLIA_RATELIMIT_WINDOW_MS") ?? 60_000;
+  if (process.env.SCHOLIA_RATELIMIT_STORE === "postgres") {
     return new PostgresRateLimiter(db, limit, windowMs);
   }
   return new FixedWindowRateLimiter(limit, windowMs);
 }
 
 export function internalSecretFromEnv(): string | null {
-  return process.env.COLLAB_INTERNAL_SECRET?.trim() || null;
+  return process.env.SCHOLIA_INTERNAL_SECRET?.trim() || null;
 }
 
 // Build deps from environment. Called lazily on first use so importing the app

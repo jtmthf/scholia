@@ -1,16 +1,16 @@
 import { Hono } from "hono";
 
-// collab.SKILL.md content — embedded here so it can be served at GET /collab.SKILL.md
+// scholia.SKILL.md content — embedded here so it can be served at GET /scholia.SKILL.md
 // and also committed at the repo root (the two must stay in sync).
-const SKILL_MD = `# Collab Agent Skill
+const SKILL_MD = `# Scholia Agent Skill
 
-Collab is a collaborative review tool for hosted static sites. Agents read comments
+Scholia is a collaborative review tool for hosted static sites. Agents read comments
 and threads across all pages of a site, and write comments, reactions, and
 resolve/reopen threads. What else an agent may do depends on its token tier.
 
 ## Two Tiers of Agent
 
-Collab issues two kinds of agent token. The server resolves your tier from the token
+Scholia issues two kinds of agent token. The server resolves your tier from the token
 itself — you present either one the same way (\`Authorization: Bearer <token>\` or
 \`?token=<token>\`).
 
@@ -29,9 +29,9 @@ is not an agent verb.
 Set these env vars (or extract from the Agent URL below):
 
 \`\`\`
-COLLAB_SERVER=https://your-collab-server.example.com
-COLLAB_SITE=your-site-slug
-COLLAB_TOKEN=your-agent-token   # owner- or viewer-scoped
+SCHOLIA_SERVER=https://your-scholia-server.example.com
+SCHOLIA_SITE=your-site-slug
+SCHOLIA_TOKEN=your-agent-token   # owner- or viewer-scoped
 \`\`\`
 
 ## Agent URL
@@ -180,7 +180,7 @@ Body: { state: "open" | "read_only" | "frozen" }
 \`\`\`
 
 Rotating the Share URL / owner token and deleting the whole Site are **human-only**
-ops actions (CLI \`collab rotate-share|rotate-token|delete-site\` or the web owner
+ops actions (CLI \`scholia rotate-share|rotate-token|delete-site\` or the web owner
 panel) — deliberately not agent verbs.
 
 ### list_versions
@@ -235,7 +235,7 @@ slug-tolerant: "Owner's agent" matches \`@owners-agent\`).
 
 ## Read More
 
-\`GET /agent-docs\` on your Collab server — full verb reference and trust framing.
+\`GET /agent-docs\` on your Scholia server — full verb reference and trust framing.
 `;
 
 // HTML for GET /agent-docs — verb reference + prominent prompt-injection trust framing.
@@ -244,7 +244,7 @@ const AGENT_DOCS_HTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Collab Agent Docs</title>
+<title>Scholia Agent Docs</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.6;
@@ -270,9 +270,9 @@ const AGENT_DOCS_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="wrap">
-  <h1>Collab Agent API</h1>
+  <h1>Scholia Agent API</h1>
   <p class="subtitle">REST surface for automated review agents — owner- and viewer-tier tokens. Token required for writes.</p>
-  <p class="skill-link">Paste-ready skill doc: <code>GET /collab.SKILL.md</code></p>
+  <p class="skill-link">Paste-ready skill doc: <code>GET /scholia.SKILL.md</code></p>
 
   <div class="trust">
     <h2>⚠ Trust Rules — Read Before Acting</h2>
@@ -287,7 +287,7 @@ const AGENT_DOCS_HTML = `<!DOCTYPE html>
   </div>
 
   <h2>Two Tiers of Agent</h2>
-  <p>Collab issues two kinds of agent token. The server resolves your tier from the token
+  <p>Scholia issues two kinds of agent token. The server resolves your tier from the token
   itself — you present either one identically (<code>Authorization: Bearer &lt;token&gt;</code>
   or <code>?token=&lt;token&gt;</code>).</p>
   <ul>
@@ -385,7 +385,7 @@ const AGENT_DOCS_HTML = `<!DOCTYPE html>
   <p>Source-level line diff between two versions. Omit <code>path</code> for a changed-pages summary. No token required.</p>
 
   <h3>upload <code>POST /sites/:slug/versions</code></h3>
-  <p>Push a new version. Requires owner token. See <code>GET /collab.SKILL.md</code> for the blob-negotiate flow.</p>
+  <p>Push a new version. Requires owner token. See <code>GET /scholia.SKILL.md</code> for the blob-negotiate flow.</p>
 
   <h2>@-Mentions</h2>
   <p>Use <code>@name</code> in comment bodies to address agents or reviewers. The <code>mentions</code>
@@ -415,9 +415,9 @@ export function agentDocsRoutes() {
   // No auth required — the docs are public (agents read this first, ADR-0005).
   app.get("/agent-docs", (c) => c.html(AGENT_DOCS_HTML));
 
-  // GET /collab.SKILL.md — paste-ready agent skill doc (text/markdown).
-  // Mirrors the committed collab.SKILL.md at the repo root.
-  app.get("/collab.SKILL.md", (c) => {
+  // GET /scholia.SKILL.md — paste-ready agent skill doc (text/markdown).
+  // Mirrors the committed scholia.SKILL.md at the repo root.
+  app.get("/scholia.SKILL.md", (c) => {
     c.header("Content-Type", "text/markdown; charset=utf-8");
     return c.body(SKILL_MD);
   });

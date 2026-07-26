@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { mapSmIdsToSourceRange, parseMentions, type SourceMap } from "@collab/core";
+import { mapSmIdsToSourceRange, parseMentions, type SourceMap } from "@scholia/core";
 import {
   addComment,
   createConversation,
@@ -26,7 +26,7 @@ import {
   type ConversationMeta,
   type Identity,
   type SiteCommentDTO,
-} from "@collab/db";
+} from "@scholia/db";
 import type { AppDeps } from "../config.js";
 import { authorizeOwner, bearerOrQueryToken, resolveActor, type Actor } from "../auth.js";
 import { hashToken, mintToken } from "../tokens.js";
@@ -171,7 +171,7 @@ async function fetchConversationById(
   conversationId: string,
   viewerId: string | null,
 ): Promise<ConversationDTO | null> {
-  const { schema } = await import("@collab/db");
+  const { schema } = await import("@scholia/db");
   const { eq, and, asc, isNull, inArray } = await import("drizzle-orm");
 
   const [conv] = await (db as any)
@@ -874,7 +874,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
 
     if (actor.tier !== "anonymous") {
       // ---- Agent reaction: toggle keyed by (commentId, emoji, author.name) ----
-      const { schema } = await import("@collab/db");
+      const { schema } = await import("@scholia/db");
       const { eq, and, sql: sqlt } = await import("drizzle-orm");
       const [existing] = await (db as any)
         .select({ id: schema.reactions.id })
@@ -991,7 +991,7 @@ async function resolveHandler(c: Context, getDeps: () => AppDeps, resolved: bool
 // Fetch a single newly-created/edited comment as a CommentDTO (fresh reactions
 // are always empty; `mine` is caller-supplied).
 async function newCommentDTO(db: AppDeps["db"], commentId: string, mine: boolean) {
-  const { schema } = await import("@collab/db");
+  const { schema } = await import("@scholia/db");
   const { eq } = await import("drizzle-orm");
   const [row] = await (db as any)
     .select()

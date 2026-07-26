@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const DIR = join(homedir(), ".collab");
+const DIR = join(homedir(), ".scholia");
 const FILE = join(DIR, "credentials");
 
 export interface SiteCredential {
@@ -35,8 +35,8 @@ export async function saveCredential(cred: SiteCredential): Promise<void> {
   await writeStore(store);
 }
 
-// Remove a stored credential by slug (after `collab delete-site`, or the old slug
-// after `collab rotate-share`). No-op when absent.
+// Remove a stored credential by slug (after `scholia delete-site`, or the old slug
+// after `scholia rotate-share`). No-op when absent.
 export async function removeCredential(slug: string): Promise<void> {
   const store = await loadCredentials();
   if (!(slug in store)) return;

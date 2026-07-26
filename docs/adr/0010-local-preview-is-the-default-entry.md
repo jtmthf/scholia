@@ -4,6 +4,9 @@
 
 accepted
 
+> **Update (2026-07-26):** "Collab"/"collab" below refers to what is now named
+> Scholia (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 `collab` absorbs a previously separate local markdown dev server (mdttp) as its

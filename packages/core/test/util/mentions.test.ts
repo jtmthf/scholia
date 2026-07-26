@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { parseMentions, mentionsMatch } from "@collab/core";
+import { parseMentions, mentionsMatch } from "@scholia/core";
 
 // Unit tests for @-mention parsing + matching (M7, CONTEXT "Mention"). No DB.
 

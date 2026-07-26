@@ -1,1 +1,1 @@
-export { collectFiles, type CollectedFile } from "@collab/client";
+export { collectFiles, type CollectedFile } from "@scholia/client";

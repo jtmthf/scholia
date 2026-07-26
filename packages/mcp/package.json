@@ -1,17 +1,17 @@
 {
-  "name": "@collab/mcp",
+  "name": "@scholia/mcp",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "bin": {
-    "collab-mcp": "./src/index.ts"
+    "scholia-mcp": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@collab/client": "workspace:*",
+    "@scholia/client": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.24.0"
   },

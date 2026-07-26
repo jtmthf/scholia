@@ -1,4 +1,4 @@
-// @collab/core — pure domain logic shared by Local Preview and hosting:
+// @scholia/core — pure domain logic shared by Local Preview and hosting:
 // render, Nav, search, Entry Page precedence, content-addressed blobs.
 // No HTTP, no db.
 
@@ -65,7 +65,7 @@ export { contentType } from "./util/mime.js";
 export { classifyFile, isDoc, isMdx, toUrlPath, resolveWithinRoot } from "./util/paths.js";
 export { toText, escapeHtml, humanize } from "./util/text.js";
 // Best-effort git facts (CONTEXT "Provenance", ADR-0007) — shared by
-// @collab/cli (frozen at upload) and @collab/local (read live for the
+// @scholia/cli (frozen at upload) and @scholia/local (read live for the
 // Colophon).
 export { getProvenance, type Provenance } from "./util/provenance.js";
 // @-mention parsing + matching for the agent routing filter (M7, CONTEXT "Mention").
@@ -78,5 +78,5 @@ export type { Heading, NavNode, DocRecord, RenderResult } from "./types.js";
 export * from "./blob/index.js";
 
 // MirrorProvider port + outbound domain events (M10, ADR-0008). Pure domain
-// shape; @collab/github is the v1 impl, server is where HTTP + db meet it.
+// shape; @scholia/github is the v1 impl, server is where HTTP + db meet it.
 export * from "./mirror/index.js";

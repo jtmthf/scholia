@@ -1,6 +1,6 @@
 import { and, asc, eq, ne } from "drizzle-orm";
 import { getMirrorRow, schema, touchMirrorRow } from "./db-helpers.js";
-import type { Db } from "@collab/db";
+import type { Db } from "@scholia/db";
 import {
   type ContentSourceFetch,
   type FetchResult,
@@ -8,7 +8,7 @@ import {
   type MirrorEvent,
   type MirrorProvider,
   type MirrorTopic,
-} from "@collab/core";
+} from "@scholia/core";
 import {
   fetchPRFiles,
   fetchRefFiles,
@@ -17,13 +17,13 @@ import {
   type GitHubApi,
   type RepoPath,
   type FakeGitHubApi,
-} from "@collab/github";
+} from "@scholia/github";
 import type { GitHubOperatorConfig } from "../github-config.js";
 import { sourceRangeToLines } from "./line-map.js";
 
 // `AppDepsMirrorCompat` and the `db-helpers.js` indirection keep this file free of
-// the dodgy inline `await import("@collab/db")` chains of an earlier draft. The
-// helpers re-export @collab/db repo methods + the schema namespace.
+// the dodgy inline `await import("@scholia/db")` chains of an earlier draft. The
+// helpers re-export @scholia/db repo methods + the schema namespace.
 
 export interface GitHubMirrorProviderOptions {
   api: GitHubApi;
@@ -79,7 +79,7 @@ export class GitHubMirrorProvider implements MirrorProvider {
             author: c.author,
             body: c.body,
             anchor: c.anchor,
-            origin: "collab" as const,
+            origin: "scholia" as const,
           };
           await this.dispatchComment(single, ctx);
         }
@@ -254,7 +254,7 @@ async function writeSyncedWithRetry(
     } catch (err) {
       if (attempt === attempts) {
         console.error(
-          `[collab] mirror: failed to record synced comment_mirrors row for ${input.commentId} after ${attempts} attempts — GitHub comment ${input.externalId} was created but is not linked in the DB:`,
+          `[scholia] mirror: failed to record synced comment_mirrors row for ${input.commentId} after ${attempts} attempts — GitHub comment ${input.externalId} was created but is not linked in the DB:`,
           err,
         );
         return;
@@ -266,7 +266,7 @@ async function writeSyncedWithRetry(
 
 // ---- bot body ----
 
-const BOT_PREFIX = "(via Collab)";
+const BOT_PREFIX = "(via Scholia)";
 
 export function botBody(
   author: { name: string; kind: string; onBehalfOf?: string },

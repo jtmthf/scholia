@@ -1,10 +1,10 @@
-import { migrateAnchor, renderedText } from "@collab/core";
+import { migrateAnchor, renderedText } from "@scholia/core";
 import {
   getLatestManifest,
   listConversationsForMigration,
   updateAnchorAfterMigration,
   type Anchor,
-} from "@collab/db";
+} from "@scholia/db";
 import type { AppDeps } from "./config.js";
 
 const decoder = new TextDecoder();

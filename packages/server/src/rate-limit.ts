@@ -7,9 +7,9 @@
 // implementation (M11: `PostgresRateLimiter`, ADR-0015) and tests can supply a
 // NoopRateLimiter or a tiny window. This is a safety mechanism, so it is on by
 // default (config.ts wires the default limit); operators tune or disable it via
-// env (`COLLAB_RATELIMIT_STORE` selects the implementation).
+// env (`SCHOLIA_RATELIMIT_STORE` selects the implementation).
 
-import { hitRateLimit, type Db } from "@collab/db";
+import { hitRateLimit, type Db } from "@scholia/db";
 
 export interface RateLimitResult {
   ok: boolean;
@@ -78,7 +78,7 @@ export class NoopRateLimiter implements RateLimiter {
 // concurrent instances a busy hosted Site gets (e.g. Vercel Lambdas), where the
 // in-memory limiter's per-process Map would silently become `limit ×
 // warm-instance-count`. One round trip per hit via `hitRateLimit`'s atomic
-// upsert. Selected via `COLLAB_RATELIMIT_STORE=postgres`; the Vercel adapter
+// upsert. Selected via `SCHOLIA_RATELIMIT_STORE=postgres`; the Vercel adapter
 // defaults to it since multi-instance hosting requires it.
 export class PostgresRateLimiter implements RateLimiter {
   constructor(

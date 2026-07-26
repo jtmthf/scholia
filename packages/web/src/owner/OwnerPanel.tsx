@@ -180,7 +180,7 @@ export function OwnerPanel({
             <div class="owner-action-row">
               <div class="owner-action-copy">
                 <strong>Connect a GitHub PR</strong>
-                <span>Install the Collab GitHub App to create PR-backed Sites.</span>
+                <span>Install the Scholia GitHub App to create PR-backed Sites.</span>
               </div>
               <a
                 class="btn-secondary"

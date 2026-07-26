@@ -23,5 +23,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // deliveries. No-op without GitHub config.
   app.startDrain();
   serve({ fetch: app.fetch, port });
-  console.log(`[collab] server listening on http://localhost:${port}`);
+  console.log(`[scholia] server listening on http://localhost:${port}`);
 }

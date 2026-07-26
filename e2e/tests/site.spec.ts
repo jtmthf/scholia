@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { API_URL, FIXTURE_SITE } from "../helpers/env.js";
 import { runShare, type SharedSite } from "../helpers/share.js";
 
-// One shared Site for the whole file: `collab share <folder>` runs once, then the
+// One shared Site for the whole file: `scholia share <folder>` runs once, then the
 // browser assertions exercise the viewer + content origin against it.
 let site: SharedSite;
 
@@ -18,12 +18,12 @@ test("publishes via the CLI and resolves the Entry Page", () => {
 test("renders the Entry Page inside the sandboxed iframe", async ({ page }) => {
   await page.goto(`/s/${site.slug}`);
 
-  await expect(page.locator(".chrome .brand")).toHaveText("collab");
+  await expect(page.locator(".chrome .brand")).toHaveText("scholia");
   await expect(page.locator(".chrome .version")).toHaveText("v1");
-  await expect(page.locator(".chrome .doc-title")).toHaveText("Welcome to Collab");
+  await expect(page.locator(".chrome .doc-title")).toHaveText("Welcome to Scholia");
 
   const frame = page.frameLocator("iframe.content");
-  await expect(frame.locator("article.markdown-body h1")).toHaveText("Welcome to Collab");
+  await expect(frame.locator("article.markdown-body h1")).toHaveText("Welcome to Scholia");
 });
 
 test("shows the Nav tree and navigates client-side", async ({ page }) => {
@@ -32,7 +32,7 @@ test("shows the Nav tree and navigates client-side", async ({ page }) => {
   const nav = page.locator("nav.nav");
   await expect(nav).toBeVisible();
   // README floats to the top; the guide/ directory holds the two nested Pages.
-  await expect(nav.getByRole("link", { name: "Welcome to Collab" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Welcome to Scholia" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Intro" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Advanced" })).toBeVisible();
 
@@ -54,8 +54,8 @@ test("rewrites inter-Page links to top-navigate the viewer route", async ({ page
   await link.click();
 
   await expect(page).toHaveURL(new RegExp(`/s/${site.slug}/guide/intro\\.md$`));
-  // The Collab chrome persists — the top frame is the viewer, not the raw doc.
-  await expect(page.locator(".chrome .brand")).toHaveText("collab");
+  // The Scholia chrome persists — the top frame is the viewer, not the raw doc.
+  await expect(page.locator(".chrome .brand")).toHaveText("scholia");
   await expect(frame.locator("h1")).toHaveText("Intro");
 });
 

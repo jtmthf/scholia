@@ -1,5 +1,5 @@
 {
-  "name": "@collab/client",
+  "name": "@scholia/client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@collab/core": "workspace:*",
+    "@scholia/core": "workspace:*",
     "fflate": "^0.8.2"
   }
 }

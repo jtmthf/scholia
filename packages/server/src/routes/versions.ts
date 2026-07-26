@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { diffLines } from "@collab/core";
+import { diffLines } from "@scholia/core";
 import {
   getLatestVersionId,
   getManifestByOrdinal,
@@ -8,7 +8,7 @@ import {
   setLastSeen,
   summaryForViewer,
   type PageEntry,
-} from "@collab/db";
+} from "@scholia/db";
 import type { AppDeps } from "../config.js";
 
 const decoder = new TextDecoder();

@@ -4,12 +4,17 @@ All notable changes to the `scholia` CLI are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Only the published package (`scholia`) is versioned. The `@collab/*` workspace packages
+Only the published package (`scholia`) is versioned. The `@scholia/*` workspace packages
 are internal and unpublished; changes to them appear here only where they affect the CLI.
 
 ## [Unreleased]
 
 ## [0.1.0] — 2026-07-25
+
+> **Update (2026-07-26):** `COLLAB_HOSTED` and `@collab/core` below refer to what
+> are now `SCHOLIA_HOSTED` and `@scholia/core` (workspace/env-var rename, issue
+> #15). Left as originally written — this entry records what the 0.1.0 release
+> actually shipped.
 
 First release. Ships **Local Preview** only: `scholia <path>` renders a local markdown
 file or folder in your browser. No network calls, no account, no credentials.

@@ -4,6 +4,9 @@
 
 accepted
 
+> **Update (2026-07-26):** `COLLAB_*` env vars below refer to what are now
+> `SCHOLIA_*` (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 ADR-0011 picked Hono partly because it "deploys to Cloudflare Workers, matching the

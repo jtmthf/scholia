@@ -2,10 +2,10 @@
 // localStorage-grade, same as Viewer identity (ADR-0006).
 // This token confers full owner write capability (ADR-0005); NEVER expose it
 // to human reviewers — they receive the Share URL, not the Agent URL.
-// Key: collab:owner:<slug> → token string
+// Key: scholia:owner:<slug> → token string
 
 function storageKey(slug: string): string {
-  return `collab:owner:${slug}`;
+  return `scholia:owner:${slug}`;
 }
 
 export function getOwnerToken(slug: string): string | null {

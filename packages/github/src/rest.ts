@@ -1,4 +1,4 @@
-// The GitHub REST/GraphQL surface `@collab/github` needs for mirroring (ADR-0008/0009).
+// The GitHub REST/GraphQL surface `@scholia/github` needs for mirroring (ADR-0008/0009).
 // One interface, two impls: `HttpGitHubApi` (real, App-installation authed) and
 // `FakeGitHubApi` (in-memory record + assertions for tests). The provider layer
 // (provider.ts) and fetch.ts depend only on this interface.
@@ -690,7 +690,7 @@ export class FakeGitHubApi implements GitHubApi {
       originalSide: input.side,
       inReplyToId: input.inReplyTo ?? null,
       commitId: input.commitId,
-      user: { login: "collab-bot[bot]", avatarUrl: null },
+      user: { login: "scholia-bot[bot]", avatarUrl: null },
       body: input.body,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -710,7 +710,7 @@ export class FakeGitHubApi implements GitHubApi {
     const url = `https://github.com/${repoKey(repo)}/issues/${prNumber}#issuecomment-${id}`;
     const created: CreatedComment = { id, nodeId, url };
     this.createdIssueComments.push({ repo, pr: prNumber, body, created });
-    state.issueComments.push({ id, nodeId, url, body, authorLogin: "collab-bot[bot]" } );
+    state.issueComments.push({ id, nodeId, url, body, authorLogin: "scholia-bot[bot]" } );
     return created;
   }
 

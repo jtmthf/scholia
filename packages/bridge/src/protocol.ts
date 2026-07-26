@@ -1,5 +1,5 @@
 // The versioned parent <-> iframe postMessage protocol (ADR-0003, PLAN §5 M4/M5).
-// The Collab chrome (viewer) is the parent document; Page content runs in a
+// The Scholia chrome (viewer) is the parent document; Page content runs in a
 // sandboxed cross-origin iframe. Because the iframe is an opaque origin, every
 // message is wrapped in a namespaced, versioned envelope so each side can
 // reject foreign or version-skewed messages.
@@ -14,11 +14,11 @@
 // forward-compatible (unknown variants are dropped by `isEnvelope` consumers).
 //
 // Anchoring wire types (`TextQuote`, `SelectionCandidate`) are imported as
-// TYPE-ONLY from @collab/core so they are erased before the iframe bundle is
+// TYPE-ONLY from @scholia/core so they are erased before the iframe bundle is
 // built (esbuild never pulls core's runtime into the inlined content script).
-import type { TextQuote, SelectionCandidate } from "@collab/core";
+import type { TextQuote, SelectionCandidate } from "@scholia/core";
 
-export const BRIDGE_NAMESPACE = "collab-bridge" as const;
+export const BRIDGE_NAMESPACE = "scholia-bridge" as const;
 export const BRIDGE_PROTOCOL_VERSION = 1 as const;
 
 export type Theme = "light" | "dark";

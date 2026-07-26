@@ -49,7 +49,7 @@ test("select -> comment creates an anchored public Thread in the rail", async ({
   await expect(card.locator(".thread-anchor-quote")).toContainText(quoted.slice(0, 12));
 
   // The anchor resolved + highlighted inside the content iframe (CSS Custom
-  // Highlight API registers a "collab-anchor" highlight rather than mutating DOM).
+  // Highlight API registers a "scholia-anchor" highlight rather than mutating DOM).
   await expect
     .poll(
       () =>
@@ -58,7 +58,7 @@ test("select -> comment creates an anchored public Thread in the rail", async ({
           .evaluate(() => {
             const h = (globalThis as unknown as { CSS?: { highlights?: { has(n: string): boolean } } })
               .CSS?.highlights;
-            return h ? h.has("collab-anchor") : false;
+            return h ? h.has("scholia-anchor") : false;
           }),
       { timeout: 10_000 },
     )

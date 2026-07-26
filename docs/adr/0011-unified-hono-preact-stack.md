@@ -4,6 +4,10 @@
 
 accepted (supersedes the Fastify + React choices in PLAN §1)
 
+> **Update (2026-07-26):** "collab"/`@collab/*` below refers to what is now
+> named Scholia/`@scholia/*` (workspace/env-var rename, issue #15). Left as
+> originally written.
+
 ## Context & Decision
 
 collab (greenfield, design-only) and mdttp (a shipping local markdown dev server) were

@@ -1,7 +1,7 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { unzipSync } from "fflate";
-import { classifyFile, hashBytes } from "@collab/core";
+import { classifyFile, hashBytes } from "@scholia/core";
 
 export interface CollectedFile {
   path: string;

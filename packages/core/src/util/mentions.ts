@@ -27,7 +27,7 @@ export function parseMentions(body: string): string[] {
 // of `@owner-agent`. The possessive "'s" is dropped (Owner's → owner) so the natural
 // handle a human types (`@owner-agent`) routes to the default "Owner's agent" label;
 // remaining apostrophes are stripped and every other run of non-alphanumerics
-// collapses to a single hyphen. Keep in sync with `normalizeMention` in @collab/db.
+// collapses to a single hyphen. Keep in sync with `normalizeMention` in @scholia/db.
 export function mentionsMatch(target: string, identityName: string): boolean {
   const norm = (s: string) =>
     s

@@ -1,10 +1,10 @@
-// Inbound importer (ADR-0008): turn normalized `InboundEvent`s into Collab
+// Inbound importer (ADR-0008): turn normalized `InboundEvent`s into Scholia
 // Conversations + Comments + `comment_mirrors` rows. DB stays authoritative;
-// the importer emits NO outbound event (origin is github — read-only on Collab
+// the importer emits NO outbound event (origin is github — read-only on Scholia
 // side, ADR origin-owns). Each event is processed in its own transaction to
 // avoid half-imported state.
 
-import type { Db } from "@collab/db";
+import type { Db } from "@scholia/db";
 import {
   createConversation,
   addComment,
@@ -16,17 +16,17 @@ import {
   getLatestVersionId,
   setResolved,
   type Identity,
-} from "@collab/db";
-import type { BlobStore, Anchor, TextQuote } from "@collab/core";
-import { schema } from "@collab/db";
+} from "@scholia/db";
+import type { BlobStore, Anchor, TextQuote } from "@scholia/core";
+import { schema } from "@scholia/db";
 import { and, eq } from "drizzle-orm";
-import type { InboundEvent } from "@collab/github";
+import type { InboundEvent } from "@scholia/github";
 
 export interface ImporterDeps {
   db: Db;
   store: BlobStore;
   /**
-   * The GitHub App's own bot login (e.g. "collab-bot[bot]"), when GitHub is
+   * The GitHub App's own bot login (e.g. "scholia-bot[bot]"), when GitHub is
    * configured. Comments authored by the bot are never imported — without this
    * backstop, a fast webhook redelivery of our own outbound comment (arriving
    * before its comment_mirrors row is marked synced) would echo back in as a
@@ -238,11 +238,11 @@ async function handleDeleted(
   if (!mirror) return false; // unknown comment — nothing to delete
 
   if (mirror.commentOrigin === "github") {
-    // The comment was authored on GitHub → tombstone it in Collab.
+    // The comment was authored on GitHub → tombstone it in Scholia.
     await tombstoneComment(deps.db, mirror.commentId);
   } else {
-    // The comment was authored in Collab (our bot pushed it) → detach the mirror.
-    // The Collab comment stays intact; we just stop tracking the external link.
+    // The comment was authored in Scholia (our bot pushed it) → detach the mirror.
+    // The Scholia comment stays intact; we just stop tracking the external link.
     await detachMirror(deps.db, { commentId: mirror.commentId, provider: "github" });
   }
   return true;

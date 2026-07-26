@@ -2,13 +2,13 @@
  * Local Preview chrome — ADR-0016 "editorial visual identity".
  *
  * Palette, type families/scale, radii, spacing, and the layout figures below
- * come from @collab/theme (tokens.css + type.css); this file only adds the
+ * come from @scholia/theme (tokens.css + type.css); this file only adds the
  * Local Preview-specific chrome (topbar, Nav, Outline, search, alerts,
  * shiki) built on top of those tokens. Don't redefine a value that already
  * has a token — reference it instead.
  */
-@import "@collab/theme/tokens.css";
-@import "@collab/theme/type.css";
+@import "@scholia/theme/tokens.css";
+@import "@scholia/theme/type.css";
 
 :root {
   /* Local-only aliases: not part of the shared token set, but derived from
@@ -84,7 +84,7 @@ a:hover { text-decoration: underline; }
 
 /* ---- Search ---- */
 .search { position: relative; flex: 1; max-width: 420px; }
-#collab-search {
+#scholia-search {
   width: 100%;
   padding: 7px var(--space-3);
   border: 1px solid var(--color-rule);

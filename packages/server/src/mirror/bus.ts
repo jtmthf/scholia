@@ -11,20 +11,20 @@
 //
 // The bus is injectable on `AppDeps`; tests and local dev use `NoopMirrorBus`.
 
-import type { Db } from "@collab/db";
+import type { Db } from "@scholia/db";
 import {
   bumpMirrorAttempts,
   getMirrorRow,
   pendingMirrorRows,
   touchMirrorRow,
-} from "@collab/db";
+} from "@scholia/db";
 import type {
   MirrorBinding,
   MirrorContext,
   MirrorEvent,
   MirrorProvider,
-} from "@collab/core";
-import { isGitHubMirror } from "@collab/core";
+} from "@scholia/core";
+import { isGitHubMirror } from "@scholia/core";
 
 // The serialized form of a MirrorEvent stored on `comment_mirrors.payload` for
 // replay-by-row on startup. Includes its identity/anchor since the source rows
@@ -223,7 +223,7 @@ function serializeEvent(event: MirrorEvent, commentId: string): MirrorEvent {
       author: c.author,
       body: c.body,
       anchor: c.anchor,
-      origin: "collab",
+      origin: "scholia",
     } as MirrorEvent;
   }
   return event;

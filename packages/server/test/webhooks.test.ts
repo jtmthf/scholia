@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import { createHmac } from "node:crypto";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema, type Db, upsertGitHubInstallation, getMirrorRow } from "@collab/db";
-import { hashBytes, FsBlobStore } from "@collab/core";
-import { FakeGitHubApi } from "@collab/github";
+import { schema, type Db, upsertGitHubInstallation, getMirrorRow } from "@scholia/db";
+import { hashBytes, FsBlobStore } from "@scholia/core";
+import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
 import { importInbound } from "../src/mirror/importer.js";
@@ -127,7 +127,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
     sql = postgres(DB_URL!, { max: 1 });
     db = drizzle(sql, { schema }) as unknown as Db;
     await migrateWithLock(sql, db as unknown as ReturnType<typeof drizzle>, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-inbound-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-inbound-"));
 
     // Seed the fake GitHub API.
     fakeApi = new FakeGitHubApi();
@@ -156,7 +156,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       db,
       config: {
         appId: "1",
-        appSlug: "collab",
+        appSlug: "scholia",
         privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET,
         apiBase: "https://api.github.com",
@@ -173,7 +173,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       mirror: [provider],
       github: {
         appId: "1",
-        appSlug: "collab",
+        appSlug: "scholia",
         privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET,
         apiBase: "https://api.github.com",
@@ -296,14 +296,14 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
     // The outbound dispatch creates a comment_mirrors row with the external id
     // of the bot-created GitHub comment. When the webhook fires for that same
     // external id (the echo), `mirrorExistsByExternal` returns true → skip.
-    // We simulate this by inserting a mirror row for a "collab" origin comment,
+    // We simulate this by inserting a mirror row for a "scholia" origin comment,
     // then sending the webhook for the same external id.
 
-    // First, create a Collab-origin comment via the outbound dispatch path
+    // First, create a Scholia-origin comment via the outbound dispatch path
     // (we already have one from the outbound test — but that's a different test
     // suite. Let's just create a thread + mirror row manually.)
-    const { createConversation, touchMirrorRow, getLatestVersionId } = await import("@collab/db");
-    const { getSiteBySlug } = await import("@collab/db");
+    const { createConversation, touchMirrorRow, getLatestVersionId } = await import("@scholia/db");
+    const { getSiteBySlug } = await import("@scholia/db");
     const site = await getSiteBySlug(db, siteSlug);
     const latest = await getLatestVersionId(db, site!.id);
     const result = await createConversation(db, {
@@ -314,12 +314,12 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       anchor: null,
       firstComment: {
         versionId: latest!.id,
-        body: "Collab-origin comment",
+        body: "Scholia-origin comment",
         author: { name: "Jane", kind: "human", tier: "viewer", source: "native" },
         authorViewerId: null,
       },
     });
-    // Simulate an outbound mirror row (origin=collab, externalId=id(5)).
+    // Simulate an outbound mirror row (origin=scholia, externalId=id(5)).
     await touchMirrorRow(db, {
       commentId: result.firstCommentId,
       provider: "github",
@@ -345,7 +345,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
 
   test("deleted on a github-origin comment → tombstone", async () => {
     // The comment imported in the first test (externalId=id(1)) is github-origin.
-    // Send a deleted webhook for it → the Collab comment should be tombstoned.
+    // Send a deleted webhook for it → the Scholia comment should be tombstoned.
     const payload = deletedPayload(id(1));
     const res = await app.request("/webhooks/github", {
       method: "POST",
@@ -360,7 +360,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
     expect((await res.json() as any).accepted).toBe(1);
 
     // Verify the comment is now tombstoned (deletedAt set).
-    const { schema } = await import("@collab/db");
+    const { schema } = await import("@scholia/db");
     const { eq, isNull } = await import("drizzle-orm");
     const [row] = await db
       .select({ deletedAt: schema.comments.deletedAt })
@@ -371,8 +371,8 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
     expect(row?.deletedAt).not.toBeNull();
   });
 
-  test("deleted on a collab-origin mirror → detach (status=detached)", async () => {
-    // The echo-loop test created a collab-origin comment with externalId=id(5).
+  test("deleted on a scholia-origin mirror → detach (status=detached)", async () => {
+    // The echo-loop test created a scholia-origin comment with externalId=id(5).
     // Send a deleted webhook for it → the mirror should be detached, comment intact.
     const payload = deletedPayload(id(5));
     const res = await app.request("/webhooks/github", {
@@ -389,7 +389,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
 
     // Verify the mirror row is detached (query by externalId since we don't
     // have the commentId directly).
-    const { schema } = await import("@collab/db");
+    const { schema } = await import("@scholia/db");
     const { eq } = await import("drizzle-orm");
     const [row] = await db
       .select({ commentId: schema.commentMirrors.commentId, status: schema.commentMirrors.status })
@@ -398,7 +398,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
       .limit(1);
     expect(row?.status).toBe("detached");
 
-    // The Collab comment itself is NOT deleted (still has body "Collab-origin comment").
+    // The Scholia comment itself is NOT deleted (still has body "Scholia-origin comment").
     const [cmt] = await db
       .select({ deletedAt: schema.comments.deletedAt })
       .from(schema.comments)
@@ -413,7 +413,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
     const db2 = drizzle(sql2, { schema }) as unknown as Db;
     const app2 = createApp({
       db: db2,
-      store: new FsBlobStore(await mkdtemp(join(tmpdir(), "collab-blobs-nosig-"))),
+      store: new FsBlobStore(await mkdtemp(join(tmpdir(), "scholia-blobs-nosig-"))),
       publicUrl: "http://content.test",
       viewerUrl: "http://viewer.test",
       // No github config → webhook secret is unset.
@@ -453,20 +453,20 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
         api: fakeApi,
         db,
         config: {
-          appId: "1", appSlug: "collab", privateKeyPem: "fake",
+          appId: "1", appSlug: "scholia", privateKeyPem: "fake",
           webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
           reconcileIntervalMs: 60_000,
         },
       })],
       github: {
-        appId: "1", appSlug: "collab", privateKeyPem: "fake",
+        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     } as any;
 
     // Resolve the test's site id.
-    const { getSiteBySlug } = await import("@collab/db");
+    const { getSiteBySlug } = await import("@scholia/db");
     const site = await getSiteBySlug(db, siteSlug);
     expect(site).toBeTruthy();
 
@@ -485,10 +485,10 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
   });
 
   test("pull_request_review_thread resolved webhook → Conversation resolved", async () => {
-    // Create a Collab-origin Thread with a synced mirror row (as if it were
+    // Create a Scholia-origin Thread with a synced mirror row (as if it were
     // already mirrored outbound), then resolve it natively on GitHub.
     const { createConversation, touchMirrorRow, getLatestVersionId, getSiteBySlug, schema } =
-      await import("@collab/db");
+      await import("@scholia/db");
     const site = await getSiteBySlug(db, siteSlug);
     const latest = await getLatestVersionId(db, site!.id);
     const result = await createConversation(db, {
@@ -570,7 +570,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
     // Create a Thread with a synced mirror row, mirroring what an outbound
     // dispatch would have produced.
     const { createConversation, touchMirrorRow, getLatestVersionId, getSiteBySlug, schema } =
-      await import("@collab/db");
+      await import("@scholia/db");
     const site = await getSiteBySlug(db, siteSlug);
     const latest = await getLatestVersionId(db, site!.id);
     const result = await createConversation(db, {
@@ -609,13 +609,13 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
         api: fakeApi,
         db,
         config: {
-          appId: "1", appSlug: "collab", privateKeyPem: "fake",
+          appId: "1", appSlug: "scholia", privateKeyPem: "fake",
           webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
           reconcileIntervalMs: 60_000,
         },
       })],
       github: {
-        appId: "1", appSlug: "collab", privateKeyPem: "fake",
+        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },

@@ -1,9 +1,9 @@
-// Map a Collab Anchor's source range (char offsets in the canonical source) to a
+// Map a Scholia Anchor's source range (char offsets in the canonical source) to a
 // 1-based line range at the PR head commit, for GitHub review-comment placement.
 // GitHub's `line` parameter is 1-based and refers to the right side of the diff;
 // we use the END line so a multi-line selection lands on its closing line.
 
-import type { SourceRange } from "@collab/core";
+import type { SourceRange } from "@scholia/core";
 
 export interface LineRange {
   startLine: number;

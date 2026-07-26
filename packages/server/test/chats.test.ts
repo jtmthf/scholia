@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema } from "@collab/db";
-import { FsBlobStore, hashBytes } from "@collab/core";
+import { schema } from "@scholia/db";
+import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { migrateWithLock } from "./helpers/migrate.js";
 
@@ -17,7 +17,7 @@ const DB_URL = process.env.DATABASE_URL;
 const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
 
 const enc = new TextEncoder();
-const README_MD = "# Hello\n\nThis is a paragraph about **chats** in collab.\n";
+const README_MD = "# Hello\n\nThis is a paragraph about **chats** in scholia.\n";
 
 describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
   let sql: ReturnType<typeof postgres>;
@@ -28,7 +28,7 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m8-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m8-"));
     app = createApp({
       db,
       store: new FsBlobStore(blobDir),

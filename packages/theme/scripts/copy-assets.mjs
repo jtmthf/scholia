@@ -1,5 +1,5 @@
 // Vendors the three variable-weight woff2 faces this package's type.css
-// declares @font-face for, so Local Preview (and any other @collab/theme
+// declares @font-face for, so Local Preview (and any other @scholia/theme
 // consumer) never fetches fonts over the network. Mirrors the pattern
 // packages/local/scripts/copy-assets.mjs uses for KaTeX: resolve the
 // installed npm package on disk, then copy the specific file(s) needed.
@@ -45,10 +45,10 @@ async function main() {
     await copyFile(srcPath, join(outDir, dest));
   }
 
-  console.log(`[collab] vendored ${FONTS.length} fonts -> packages/theme/fonts`);
+  console.log(`[scholia] vendored ${FONTS.length} fonts -> packages/theme/fonts`);
 }
 
 main().catch((err) => {
-  console.error("[collab] copy-assets failed:", err);
+  console.error("[scholia] copy-assets failed:", err);
   process.exit(1);
 });

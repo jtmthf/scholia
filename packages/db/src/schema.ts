@@ -1,4 +1,4 @@
-// Drizzle schema for collab's mutable metadata (PLAN §3, ADR-0004). Immutable
+// Drizzle schema for scholia's mutable metadata (PLAN §3, ADR-0004). Immutable
 // content (raw sources, rendered HTML, serialized Source Maps) lives in the
 // content-addressed blob store, not here — these tables only reference blobs by
 // their content hash.
@@ -24,7 +24,7 @@ export const tokenKind = pgEnum("token_kind", ["owner", "viewer"]);
 export const manifestKind = pgEnum("manifest_kind", ["markdown", "html", "asset"]);
 export const visibility = pgEnum("visibility", ["private", "public"]);
 export const anchorStatus = pgEnum("anchor_status", ["live", "outdated"]);
-export const commentOrigin = pgEnum("comment_origin", ["collab", "github"]);
+export const commentOrigin = pgEnum("comment_origin", ["scholia", "github"]);
 export const mirrorStatus = pgEnum("mirror_status", [
   "pending",
   "synced",
@@ -174,7 +174,7 @@ export const comments = pgTable("comments", {
     .notNull()
     .references(() => versions.id),
   author: jsonb("author").$type<Identity>().notNull(),
-  origin: commentOrigin("origin").notNull().default("collab"),
+  origin: commentOrigin("origin").notNull().default("scholia"),
   body: text("body").notNull(),
   editedAt: timestamp("edited_at", { withTimezone: true }),
   deletedAt: timestamp("deleted_at", { withTimezone: true }), // tombstone

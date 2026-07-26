@@ -1,4 +1,4 @@
-// @collab/db — Drizzle schema + client for collab's mutable metadata.
+// @scholia/db — Drizzle schema + client for scholia's mutable metadata.
 export * as schema from "./schema.js";
 export * from "./schema.js";
 export { createDb, type Db } from "./client.js";

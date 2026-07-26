@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema, type Db } from "@collab/db";
-import { FsBlobStore, hashBytes } from "@collab/core";
+import { schema, type Db } from "@scholia/db";
+import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { FixedWindowRateLimiter, NoopRateLimiter } from "../src/rate-limit.js";
 import type { InputDeps } from "../src/app.js";
@@ -20,7 +20,7 @@ const DB_URL = process.env.DATABASE_URL;
 const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
 
 const enc = new TextEncoder();
-const README_MD = "# Hello M9\n\nA paragraph about **moderation** in collab.\n";
+const README_MD = "# Hello M9\n\nA paragraph about **moderation** in scholia.\n";
 
 describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
   let sql: ReturnType<typeof postgres>;
@@ -32,7 +32,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     sql = postgres(DB_URL!, { max: 1 });
     db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m9-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m9-"));
     // Default app: no upload caps, a no-op limiter so the moderation tests aren't
     // throttled. Rate limiting + caps are exercised via bespoke apps below.
     app = createApp({

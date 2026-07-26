@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
-import { buildNav, pickEntryPath, type ContentSourceFetch, type MirrorBinding } from "@collab/core";
+import { buildNav, pickEntryPath, type ContentSourceFetch, type MirrorBinding } from "@scholia/core";
 import {
   addVersionWithManifest,
   createSiteWithVersion,
@@ -17,7 +17,7 @@ import {
   rotateSlug,
   setSiteState,
   type Provenance,
-} from "@collab/db";
+} from "@scholia/db";
 import type { AppDeps } from "../config.js";
 import { contentBaseFor } from "../content-origin.js";
 import { hashToken, mintToken, randomSlug } from "../tokens.js";
@@ -85,7 +85,7 @@ async function storeFetchedFiles(
   deps: AppDeps,
   files: { path: string; bytes: Uint8Array }[],
 ): Promise<FileEntry[]> {
-  const { hashBytes } = await import("@collab/core");
+  const { hashBytes } = await import("@scholia/core");
   const out: FileEntry[] = [];
   for (const f of files) {
     const kind: FileEntry["kind"] = /\.(md)$/i.test(f.path)
@@ -102,7 +102,7 @@ async function storeFetchedFiles(
   return out;
 }
 
-// `collab share` and `GET /sites/:slug`. M3: multi-page Sites with blob
+// `scholia share` and `GET /sites/:slug`. M3: multi-page Sites with blob
 // negotiation. M6: re-upload → new Version (`POST /sites/:slug/versions`) +
 // per-Version permalinks (`GET /sites/:slug?v=<ordinal>`).
 export function sitesRoutes(getDeps: () => AppDeps) {
@@ -153,7 +153,7 @@ export function sitesRoutes(getDeps: () => AppDeps) {
       if (!install) {
         throw {
           status: 409,
-          error: `install the Collab GitHub App on ${body.contentSource.repo} to create a PR-backed Site`,
+          error: `install the Scholia GitHub App on ${body.contentSource.repo} to create a PR-backed Site`,
         };
       }
     }
@@ -579,7 +579,7 @@ export function sitesRoutes(getDeps: () => AppDeps) {
     const actionPlan = steps.join("\n");
 
     const promptText =
-      `You have been granted ${tierLabel} agent access to a Collab Site.\n` +
+      `You have been granted ${tierLabel} agent access to a Scholia Site.\n` +
       `Agent URL: ${agentUrl}\n` +
       `API base: ${apiBase}\n` +
       (token

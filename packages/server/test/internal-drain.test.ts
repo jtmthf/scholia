@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { createApp } from "../src/app.js";
-import type { Db } from "@collab/db";
-import type { BlobStore } from "@collab/core";
+import type { Db } from "@scholia/db";
+import type { BlobStore } from "@scholia/core";
 
 // Unit test for the M11 `/internal/drain` route (ADR-0015): the bearer-auth'd,
 // platform-agnostic drain+reconcile trigger. No mirror providers are
@@ -22,7 +22,7 @@ function baseDeps(internalSecret: string | null) {
 }
 
 describe("/internal/drain", () => {
-  test("404s when COLLAB_INTERNAL_SECRET is unset", async () => {
+  test("404s when SCHOLIA_INTERNAL_SECRET is unset", async () => {
     const app = createApp(baseDeps(null));
     const res = await app.request("/internal/drain", { method: "POST" });
     expect(res.status).toBe(404);

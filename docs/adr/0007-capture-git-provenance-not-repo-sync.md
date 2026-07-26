@@ -4,6 +4,9 @@
 
 accepted (narrowed by ADR-0009 for PR-backed Sites)
 
+> **Update (2026-07-26):** "Collab" below refers to what is now named Scholia
+> (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 Agents (especially a reviewer's agent in a private Chat) answer questions "grounded in the actual code," but their local repo may not match the hosted Version they're reading. To let agents align before grounding — and to give humans a trust signal — `upload`, when run inside a git repo, records best-effort **Provenance** on the Version: repo remote URL, commit SHA, branch, and a dirty-working-tree flag. Provenance is surfaced to agents (fetch/checkout the matching commit, detect drift) and shown to humans.
