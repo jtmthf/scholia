@@ -2,7 +2,7 @@ import { describe, test, expect } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getProvenance } from "../src/provenance.js";
+import { getProvenance } from "@collab/core";
 
 describe("getProvenance", () => {
   test("returns undefined for a directory that is not a git repo", async () => {

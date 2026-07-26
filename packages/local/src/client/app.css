@@ -139,30 +139,6 @@ body.has-nav .layout {
   body.has-nav .layout { grid-template-columns: var(--layout-nav-width) minmax(0, 1fr); }
   .outline { display: none; }
 }
-.nav-backdrop { display: none; }
-
-.nav-pane {
-  position: sticky;
-  top: var(--topbar-height);
-  align-self: start;
-  height: calc(100vh - var(--topbar-height));
-  overflow-y: auto;
-  padding: var(--space-5) var(--space-2) var(--space-5) 0;
-  font-size: var(--font-size-sm);
-}
-.nav-backdrop { display: none; }
-
-.sidebar {
-  position: sticky;
-  top: 57px;
-  align-self: start;
-  height: calc(100vh - 57px);
-  overflow-y: auto;
-  padding: 20px 8px 20px 0;
-  border-right: 1px solid var(--border);
-  font-size: 14px;
-}
-
 @media (max-width: 720px) {
   body.has-nav .layout { grid-template-columns: 1fr; }
   body.has-nav .menu-toggle { display: inline-flex; }
@@ -199,6 +175,46 @@ body.has-nav .layout {
 .nav-dir-label { display: block; font-weight: 600; color: var(--color-muted); padding: 8px 8px 2px; font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em; }
 
 .content { min-width: 0; padding: var(--space-7) 0 80px; }
+
+/* ---- Page header: breadcrumb, title, actions ----
+ * Sits above the sheet, aligned to its width. Chrome, so Public Sans (the
+ * body default) rather than the article's serif. */
+.page-header {
+  max-width: var(--layout-content-width);
+  margin: 0 auto;
+  padding: 0 0 var(--space-5);
+}
+.breadcrumb {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+}
+.breadcrumb a { color: var(--color-muted); }
+.breadcrumb a:hover { color: var(--color-accent); text-decoration: underline; }
+.crumb-sep { margin: 0 6px; }
+.crumb-current { color: var(--color-ink); }
+.page-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-3xl);
+  line-height: var(--line-height-tight);
+  font-weight: 600;
+}
+.page-actions { display: flex; gap: var(--space-2); }
+.btn {
+  background: transparent;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  padding: 6px 12px;
+  line-height: 1.2;
+}
+.btn:hover { background: var(--color-surface); }
+.btn:disabled { opacity: 0.6; cursor: default; }
 
 .outline {
   position: sticky;
@@ -267,10 +283,23 @@ body.has-nav .layout {
 .markdown-body .task-list-item { list-style: none; }
 .markdown-body .task-list-item input { margin: 0 0.5em 0 -1.4em; }
 
+/* ---- Colophon ----
+ * CONTEXT "Colophon": a provenance record, not part of the reading path — so
+ * it sits after the article, quiet and small, and never competes with it. */
+.colophon {
+  max-width: var(--layout-content-width);
+  margin: var(--space-6) auto 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-rule);
+  color: var(--color-muted);
+  font-size: var(--font-size-xs);
+}
+.colophon-sep { margin: 0 8px; }
+
 /* ---- Shiki (dual-theme via CSS variables) ---- */
 .shiki {
   position: relative;
-  background-color: var(--shiki-light-bg) !important;
+  background-color: var(--color-surface);
   padding: 16px;
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -295,7 +324,6 @@ body.has-nav .layout {
 .shiki:hover .copy-btn,
 .shiki .copy-btn:focus-visible { opacity: 1; }
 .shiki, .shiki span { color: var(--shiki-light); }
-html.dark .shiki { background-color: var(--shiki-dark-bg) !important; }
 html.dark .shiki, html.dark .shiki span { color: var(--shiki-dark); }
 
 /* ---- GitHub alerts / admonitions ----

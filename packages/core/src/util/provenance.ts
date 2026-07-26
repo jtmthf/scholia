@@ -19,8 +19,12 @@ async function git(cwd: string, ...args: string[]): Promise<string | undefined> 
   }
 }
 
-// Best-effort git facts for the shared directory (ADR-0007). Returns undefined
-// when the directory is not a git repo or git is absent — never throws.
+// Best-effort git facts for the shared directory (ADR-0007, CONTEXT
+// "Provenance"). Returns undefined when the directory is not a git repo or
+// git is absent — never throws. Shared by `@collab/cli` (frozen onto a
+// Version at upload) and `@collab/local` (read live for the Colophon, so it
+// tracks edits as they happen) — both depend on `@collab/core`, so this is
+// the common home rather than either package depending on the other.
 export async function getProvenance(dir: string): Promise<Provenance | undefined> {
   const sha = await git(dir, "rev-parse", "HEAD");
   if (!sha) return undefined;
