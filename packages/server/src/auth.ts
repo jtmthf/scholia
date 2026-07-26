@@ -5,7 +5,7 @@ import {
   verifyOwnerToken,
   type Identity,
   type SiteRow,
-} from "@collab/db";
+} from "@scholia/db";
 import type { AppDeps } from "./config.js";
 import { hashToken } from "./tokens.js";
 
@@ -59,7 +59,7 @@ export async function authorizeOwner(
 
 // ---- M7: Agent tier ----
 
-// The name Collab uses when an owner-scoped agent supplies no label. Identity is
+// The name Scholia uses when an owner-scoped agent supplies no label. Identity is
 // effectively `token + label` (CONTEXT "Identity").
 const DEFAULT_AGENT_LABEL = "Owner's agent";
 
@@ -71,7 +71,7 @@ export interface AgentAuthOk {
 }
 
 // Resolve + authorize an agent request (Owner tier) for a Site slug, building the
-// Identity Collab attributes its writes to. Agents present the owner token (header
+// Identity Scholia attributes its writes to. Agents present the owner token (header
 // or `?token=`); a per-call `label` distinguishes several agents behind one token
 // and renders with the agent badge (kind:"agent"). On success returns the Site and
 // the composed Identity; otherwise a typed error the route turns into JSON.
@@ -112,7 +112,7 @@ export function hasOwnerToken(c: Context): boolean {
 
 // ---- M8: three-tier actor resolution (ADR-0006) ----
 
-// The Identity Collab attributes a Viewer-scoped agent's writes to (M8 decision):
+// The Identity Scholia attributes a Viewer-scoped agent's writes to (M8 decision):
 // a label defaults to "<display name>'s agent" ("Reviewer's agent" when the
 // Viewer never named itself), on behalf of the reviewer, at the viewer tier.
 export function viewerAgentIdentity(

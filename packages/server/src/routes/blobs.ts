@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { hashBytes, isValidHash } from "@collab/core";
+import { hashBytes, isValidHash } from "@scholia/core";
 import type { AppDeps } from "../config.js";
 
 // Blob negotiation endpoints (PLAN §5 M3). The client calls POST /blobs/diff

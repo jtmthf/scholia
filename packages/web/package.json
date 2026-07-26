@@ -1,5 +1,5 @@
 {
-  "name": "@collab/web",
+  "name": "@scholia/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@collab/bridge": "workspace:*",
-    "@collab/core": "workspace:*",
+    "@scholia/bridge": "workspace:*",
+    "@scholia/core": "workspace:*",
     "preact": "^10.29.2"
   },
   "devDependencies": {

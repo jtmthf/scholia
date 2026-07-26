@@ -1,7 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { connectBridge, type Theme, type BridgeHandle } from "@collab/bridge";
-import type { SelectionCandidate } from "@collab/core";
+import { connectBridge, type Theme, type BridgeHandle } from "@scholia/bridge";
+import type { SelectionCandidate } from "@scholia/core";
 import {
   createChat,
   createConversation,
@@ -183,7 +183,7 @@ export function App() {
   return (
     <div class="viewer">
       <header class="chrome">
-        <span class="brand">collab</span>
+        <span class="brand">scholia</span>
         <span class="doc-title" title={pageTitle}>
           {pageTitle}
         </span>

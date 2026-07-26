@@ -2,14 +2,14 @@
 // after a successful DB write that should mirror to a PR-backed Site's GitHub.
 // Each helper:
 //   1. skips cheaply when the Site isn't PR-backed GitHub, or the mutation is
-//      private (Chats are Collab-only), or the Site state blocks public mutation;
+//      private (Chats are Scholia-only), or the Site state blocks public mutation;
 //   2. builds the `MirrorEvent` from the just-written rows;
 //   3. hands it to `mirrorBus.emit`, which persists a pending `comment_mirrors`
 //      row and dispatches to the provider asynchronously.
 //
 // Emit never throws into the request — failures are caught in the bus.
 
-import type { Anchor, MirrorBinding, MirrorEvent, MirrorIdentity } from "@collab/core";
+import type { Anchor, MirrorBinding, MirrorEvent, MirrorIdentity } from "@scholia/core";
 
 export interface EmitDeps {
   /** null when the Site isn't PR-backed — emit is a no-op then. */
@@ -65,7 +65,7 @@ export function emitCommentCreated(
     author: input.author,
     body: input.body,
     anchor: input.anchor,
-    origin: "collab",
+    origin: "scholia",
   };
   deps.mirrorBus.emit(event);
 }

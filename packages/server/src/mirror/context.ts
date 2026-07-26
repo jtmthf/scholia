@@ -3,13 +3,13 @@
 // bytes from the blob store. The provider uses this to map an Anchor's source
 // range to a line range in the Page at the comment's bound Version.
 
-import { schema } from "@collab/db";
+import { schema } from "@scholia/db";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { and, eq } from "drizzle-orm";
-import type { BlobStore, MirrorContext } from "@collab/core";
+import type { BlobStore, MirrorContext } from "@scholia/core";
 
 interface AppDepsLike {
-  // `db` here is the raw Drizzle client (same shape `@collab/db`'s createDb returns).
+  // `db` here is the raw Drizzle client (same shape `@scholia/db`'s createDb returns).
   db: unknown;
   store: BlobStore;
 }

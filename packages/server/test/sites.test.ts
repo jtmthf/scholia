@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema } from "@collab/db";
-import { FsBlobStore, hashBytes } from "@collab/core";
+import { schema } from "@scholia/db";
+import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { migrateWithLock } from "./helpers/migrate.js";
 
@@ -40,7 +40,7 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m3-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m3-"));
     app = createApp({
       db,
       store: new FsBlobStore(blobDir),
@@ -186,7 +186,7 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
     // Uploaded script preserved (ADR-0003), data-sm stamped, bridge injected.
     expect(entryHtml).toContain("window.__ok=1");
     expect(entryHtml).toContain("data-sm=");
-    expect(entryHtml).toContain("collab-bridge");
+    expect(entryHtml).toContain("scholia-bridge");
     expect(entryHtml).toContain('name="robots"');
     // Inter-page link to the Markdown Page is rewritten to the viewer route.
     expect(entryHtml).toContain(`http://viewer.test/s/${slug}/README.md`);

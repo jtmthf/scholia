@@ -1,22 +1,21 @@
-# Collab
+# Scholia
 
 Zero-config service for hosting markdown/HTML docs and letting humans + AI agents
 collaborate on them through anchored comment threads. TypeScript, Node 22, pnpm
 workspaces, Hono + Preact everywhere.
 
-Three docs carry the design — read the relevant one before non-trivial work; don't
+Two docs carry the design — read the relevant one before non-trivial work; don't
 duplicate them here:
 
 - **`CONTEXT.md`** — the domain language. Use its exact, Capitalized terms (Site,
   Page, Version, Anchor, Conversation/Thread/Chat, Outdated, Promotion, Nav, Source
   Map). Each term has an `_Avoid_` list of words not to use. Match this vocabulary in
   code, comments, and UI.
-- **`PLAN.md`** — the milestone build sequence (tracer-bullet vertical slices).
 - **`docs/adr/`** — the architecture decisions. Skim before changing architecture;
-  record significant decisions as a new ADR. The DB is always authoritative (Collab
+  record significant decisions as a new ADR. The DB is always authoritative (Scholia
   hosts rendered Versions; the git repo stays canonical for source).
 
-## Packages (`packages/*`, all `@collab/*`)
+## Packages (`packages/*`, all `@scholia/*`)
 
 | Package  | Role |
 | -------- | ---- |
@@ -25,7 +24,7 @@ duplicate them here:
 | `server` | Hono REST API + content origin. |
 | `web`    | Preact + Vite viewer SPA (sandboxed content iframe). |
 | `local`  | Local Preview server (Hono), ex-mdttp. |
-| `cli`    | The `collab` command (`collab <path>` previews, `collab share` publishes). |
+| `cli`    | The `scholia` command (`scholia <path>` previews, `scholia share` publishes). |
 | `client`, `mcp`, `github`, `bridge` | Thin clients / integrations over the above. |
 
 ## Commands
@@ -33,11 +32,11 @@ duplicate them here:
 ```sh
 pnpm typecheck                          # tsc across the workspace (this is also "lint")
 pnpm test                               # vitest — but see the Postgres note below
-pnpm --filter @collab/server typecheck  # one package
+pnpm --filter @scholia/server typecheck  # one package
 pnpm e2e                                # Playwright (needs the stack running)
 pnpm dev:server                         # REST API + content origin on :8787
 pnpm dev:web                            # viewer SPA on :5173
-pnpm collab <path>                      # Local Preview
+pnpm scholia <path>                      # Local Preview
 ```
 
 No ESLint/Prettier/Biome — `tsc` is the only check. TS is ESM/NodeNext: **relative
@@ -53,7 +52,7 @@ load `.env.test`, so pass the URL inline:
 ```sh
 docker compose up -d        # Postgres (host port 5544) + MinIO
 pnpm db:migrate
-DATABASE_URL=postgres://collab:collab@127.0.0.1:5544/collab pnpm test
+DATABASE_URL=postgres://scholia:scholia@127.0.0.1:5544/scholia pnpm test
 ```
 
 Postgres is on host port **5544, not 5432** (avoids clashing with a host-managed
@@ -62,8 +61,8 @@ wrong is the most common failure in this repo.
 
 ## Local Preview
 
-`pnpm collab <path>` needs the browser bundle built first (once): `pnpm --filter
-@collab/local build`. Local Preview touches no network, DB, or token.
+`pnpm scholia <path>` needs the browser bundle built first (once): `pnpm --filter
+@scholia/local build`. Local Preview touches no network, DB, or token.
 
 ## Agent skills
 

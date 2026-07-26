@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 // Bundles the `scholia` binary for publishing: cli.ts plus the workspace
-// packages it depends on (@collab/core, @collab/local, @collab/client) are
+// packages it depends on (@scholia/core, @scholia/local, @scholia/client) are
 // inlined into a single dist/cli.js, since those aren't published
 // separately. Real npm dependencies (hono, chokidar, cac, open, ...) stay
 // external — tsup/esbuild leaves node_modules resolution alone by default,
@@ -12,7 +12,7 @@ import { defineConfig } from "tsup";
 // chmods the output +x.
 //
 // dist/assets (the Local Preview browser bundle) is a separate build —
-// `@collab/local`'s own tsup config — copied in by scripts/copy-assets.mjs
+// `@scholia/local`'s own tsup config — copied in by scripts/copy-assets.mjs
 // after this bundle exists. server.ts resolves it via
 // `new URL("../dist/assets/", import.meta.url)`, i.e. relative to wherever
 // this file's own dist/ lives, so the copy target must be dist/assets here.
@@ -22,7 +22,7 @@ export default defineConfig({
   format: ["esm"],
   platform: "node",
   target: "node22",
-  noExternal: [/^@collab\//],
+  noExternal: [/^@scholia\//],
   clean: true,
   dts: false,
   // `import.meta.url`/`__dirname` polyfills (server.ts's ASSETS_DIR uses
@@ -41,7 +41,7 @@ export default defineConfig({
   banner(ctx) {
     if (ctx.format !== "esm") return {};
     return {
-      js: "import { createRequire as __collabCreateRequire } from 'node:module';\nconst require = __collabCreateRequire(import.meta.url);",
+      js: "import { createRequire as __scholiaCreateRequire } from 'node:module';\nconst require = __scholiaCreateRequire(import.meta.url);",
     };
   },
   // Published artifact, not a dev build — `pnpm start` runs from source via

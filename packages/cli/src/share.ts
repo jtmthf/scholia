@@ -1,13 +1,13 @@
 import { stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { CollabClient, collectFiles, loadCredentials, saveCredential } from "@collab/client";
-import type { SiteCreatedResult, VersionAddedResult } from "@collab/client";
-import { getProvenance } from "@collab/core";
+import { ScholiaClient, collectFiles, loadCredentials, saveCredential } from "@scholia/client";
+import type { SiteCreatedResult, VersionAddedResult } from "@scholia/client";
+import { getProvenance } from "@scholia/core";
 import { readSiteLink, writeSiteLink } from "./site-link.js";
 
 export interface ShareOptions {
   server: string;
-  /** Force a brand-new Site even when a `.collab` marker exists. */
+  /** Force a brand-new Site even when a `.scholia` marker exists. */
   forceNew?: boolean;
   /** Re-upload to this specific Site slug (overrides the marker). */
   site?: string;
@@ -39,7 +39,7 @@ function parseRefSpec(spec: string): { repo: string; ref: string } {
   return { repo, ref };
 }
 
-// The directory whose `.collab` marker (and git provenance) governs this target:
+// The directory whose `.scholia` marker (and git provenance) governs this target:
 // the directory itself for a folder, its parent for a single file, cwd for a zip.
 async function linkDirFor(resolved: string): Promise<string> {
   if (resolved.toLowerCase().endsWith(".zip")) return process.cwd();
@@ -47,13 +47,13 @@ async function linkDirFor(resolved: string): Promise<string> {
   return info.isFile() ? dirname(resolved) : resolved;
 }
 
-// `collab share <path>`: promotes local content to a hosted Site (ADR-0010). The
-// FIRST share of a target mints a Site + owner token and drops a `.collab` marker;
-// re-running `collab share` there uploads a NEW Version (CONTEXT "Version") using
+// `scholia share <path>`: promotes local content to a hosted Site (ADR-0010). The
+// FIRST share of a target mints a Site + owner token and drops a `.scholia` marker;
+// re-running `scholia share` there uploads a NEW Version (CONTEXT "Version") using
 // the stored owner token and migrates comments forward. `--new` forces a fresh
 // Site; `--site <slug>` targets a specific one.
 //
-// `collab share --pr owner/repo#123` and `collab share --ref owner/repo@<ref>`
+// `scholia share --pr owner/repo#123` and `scholia share --ref owner/repo@<ref>`
 // create a Site from a GitHub content source — the server fetches the bytes, so no
 // local path is needed (ADR-0009). Re-running re-fetches and appends a Version.
 export async function share(target: string | undefined, options: ShareOptions): Promise<void> {
@@ -65,7 +65,7 @@ export async function share(target: string | undefined, options: ShareOptions): 
       ? { kind: "pr" as const, ...parsePrSpec(options.pr) }
       : { kind: "ref" as const, ...parseRefSpec(options.ref!) };
 
-    // PR/ref-backed Sites don't have a local linkDir for a .collab marker. We
+    // PR/ref-backed Sites don't have a local linkDir for a .scholia marker. We
     // key re-upload on --site (stored credential) just like the local path.
     let targetSlug: string | undefined = options.site;
     if (!targetSlug && !options.forceNew) {
@@ -73,7 +73,7 @@ export async function share(target: string | undefined, options: ShareOptions): 
       // A stored credential from a prior `share --pr` is found via --site.
     }
 
-    const client = new CollabClient({ server });
+    const client = new ScholiaClient({ server });
     if (targetSlug) {
       await refetchSource(server, targetSlug, source);
     } else {
@@ -97,7 +97,7 @@ export async function share(target: string | undefined, options: ShareOptions): 
     if (link && link.server.replace(/\/+$/, "") === server) targetSlug = link.slug;
   }
 
-  const client = new CollabClient({ server });
+  const client = new ScholiaClient({ server });
   await client.uploadBlobs(files);
   const provenance = await getProvenance(linkDir);
 
@@ -109,7 +109,7 @@ export async function share(target: string | undefined, options: ShareOptions): 
 }
 
 async function createSite(
-  client: CollabClient,
+  client: ScholiaClient,
   server: string,
   files: Awaited<ReturnType<typeof collectFiles>>,
   provenance: Awaited<ReturnType<typeof getProvenance>>,
@@ -133,13 +133,13 @@ async function createSite(
     // A marker is a convenience; failing to write it must not fail the share.
   });
 
-  console.log(`\n  collab — published ${fileCount} file${fileCount === 1 ? "" : "s"}`);
+  console.log(`\n  scholia — published ${fileCount} file${fileCount === 1 ? "" : "s"}`);
   console.log(`  ➜  Share URL: ${body.shareUrl}`);
   console.log(`  ➜  Entry:     ${body.entryPath}`);
   console.log(
-    `\n  Owner token saved to ~/.collab/credentials; a .collab marker was written so`,
+    `\n  Owner token saved to ~/.scholia/credentials; a .scholia marker was written so`,
   );
-  console.log(`  re-running \`collab share\` here uploads a new Version.\n`);
+  console.log(`  re-running \`scholia share\` here uploads a new Version.\n`);
 }
 
 async function reupload(
@@ -153,12 +153,12 @@ async function reupload(
   const cred = creds[slug];
   if (!cred?.token) {
     throw new Error(
-      `no owner token for Site "${slug}" in ~/.collab/credentials — cannot upload a new Version. ` +
+      `no owner token for Site "${slug}" in ~/.scholia/credentials — cannot upload a new Version. ` +
         `Use \`--new\` to create a fresh Site instead.`,
     );
   }
 
-  const client = new CollabClient({ server, token: cred.token });
+  const client = new ScholiaClient({ server, token: cred.token });
   const body: VersionAddedResult = await client.addVersion(slug, files, provenance);
 
   // Keep the marker fresh (server may differ from a hand-passed --site).
@@ -169,7 +169,7 @@ async function reupload(
   }).catch(() => {});
 
   const { migrated, outdated } = body.migration;
-  console.log(`\n  collab — published Version ${body.version} of ${body.slug}`);
+  console.log(`\n  scholia — published Version ${body.version} of ${body.slug}`);
   console.log(`  ➜  Share URL: ${body.shareUrl}`);
   console.log(`  ➜  Comments:  ${migrated} migrated, ${outdated} now outdated\n`);
 }
@@ -178,7 +178,7 @@ async function reupload(
 // bytes; the client just sends the content source spec. Provenance is clean
 // (pinned ref/PR head) so we don't collect local git facts.
 async function createSiteFromSource(
-  client: CollabClient,
+  client: ScholiaClient,
   server: string,
   source: { kind: "pr"; repo: string; prNumber: number } | { kind: "ref"; repo: string; ref: string },
 ): Promise<void> {
@@ -193,15 +193,15 @@ async function createSiteFromSource(
   });
 
   const label = source.kind === "pr" ? `PR ${source.repo}#${source.prNumber}` : `${source.repo}@${source.ref}`;
-  console.log(`\n  collab — published from ${label}`);
+  console.log(`\n  scholia — published from ${label}`);
   console.log(`  ➜  Share URL: ${body.shareUrl}`);
   console.log(`  ➜  Entry:     ${body.entryPath}`);
   if (body.mirrorBinding) console.log(`  ➜  Mirror:    ${body.mirrorBinding.repo}#${body.mirrorBinding.prNumber}`);
-  console.log(`\n  Owner token saved to ~/.collab/credentials.`);
+  console.log(`\n  Owner token saved to ~/.scholia/credentials.`);
   if (source.kind === "pr") {
-    console.log(`  Re-run \`collab share --pr ${source.repo}#${source.prNumber} --site ${body.slug}\` to advance.\n`);
+    console.log(`  Re-run \`scholia share --pr ${source.repo}#${source.prNumber} --site ${body.slug}\` to advance.\n`);
   } else {
-    console.log(`  Re-run \`collab share --ref ${source.repo}@${source.ref} --site ${body.slug}\` to advance.\n`);
+    console.log(`  Re-run \`scholia share --ref ${source.repo}@${source.ref} --site ${body.slug}\` to advance.\n`);
   }
 }
 
@@ -215,16 +215,16 @@ async function refetchSource(
   const cred = creds[slug];
   if (!cred?.token) {
     throw new Error(
-      `no owner token for Site "${slug}" in ~/.collab/credentials — cannot upload a new Version. ` +
+      `no owner token for Site "${slug}" in ~/.scholia/credentials — cannot upload a new Version. ` +
         `Use \`--new\` to create a fresh Site instead.`,
     );
   }
 
-  const client = new CollabClient({ server, token: cred.token });
+  const client = new ScholiaClient({ server, token: cred.token });
   const body: VersionAddedResult = await client.refetchSource(slug, source);
 
   const { migrated, outdated } = body.migration;
-  console.log(`\n  collab — published Version ${body.version} of ${body.slug}`);
+  console.log(`\n  scholia — published Version ${body.version} of ${body.slug}`);
   console.log(`  ➜  Share URL: ${body.shareUrl}`);
   console.log(`  ➜  Comments:  ${migrated} migrated, ${outdated} now outdated\n`);
 }

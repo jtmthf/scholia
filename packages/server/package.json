@@ -1,5 +1,5 @@
 {
-  "name": "@collab/server",
+  "name": "@scholia/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,10 +14,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@collab/bridge": "workspace:*",
-    "@collab/core": "workspace:*",
-    "@collab/db": "workspace:*",
-    "@collab/github": "workspace:*",
+    "@scholia/bridge": "workspace:*",
+    "@scholia/core": "workspace:*",
+    "@scholia/db": "workspace:*",
+    "@scholia/github": "workspace:*",
     "@hono/node-server": "^2.0.6",
     "@hono/standard-validator": "^0.2.3",
     "hono": "^4.12.26",

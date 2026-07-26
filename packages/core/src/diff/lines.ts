@@ -5,7 +5,7 @@
 //
 // Dependency-free: a classic Myers/LCS line diff over the two sources. The DiffLine
 // stream is directly renderable (unified style) and carries 1-based line numbers on
-// each side for gutter display. Kept in `@collab/core` (pure, unit-tested) since
+// each side for gutter display. Kept in `@scholia/core` (pure, unit-tested) since
 // diff correctness is a high-value target (PLAN §7).
 
 export type DiffLineType = "context" | "add" | "del";

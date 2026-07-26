@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema } from "@collab/db";
-import { FsBlobStore, hashBytes } from "@collab/core";
+import { schema } from "@scholia/db";
+import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { migrateWithLock } from "./helpers/migrate.js";
 
@@ -36,7 +36,7 @@ describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m6-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m6-"));
     app = createApp({
       db,
       store: new FsBlobStore(blobDir),

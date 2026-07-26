@@ -3,16 +3,16 @@ import { fileURLToPath } from "node:url";
 
 // The suite is environment-agnostic: it points at whatever API + viewer URLs you
 // give it and never assumes a particular host. Defaults target a local stack;
-// override to run against staging (COLLAB_API_URL=https://api.staging... etc).
+// override to run against staging (SCHOLIA_API_URL=https://api.staging... etc).
 function stripSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
-/** REST API + content origin (where `collab share` uploads, where the viewer reads). */
-export const API_URL = stripSlash(process.env.COLLAB_API_URL ?? "http://localhost:8787");
+/** REST API + content origin (where `scholia share` uploads, where the viewer reads). */
+export const API_URL = stripSlash(process.env.SCHOLIA_API_URL ?? "http://localhost:8787");
 
 /** The viewer SPA — Playwright's baseURL and where Share URLs resolve. */
-export const WEB_URL = stripSlash(process.env.COLLAB_WEB_URL ?? "http://localhost:5173");
+export const WEB_URL = stripSlash(process.env.SCHOLIA_WEB_URL ?? "http://localhost:5173");
 
 function isLocal(url: string): boolean {
   try {
@@ -26,7 +26,7 @@ function isLocal(url: string): boolean {
 // Only manage local dev servers when both targets are local and the caller
 // hasn't opted out. Against a remote/staging stack we boot nothing.
 export const MANAGE_SERVERS =
-  process.env.COLLAB_E2E_NO_WEBSERVER !== "1" && isLocal(API_URL) && isLocal(WEB_URL);
+  process.env.SCHOLIA_E2E_NO_WEBSERVER !== "1" && isLocal(API_URL) && isLocal(WEB_URL);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 

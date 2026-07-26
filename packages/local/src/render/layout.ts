@@ -1,4 +1,4 @@
-import { escapeHtml, type Heading, type NavNode, type Provenance } from "@collab/core";
+import { escapeHtml, type Heading, type NavNode, type Provenance } from "@scholia/core";
 
 export interface ColophonInfo {
   /** File path relative to the served root, e.g. "docs/adr/0016-....md". */
@@ -26,7 +26,7 @@ export interface LayoutOptions {
 
 // Inline pre-paint script: apply the saved/system theme before first paint to
 // avoid a flash of the wrong color scheme.
-const THEME_BOOT = `(function(){try{var t=localStorage.getItem('collab-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+const THEME_BOOT = `(function(){try{var t=localStorage.getItem('scholia-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 function renderNav(nodes: NavNode[], currentPath: string): string {
   if (nodes.length === 0) return "";
@@ -87,11 +87,11 @@ function renderPageActions(editorAvailable: boolean, relPath: string): string {
   // No editor resolved at startup: the button is never rendered, rather than
   // rendered and failing on click (ADR-0017).
   const openButton = editorAvailable
-    ? `<button id="collab-open-editor" class="btn" type="button" data-path="${escapeHtml(
+    ? `<button id="scholia-open-editor" class="btn" type="button" data-path="${escapeHtml(
         relPath,
       )}">Open in editor</button>`
     : "";
-  return `<div class="page-actions">${openButton}<button id="collab-copy-md" class="btn" type="button">Copy markdown</button></div>`;
+  return `<div class="page-actions">${openButton}<button id="scholia-copy-md" class="btn" type="button">Copy markdown</button></div>`;
 }
 
 // CONTEXT "Colophon": path, mtime, Provenance — a provenance record, not
@@ -123,7 +123,7 @@ function renderColophon(info: ColophonInfo | null): string {
 // "</script>" nor a "<!--" in the source can affect HTML parsing.
 function renderSourceScript(source: string): string {
   const json = JSON.stringify(source).replace(/</g, "\\u003c");
-  return `<script type="application/json" id="collab-source-md">${json}</script>`;
+  return `<script type="application/json" id="scholia-source-md">${json}</script>`;
 }
 
 export function renderPage(opts: LayoutOptions): string {
@@ -135,7 +135,7 @@ export function renderPage(opts: LayoutOptions): string {
     : "";
 
   const menuToggle = opts.showNav
-    ? `<button id="collab-menu-toggle" class="menu-toggle" type="button" aria-label="Toggle navigation">☰</button>`
+    ? `<button id="scholia-menu-toggle" class="menu-toggle" type="button" aria-label="Toggle navigation">☰</button>`
     : "";
 
   const relPath = opts.colophon?.relPath ?? opts.currentPath.replace(/^\/+/, "");
@@ -156,10 +156,10 @@ export function renderPage(opts: LayoutOptions): string {
     ${menuToggle}
     <span class="brand">${escapeHtml(opts.rootName)}</span>
     <div class="search">
-      <input id="collab-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false">
-      <div id="collab-search-results" class="search-results" hidden></div>
+      <input id="scholia-search" type="search" placeholder="Search docs…" autocomplete="off" spellcheck="false">
+      <div id="scholia-search-results" class="search-results" hidden></div>
     </div>
-    <button id="collab-theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">◐</button>
+    <button id="scholia-theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">◐</button>
   </div>
 </header>
 <div class="layout">

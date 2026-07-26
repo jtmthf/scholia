@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema } from "@collab/db";
-import { FsBlobStore, hashBytes } from "@collab/core";
+import { schema } from "@scholia/db";
+import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { migrateWithLock } from "./helpers/migrate.js";
 
@@ -28,7 +28,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m7-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m7-"));
     app = createApp({
       db,
       store: new FsBlobStore(blobDir),
@@ -597,16 +597,16 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     const html = await res.text();
     expect(html).toContain("Trust");
     expect(html).toContain("untrusted");
-    expect(html).toContain("Collab Agent");
+    expect(html).toContain("Scholia Agent");
   });
 
-  test("GET /collab.SKILL.md returns 200 text/markdown", async () => {
-    const res = await app.request("/collab.SKILL.md");
+  test("GET /scholia.SKILL.md returns 200 text/markdown", async () => {
+    const res = await app.request("/scholia.SKILL.md");
     expect(res.status).toBe(200);
     const ct = res.headers.get("content-type") ?? "";
     expect(ct).toContain("text/markdown");
     const md = await res.text();
-    expect(md).toContain("# Collab Agent Skill");
+    expect(md).toContain("# Scholia Agent Skill");
     expect(md).toContain("list_comments");
     expect(md).toContain("Trust Rules");
   });

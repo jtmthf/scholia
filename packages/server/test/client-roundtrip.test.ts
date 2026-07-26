@@ -5,14 +5,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema } from "@collab/db";
-import { FsBlobStore, hashBytes } from "@collab/core";
+import { schema } from "@scholia/db";
+import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { migrateWithLock } from "./helpers/migrate.js";
-import { CollabClient } from "../../client/src/index.js";
+import { ScholiaClient } from "../../client/src/index.js";
 
-// Integration round-trip tests for @collab/client via an in-process Hono app.
-// CollabClient's fetch calls are intercepted and routed to app.request() so no
+// Integration round-trip tests for @scholia/client via an in-process Hono app.
+// ScholiaClient's fetch calls are intercepted and routed to app.request() so no
 // real network is needed. Requires a Postgres DATABASE_URL; skips without one.
 const DB_URL = process.env.DATABASE_URL;
 const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
@@ -21,9 +21,9 @@ const enc = new TextEncoder();
 
 // The fake server URL the client is configured with — the mock fetch strips this
 // prefix so app.request() sees only the path+query.
-const FAKE_SERVER = "http://collab.test";
+const FAKE_SERVER = "http://scholia.test";
 
-describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
+describe.skipIf(!DB_URL)("M7: ScholiaClient round-trips (in-process)", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
@@ -32,7 +32,7 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-client-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-client-"));
     app = createApp({
       db,
       store: new FsBlobStore(blobDir),
@@ -69,7 +69,7 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
   const README_TEXT = "# Round-trip test site\n\nPage content for client tests.\n";
 
   async function makeClientSite(): Promise<{ slug: string; token: string }> {
-    // Upload blobs manually then create the site via the API (no CollabClient
+    // Upload blobs manually then create the site via the API (no ScholiaClient
     // upload helper needed here — we just need a slug + token).
     const hash = hashBytes(enc.encode(README_TEXT));
     await app.request(`/blobs/diff`, {
@@ -103,7 +103,7 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
 
   // ---- Tests -------------------------------------------------------------
 
-  test("CollabClient.listComments returns { comments: SiteCommentDTO[] }", async () => {
+  test("ScholiaClient.listComments returns { comments: SiteCommentDTO[] }", async () => {
     const { slug, token } = await makeClientSite();
 
     // Seed one comment via the app directly so we have something to list.
@@ -113,7 +113,7 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
       body: JSON.stringify({ pagePath: null, anchor: null, body: "Client list test." }),
     });
 
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
     const result = await client.listComments();
     expect(Array.isArray(result.comments)).toBe(true);
     expect(result.comments.length).toBeGreaterThanOrEqual(1);
@@ -123,7 +123,7 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
     expect(typeof dto.resolved).toBe("boolean");
   });
 
-  test("CollabClient.listComments with unresolved filter", async () => {
+  test("ScholiaClient.listComments with unresolved filter", async () => {
     const { slug, token } = await makeClientSite();
 
     // Create thread, then resolve it.
@@ -146,20 +146,20 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
       body: JSON.stringify({ pagePath: null, anchor: null, body: "Still open." }),
     });
 
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
     const result = await client.listComments({ unresolved: true });
     expect(result.comments.every((c) => c.resolved === false)).toBe(true);
     expect(result.comments.some((c) => c.conversationId === conv.id)).toBe(false);
   });
 
-  test("CollabClient.createThread creates an agent thread", async () => {
+  test("ScholiaClient.createThread creates an agent thread", async () => {
     const { slug, token } = await makeClientSite();
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
 
     const conv = (await client.createThread({
       pagePath: "README.md",
       anchor: { textQuote: { exact: "Round-trip" } },
-      body: "Created via CollabClient.",
+      body: "Created via ScholiaClient.",
       label: "ci-bot",
     })) as any;
 
@@ -168,9 +168,9 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
     expect(conv.anchor?.textQuote?.exact).toBe("Round-trip");
   });
 
-  test("CollabClient.reply adds agent reply to thread", async () => {
+  test("ScholiaClient.reply adds agent reply to thread", async () => {
     const { slug, token } = await makeClientSite();
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
 
     const conv = (await client.createThread({
       body: "Initial thread.",
@@ -178,17 +178,17 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
 
     const reply = (await client.reply({
       conversationId: conv.id,
-      body: "Reply via CollabClient.",
+      body: "Reply via ScholiaClient.",
       label: "ci-bot",
     })) as any;
 
     expect(reply.author.kind).toBe("agent");
-    expect(reply.body).toBe("Reply via CollabClient.");
+    expect(reply.body).toBe("Reply via ScholiaClient.");
   });
 
-  test("CollabClient.react toggles reaction on a comment", async () => {
+  test("ScholiaClient.react toggles reaction on a comment", async () => {
     const { slug, token } = await makeClientSite();
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
 
     const conv = (await client.createThread({
       body: "React target.",
@@ -203,9 +203,9 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
     expect(r2.find((g: any) => g.emoji === "👍")).toBeUndefined();
   });
 
-  test("CollabClient.resolve and reopen a thread", async () => {
+  test("ScholiaClient.resolve and reopen a thread", async () => {
     const { slug, token } = await makeClientSite();
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
 
     const conv = (await client.createThread({
       body: "Resolve via client.",
@@ -219,10 +219,10 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
     expect(reopened.resolved).toBe(false);
   });
 
-  test("CollabClient.deleteComment owner-deletes any comment", async () => {
+  test("ScholiaClient.deleteComment owner-deletes any comment", async () => {
     const { slug, token } = await makeClientSite();
     const viewerId = await mintViewer(slug);
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
 
     // Viewer creates a thread.
     const convRes = await app.request(`/sites/${slug}/conversations`, {
@@ -248,9 +248,9 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
     expect(convs[0].comments[0].deleted).toBe(true);
   });
 
-  test("CollabClient.listVersions returns versions array", async () => {
+  test("ScholiaClient.listVersions returns versions array", async () => {
     const { slug, token } = await makeClientSite();
-    const client = new CollabClient({ server: FAKE_SERVER, token, slug });
+    const client = new ScholiaClient({ server: FAKE_SERVER, token, slug });
 
     const result = (await client.listVersions()) as any;
     expect(Array.isArray(result.versions)).toBe(true);
@@ -258,14 +258,14 @@ describe.skipIf(!DB_URL)("M7: CollabClient round-trips (in-process)", () => {
     expect(result.versions[0].ordinal).toBe(1);
   });
 
-  test("CollabClient request building: authHeaders throws without token", () => {
-    const client = new CollabClient({ server: FAKE_SERVER, slug: "test" });
+  test("ScholiaClient request building: authHeaders throws without token", () => {
+    const client = new ScholiaClient({ server: FAKE_SERVER, slug: "test" });
     // createThread requires a token; without one, should throw immediately.
     expect(() => (client as any).authHeaders()).toThrow("owner token required");
   });
 
-  test("CollabClient request building: requireSlug throws without slug", () => {
-    const client = new CollabClient({ server: FAKE_SERVER, token: "tok" });
+  test("ScholiaClient request building: requireSlug throws without slug", () => {
+    const client = new ScholiaClient({ server: FAKE_SERVER, token: "tok" });
     expect(() => (client as any).requireSlug()).toThrow("site slug required");
   });
 });

@@ -14,7 +14,7 @@ export interface TmpDir {
 // `fixtures/` dir so each test controls exactly the files it relies on.
 export const test = base.extend<{ tmp: TmpDir }>({
   tmp: async ({}, use) => {
-    const root = await mkdtemp(join(tmpdir(), "collab-test-"));
+    const root = await mkdtemp(join(tmpdir(), "scholia-test-"));
     const api: TmpDir = {
       root,
       async write(relPath, contents) {

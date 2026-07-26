@@ -6,10 +6,10 @@ dist/
 coverage/
 
 # local blob store / preview scratch
-.collab/
+.scholia/
 .blobstore/
-# `collab share` site-link marker (a zip share drops one in cwd; never commit it)
-.collab
+# `scholia share` site-link marker (a zip share drops one in cwd; never commit it)
+.scholia
 
 # playwright e2e artifacts
 playwright-report/

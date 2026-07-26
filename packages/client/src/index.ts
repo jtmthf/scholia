@@ -8,9 +8,9 @@ export {
   type CredentialStore,
 } from "./credentials.js";
 export {
-  CollabClient,
+  ScholiaClient,
   resolveCredential,
-  type CollabClientOptions,
+  type ScholiaClientOptions,
   type SiteCreatedResult,
   type VersionAddedResult,
   type Provenance,

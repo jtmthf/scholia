@@ -4,8 +4,8 @@
 // is constructed eagerly so a misconfiguration fails on boot, not mid-request.
 
 import { readFileSync } from "node:fs";
-import { HttpGitHubApi } from "@collab/github";
-import type { MirrorProvider } from "@collab/core";
+import { HttpGitHubApi } from "@scholia/github";
+import type { MirrorProvider } from "@scholia/core";
 import { GitHubMirrorProvider } from "./mirror/github-provider.js";
 
 export interface GitHubOperatorConfig {
@@ -20,7 +20,7 @@ export interface GitHubOperatorConfig {
 
 export function githubFromEnv(): GitHubOperatorConfig | null {
   const appId = process.env.GITHUB_APP_ID?.trim();
-  const slug = process.env.GITHUB_APP_SLUG?.trim() ?? "collab";
+  const slug = process.env.GITHUB_APP_SLUG?.trim() ?? "scholia";
   const key =
     process.env.GITHUB_APP_PRIVATE_KEY?.trim() ||
     (process.env.GITHUB_APP_PRIVATE_KEY_PATH
@@ -43,7 +43,7 @@ export function botLoginFor(config: GitHubOperatorConfig): string {
   return `${config.appSlug}[bot]`;
 }
 
-// Construct the @collab/github provider (installation id resolved lazily per repo
+// Construct the @scholia/github provider (installation id resolved lazily per repo
 // via `findInstallationForRepo`). The bus + a `MirrorContext` builder are wired by
 // the caller; the provider only needs the API client + db.
 export function loadMirrorProviders(opts: {

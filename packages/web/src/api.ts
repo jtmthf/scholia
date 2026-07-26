@@ -216,7 +216,7 @@ export interface ConversationDTO {
 }
 
 // The anchor candidate the viewer submits when starting an anchored Thread.
-// Mirrors `@collab/bridge` SelectionEvent.candidate: the uniquely-expanded quote
+// Mirrors `@scholia/bridge` SelectionEvent.candidate: the uniquely-expanded quote
 // plus the `data-sm` ids it intersects (server maps those to a source range).
 export interface AnchorInput {
   textQuote: TextQuote;

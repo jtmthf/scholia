@@ -4,6 +4,9 @@
 
 accepted
 
+> **Update (2026-07-26):** "collab" below refers to what is now named Scholia
+> (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 mdttp *evaluates* MDX — it runs the file as Preact code — which is fine for Local

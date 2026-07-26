@@ -1,4 +1,4 @@
-// @collab/bridge — the versioned parent <-> iframe postMessage protocol and its
+// @scholia/bridge — the versioned parent <-> iframe postMessage protocol and its
 // two ends: a string-emitted script inlined into the sandboxed content document
 // (server) and a DOM client for the viewer chrome (web). ADR-0003, PLAN §5 M4.
 

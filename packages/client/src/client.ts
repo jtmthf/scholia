@@ -1,7 +1,7 @@
 import type { CollectedFile } from "./collect.js";
 import type { SiteCredential } from "./credentials.js";
 
-export interface CollabClientOptions {
+export interface ScholiaClientOptions {
   server: string;
   /** Bearer token for owner-tier agent writes. */
   token?: string;
@@ -137,12 +137,12 @@ export interface TokenSummary {
   revoked: boolean;
 }
 
-export class CollabClient {
+export class ScholiaClient {
   private server: string;
   private token: string | undefined;
   private slug: string | undefined;
 
-  constructor({ server, token, slug }: CollabClientOptions) {
+  constructor({ server, token, slug }: ScholiaClientOptions) {
     this.server = server.replace(/\/+$/, "");
     this.token = token;
     this.slug = slug;
@@ -160,7 +160,7 @@ export class CollabClient {
   }
 
   private requireSlug(): string {
-    if (!this.slug) throw new Error("site slug required — pass slug to CollabClient constructor");
+    if (!this.slug) throw new Error("site slug required — pass slug to ScholiaClient constructor");
     return this.slug;
   }
 

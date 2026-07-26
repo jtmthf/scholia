@@ -39,7 +39,7 @@ importers:
         specifier: ^4.0.2
         version: 4.0.2
     devDependencies:
-      '@collab/core':
+      '@scholia/core':
         specifier: workspace:*
         version: link:../core
       esbuild:
@@ -55,13 +55,13 @@ importers:
         specifier: ^11.0.0
         version: 11.0.0
     devDependencies:
-      '@collab/client':
+      '@scholia/client':
         specifier: workspace:*
         version: link:../client
-      '@collab/core':
+      '@scholia/core':
         specifier: workspace:*
         version: link:../core
-      '@collab/local':
+      '@scholia/local':
         specifier: workspace:*
         version: link:../local
       fflate:
@@ -76,7 +76,7 @@ importers:
 
   packages/client:
     dependencies:
-      '@collab/core':
+      '@scholia/core':
         specifier: workspace:*
         version: link:../core
       fflate:
@@ -173,21 +173,21 @@ importers:
 
   packages/github:
     dependencies:
-      '@collab/core':
+      '@scholia/core':
         specifier: workspace:*
         version: link:../core
 
   packages/local:
     dependencies:
-      '@collab/core':
-        specifier: workspace:*
-        version: link:../core
-      '@collab/theme':
-        specifier: workspace:*
-        version: link:../theme
       '@hono/node-server':
         specifier: ^2.0.6
         version: 2.0.6(hono@4.12.27)
+      '@scholia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@scholia/theme':
+        specifier: workspace:*
+        version: link:../theme
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -207,12 +207,12 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@collab/client':
-        specifier: workspace:*
-        version: link:../client
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
+      '@scholia/client':
+        specifier: workspace:*
+        version: link:../client
       zod:
         specifier: ^3.24.0
         version: 3.25.76
@@ -223,24 +223,24 @@ importers:
 
   packages/server:
     dependencies:
-      '@collab/bridge':
-        specifier: workspace:*
-        version: link:../bridge
-      '@collab/core':
-        specifier: workspace:*
-        version: link:../core
-      '@collab/db':
-        specifier: workspace:*
-        version: link:../db
-      '@collab/github':
-        specifier: workspace:*
-        version: link:../github
       '@hono/node-server':
         specifier: ^2.0.6
         version: 2.0.6(hono@4.12.27)
       '@hono/standard-validator':
         specifier: ^0.2.3
         version: 0.2.3(@standard-schema/spec@1.1.0)(hono@4.12.27)
+      '@scholia/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@scholia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@scholia/db':
+        specifier: workspace:*
+        version: link:../db
+      '@scholia/github':
+        specifier: workspace:*
+        version: link:../github
       hono:
         specifier: ^4.12.26
         version: 4.12.27
@@ -272,10 +272,10 @@ importers:
 
   packages/web:
     dependencies:
-      '@collab/bridge':
+      '@scholia/bridge':
         specifier: workspace:*
         version: link:../bridge
-      '@collab/core':
+      '@scholia/core':
         specifier: workspace:*
         version: link:../core
       preact:

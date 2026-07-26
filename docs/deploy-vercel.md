@@ -27,10 +27,10 @@ Same variables as self-host (`.env.example`: `DATABASE_URL`, `S3_*`,
 | Var | Notes |
 | --- | --- |
 | `GITHUB_APP_PRIVATE_KEY` | Required (not `_PATH`) if GitHub integration is on — Vercel has no mountable secret-file volume. The adapter throws at boot if `GITHUB_APP_PRIVATE_KEY_PATH` is set. |
-| `COLLAB_INTERNAL_SECRET` | Required. Gates `POST/GET /internal/drain`. Set it to the **same value** as Vercel's `CRON_SECRET` (see below). |
+| `SCHOLIA_INTERNAL_SECRET` | Required. Gates `POST/GET /internal/drain`. Set it to the **same value** as Vercel's `CRON_SECRET` (see below). |
 | `CONTENT_URL` | Set to your wildcard content domain (see below) rather than `PUBLIC_URL`. |
 
-`COLLAB_RATELIMIT_STORE` doesn't need setting — the adapter forces
+`SCHOLIA_RATELIMIT_STORE` doesn't need setting — the adapter forces
 `PostgresRateLimiter` regardless, since the in-memory limiter is silently wrong
 across concurrent Lambda instances. `createDb` opens a `max: 1` pool per
 invocation (a serverless-sized pool, not a persistent-process pool).
@@ -49,7 +49,7 @@ manual/other-scheduler triggering, so no special-casing is needed either way.
 Vercel automatically populates cron-triggered requests with
 `Authorization: Bearer $CRON_SECRET`, using a `CRON_SECRET` System Environment
 Variable Vercel creates for you (Project Settings → Environment Variables).
-Set `COLLAB_INTERNAL_SECRET` to that same value so the route's own bearer check
+Set `SCHOLIA_INTERNAL_SECRET` to that same value so the route's own bearer check
 accepts Vercel's calls. Without GitHub configured, `/internal/drain` still
 responds 200 with `{ drained: false, reconciled: 0 }` — the mirror bus/reconcile
 poll are no-ops without a registered provider.

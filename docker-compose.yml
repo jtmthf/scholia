@@ -4,16 +4,16 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: collab
-      POSTGRES_PASSWORD: collab
-      POSTGRES_DB: collab
+      POSTGRES_USER: scholia
+      POSTGRES_PASSWORD: scholia
+      POSTGRES_DB: scholia
     # Host port 5544 (not 5432) to avoid clashing with a host-managed Postgres.
     ports:
       - "5544:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U collab"]
+      test: ["CMD-SHELL", "pg_isready -U scholia"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,8 +22,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: collab
-      MINIO_ROOT_PASSWORD: collab-secret
+      MINIO_ROOT_USER: scholia
+      MINIO_ROOT_PASSWORD: scholia-secret
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -43,8 +43,8 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 collab collab-secret &&
-      mc mb --ignore-existing local/collab-blobs &&
+      mc alias set local http://minio:9000 scholia scholia-secret &&
+      mc mb --ignore-existing local/scholia-blobs &&
       echo 'bucket ready';
       "
 

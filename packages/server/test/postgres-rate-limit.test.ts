@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema, type Db } from "@collab/db";
+import { schema, type Db } from "@scholia/db";
 import { PostgresRateLimiter } from "../src/rate-limit.js";
 import { migrateWithLock } from "./helpers/migrate.js";
 

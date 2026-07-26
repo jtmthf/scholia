@@ -1,6 +1,6 @@
 // Anonymous Viewer identity — per-Site, stored in localStorage.
 // "private from casual view, not secure" — CONTEXT "Viewer".
-// Key: collab:viewer:<slug> → { viewerId: string; displayName?: string }
+// Key: scholia:viewer:<slug> → { viewerId: string; displayName?: string }
 
 import { mintViewer } from "./api";
 
@@ -10,7 +10,7 @@ interface StoredViewer {
 }
 
 function storageKey(slug: string): string {
-  return `collab:viewer:${slug}`;
+  return `scholia:viewer:${slug}`;
 }
 
 function readStored(slug: string): StoredViewer | null {

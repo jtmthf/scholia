@@ -5,6 +5,11 @@
 accepted (reverses the "no comment chrome" scope in ADR-0010 and `CONTEXT.md`'s
 Local Preview entry)
 
+> **Update (2026-07-26):** `@collab/*` below refers to what is now `@scholia/*`
+> (workspace/env-var rename, issue #15). Left as originally written. Also note
+> the `PLAN.md` citation further down predates the removal of `PLAN.md` from
+> the repo (same change) and is no longer resolvable.
+
 ## Context & Decision
 
 `CONTEXT.md` originally said the locally-served reading view "carries no comment chrome

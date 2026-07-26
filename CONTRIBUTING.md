@@ -8,7 +8,7 @@ things are worth knowing before you spend time on a change.
 The released npm package (`scholia`) is **Local Preview only** — the
 `scholia <path>` command. The hosted side of the project (sharing, anchored
 comment threads, versioning, the agent API) is built in this repo but ships in
-no release yet, and its commands are hidden behind `COLLAB_HOSTED=1`. See
+no release yet, and its commands are hidden behind `SCHOLIA_HOSTED=1`. See
 [Hosted mode](./README.md#hosted-mode-not-shipped-yet).
 
 That means a PR against the hosted path is welcome but won't reach users for a
@@ -28,8 +28,8 @@ pnpm test:ci       # what CI runs
 Run the CLI from source:
 
 ```sh
-pnpm --filter @collab/local build   # build the browser bundle once
-pnpm collab ./path/to/docs
+pnpm --filter @scholia/local build   # build the browser bundle once
+pnpm scholia ./path/to/docs
 ```
 
 ## Things that will trip you up
@@ -51,7 +51,7 @@ the entire hosted suite never executed. To actually run it:
 ```sh
 docker compose up -d        # Postgres (host port 5544) + MinIO
 pnpm db:migrate
-DATABASE_URL=postgres://collab:collab@127.0.0.1:5544/collab pnpm test
+DATABASE_URL=postgres://scholia:scholia@127.0.0.1:5544/scholia pnpm test
 ```
 
 Postgres is on port **5544**, not 5432, so it doesn't collide with a
@@ -60,7 +60,7 @@ resolve to IPv6 `::1` and fail to connect. Getting this wrong is the most
 common failure in this repo.
 
 CI runs `pnpm test:ci`, which is scoped to the shipping and pure packages and
-deliberately excludes `@collab/server`. You don't need Postgres for a Local
+deliberately excludes `@scholia/server`. You don't need Postgres for a Local
 Preview change.
 
 ## Language and architecture
@@ -72,8 +72,7 @@ comments, and UI; it's the main thing keeping the codebase navigable.
 
 Significant architectural decisions live in [`docs/adr`](./docs/adr) as ADRs.
 If you're changing something structural, skim the relevant one first, and add a
-new ADR rather than quietly reversing an old one. [`PLAN.md`](./PLAN.md) has the
-milestone sequence.
+new ADR rather than quietly reversing an old one.
 
 `packages/core` is pure domain logic — render, Nav, search, blobs. It must not
 gain HTTP or database dependencies; keep those in `server` and `db`.

@@ -4,13 +4,13 @@ import {
   type ParentMessage,
   type Theme,
 } from "./protocol.js";
-import type { TextQuote, SelectionCandidate } from "@collab/core";
+import type { TextQuote, SelectionCandidate } from "@scholia/core";
 
 // Parent-side (viewer chrome) end of the bridge. Attaches to a content iframe,
 // completes the handshake, pushes the chrome's theme, surfaces content height,
 // and (M5) drives the anchoring channel: it forwards selections the iframe
 // captures and asks the iframe to resolve/highlight stored anchors. Used by
-// `@collab/web` (ADR-0003, PLAN §5 M4/M5). DOM-only; no framework dependency.
+// `@scholia/web` (ADR-0003, PLAN §5 M4/M5). DOM-only; no framework dependency.
 
 // Emitted when the user makes a non-empty selection in the content. `rect` is in
 // the iframe's own coordinate space — the caller offsets it by the iframe's

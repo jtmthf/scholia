@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema } from "@collab/db";
-import { FsBlobStore, hashBytes } from "@collab/core";
+import { schema } from "@scholia/db";
+import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { migrateWithLock } from "./helpers/migrate.js";
 
@@ -17,7 +17,7 @@ const DB_URL = process.env.DATABASE_URL;
 const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
 
 const enc = new TextEncoder();
-const README_MD = "# Hello\n\nThis is a paragraph about **anchoring** in collab.\n";
+const README_MD = "# Hello\n\nThis is a paragraph about **anchoring** in scholia.\n";
 
 describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
   let sql: ReturnType<typeof postgres>;
@@ -28,7 +28,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m5-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m5-"));
     app = createApp({
       db,
       store: new FsBlobStore(blobDir),
@@ -88,7 +88,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     const created = await json(`/sites/${slug}/conversations`, "POST", {
       pagePath: "README.md",
       anchor: {
-        textQuote: { exact: "anchoring", prefix: "about ", suffix: " in collab" },
+        textQuote: { exact: "anchoring", prefix: "about ", suffix: " in scholia" },
         smIds: [1],
       },
       body: "Is this the right term?",
@@ -190,7 +190,7 @@ describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
     const conv = (await (
       await json(`/sites/${slug}/conversations`, "POST", {
         pagePath: "README.md",
-        anchor: { textQuote: { exact: "collab" }, smIds: [1] },
+        anchor: { textQuote: { exact: "scholia" }, smIds: [1] },
         body: "original",
         viewerId: jane,
         displayName: "Jane",

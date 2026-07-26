@@ -106,7 +106,7 @@ function initScrollSpy(): void {
 function initOpenInEditor(): void {
   document.addEventListener("click", (e) => {
     if (!(e.target instanceof Element)) return;
-    const btn = e.target.closest<HTMLButtonElement>("#collab-open-editor");
+    const btn = e.target.closest<HTMLButtonElement>("#scholia-open-editor");
     if (!btn || btn.disabled) return;
     const path = btn.dataset.path;
     if (!path) return;
@@ -135,16 +135,16 @@ function initOpenInEditor(): void {
 }
 
 // ---- Copy markdown ----
-// The raw source is embedded server-side (`#collab-source-md`, a JSON string
+// The raw source is embedded server-side (`#scholia-source-md`, a JSON string
 // so entities never need decoding) — reused here rather than a fetch, since
 // the server already read it to render the page.
 function initCopyMarkdown(): void {
   document.addEventListener("click", (e) => {
     if (!(e.target instanceof Element)) return;
-    const btn = e.target.closest<HTMLButtonElement>("#collab-copy-md");
+    const btn = e.target.closest<HTMLButtonElement>("#scholia-copy-md");
     if (!btn) return;
 
-    const raw = document.getElementById("collab-source-md")?.textContent ?? "";
+    const raw = document.getElementById("scholia-source-md")?.textContent ?? "";
     let source: string;
     try {
       source = JSON.parse(raw);
@@ -165,7 +165,7 @@ function initCopyMarkdown(): void {
 
 // ---- Mobile navigation drawer ----
 function initNav(): void {
-  document.getElementById("collab-menu-toggle")?.addEventListener("click", () => {
+  document.getElementById("scholia-menu-toggle")?.addEventListener("click", () => {
     document.body.classList.toggle("nav-open");
   });
   // Delegated so it survives nav-pane replacement on live reload.
@@ -180,7 +180,7 @@ function initNav(): void {
 function setTheme(dark: boolean): void {
   document.documentElement.classList.toggle("dark", dark);
   try {
-    localStorage.setItem("collab-theme", dark ? "dark" : "light");
+    localStorage.setItem("scholia-theme", dark ? "dark" : "light");
   } catch {
     /* ignore */
   }
@@ -188,14 +188,14 @@ function setTheme(dark: boolean): void {
 }
 
 function initTheme(): void {
-  const toggle = document.getElementById("collab-theme-toggle");
+  const toggle = document.getElementById("scholia-theme-toggle");
   toggle?.addEventListener("click", () => setTheme(!isDark()));
 }
 
 // ---- Live reload (scroll-preserving content swap, falling back to full reload) ----
 async function liveReloadSwap(): Promise<void> {
   try {
-    const res = await fetch(location.href, { headers: { "x-collab-livereload": "1" } });
+    const res = await fetch(location.href, { headers: { "x-scholia-livereload": "1" } });
     if (!res.ok) return void location.reload();
     const doc = new DOMParser().parseFromString(await res.text(), "text/html");
 
@@ -207,7 +207,7 @@ async function liveReloadSwap(): Promise<void> {
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
-    for (const sel of [".outline", ".nav-pane", ".page-header", ".colophon", "#collab-source-md"]) {
+    for (const sel of [".outline", ".nav-pane", ".page-header", ".colophon", "#scholia-source-md"]) {
       const next = doc.querySelector(sel);
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
@@ -257,8 +257,8 @@ interface Hit {
 }
 
 function initSearch(): void {
-  const input = document.getElementById("collab-search") as HTMLInputElement | null;
-  const results = document.getElementById("collab-search-results");
+  const input = document.getElementById("scholia-search") as HTMLInputElement | null;
+  const results = document.getElementById("scholia-search-results");
   if (!input || !results) return;
 
   let timer: ReturnType<typeof setTimeout>;

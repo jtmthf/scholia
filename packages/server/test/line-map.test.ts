@@ -47,19 +47,19 @@ describe("sourceRangeToLines", () => {
 });
 
 describe("botBody", () => {
-  test("human author — name + (via Collab)", () => {
+  test("human author — name + (via Scholia)", () => {
     const body = botBody({ name: "Jane", kind: "human" }, "Looks good.");
-    expect(body).toBe("**Jane** (via Collab)\n\nLooks good.");
+    expect(body).toBe("**Jane** (via Scholia)\n\nLooks good.");
   });
 
   test("agent author — name + on behalf of", () => {
     const body = botBody({ name: "Jane's agent", kind: "agent", onBehalfOf: "Jane" }, "Found a bug.");
-    expect(body).toBe("**Jane's agent (on behalf of Jane)** (via Collab)\n\nFound a bug.");
+    expect(body).toBe("**Jane's agent (on behalf of Jane)** (via Scholia)\n\nFound a bug.");
   });
 
   test("agent author without onBehalfOf", () => {
     const body = botBody({ name: "Bot", kind: "agent" }, "Hello.");
-    expect(body).toBe("**Bot** (via Collab)\n\nHello.");
+    expect(body).toBe("**Bot** (via Scholia)\n\nHello.");
   });
 });
 
@@ -70,14 +70,14 @@ describe("botFileLevelBody", () => {
       "See this issue.",
       { textQuote: { exact: "Some bold text" } },
     );
-    expect(body).toContain("**Jane** (via Collab)");
+    expect(body).toContain("**Jane** (via Scholia)");
     expect(body).toContain("See this issue.");
     expect(body).toContain("> Some bold text");
   });
 
   test("no anchor → just the bot body", () => {
     const body = botFileLevelBody({ name: "Jane", kind: "human" }, "No anchor.", null);
-    expect(body).toBe("**Jane** (via Collab)\n\nNo anchor.");
+    expect(body).toBe("**Jane** (via Scholia)\n\nNo anchor.");
     expect(body).not.toContain(">");
   });
 });

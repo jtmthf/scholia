@@ -1,5 +1,5 @@
-import { storeMarkdownPage, storeHtmlPage, type BlobStore } from "@collab/core";
-import type { NewPage } from "@collab/db";
+import { storeMarkdownPage, storeHtmlPage, type BlobStore } from "@scholia/core";
+import type { NewPage } from "@scholia/db";
 import type { UploadLimits } from "./config.js";
 
 // The uploaded manifest wire shape shared by `POST /sites` (create) and

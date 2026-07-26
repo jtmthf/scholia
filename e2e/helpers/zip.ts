@@ -12,7 +12,7 @@ export async function zipFixture(dir: string): Promise<string> {
     const rel = relative(dir, abs).split(sep).join("/");
     files[rel] = new Uint8Array(await readFile(abs));
   }
-  const out = join(await mkdtemp(join(tmpdir(), "collab-e2e-zip-")), "site.zip");
+  const out = join(await mkdtemp(join(tmpdir(), "scholia-e2e-zip-")), "site.zip");
   await writeFile(out, zipSync(files));
   return out;
 }

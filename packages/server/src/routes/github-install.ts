@@ -11,10 +11,10 @@
 import { Hono } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { createHmac, randomBytes } from "node:crypto";
-import { upsertGitHubInstallation } from "@collab/db";
+import { upsertGitHubInstallation } from "@scholia/db";
 import type { AppDeps } from "../config.js";
 
-const CSRF_COOKIE = "collab_gh_state";
+const CSRF_COOKIE = "scholia_gh_state";
 const CSRF_TTL = 15 * 60; // 15 minutes
 
 function signState(state: string, secret: string): string {
@@ -104,12 +104,12 @@ export function githubInstallRoutes(getDeps: () => AppDeps) {
 </style></head><body>
 <div class="box">
   <h1>GitHub App installed</h1>
-  <p>The Collab GitHub App was installed successfully.</p>
-  <p>You can now create PR-backed Sites with <code>collab share --pr owner/repo#123</code>.</p>
+  <p>The Scholia GitHub App was installed successfully.</p>
+  <p>You can now create PR-backed Sites with <code>scholia share --pr owner/repo#123</code>.</p>
 </div>
 <script>
   if (window.opener) {
-    window.opener.postMessage({ collabGhInstalled: true, installationId: ${installId} }, "*");
+    window.opener.postMessage({ scholiaGhInstalled: true, installationId: ${installId} }, "*");
     window.close();
   }
 </script>

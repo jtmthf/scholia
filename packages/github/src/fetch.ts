@@ -3,7 +3,7 @@
 // else is dropped (PR-backed Sites scope to changed md/html only). Provenance is
 // clean (pinned ref/PR head), so there is no dirty-tree problem.
 
-import type { FetchResult, FetchedFile } from "@collab/core";
+import type { FetchResult, FetchedFile } from "@scholia/core";
 import { type GitHubApi, type PrFile, type PullRequestInfo, type RepoPath } from "./rest.js";
 
 export function parseRepo(s: string): RepoPath {

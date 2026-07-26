@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import { createHmac } from "node:crypto";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema, type Db, upsertGitHubInstallation, getSiteBySlug } from "@collab/db";
-import { FsBlobStore } from "@collab/core";
-import { FakeGitHubApi } from "@collab/github";
+import { schema, type Db, upsertGitHubInstallation, getSiteBySlug } from "@scholia/db";
+import { FsBlobStore } from "@scholia/core";
+import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
 import { handleLifecycle } from "../src/mirror/lifecycle.js";
@@ -60,7 +60,7 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
     sql = postgres(DB_URL!, { max: 1 });
     db = drizzle(sql, { schema }) as unknown as Db;
     await migrateWithLock(sql, db as unknown as ReturnType<typeof drizzle>, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-life-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-life-"));
 
     fakeApi = new FakeGitHubApi();
     fakeApi.seedPr(
@@ -87,7 +87,7 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
       api: fakeApi,
       db,
       config: {
-        appId: "1", appSlug: "collab", privateKeyPem: "fake",
+        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
@@ -100,7 +100,7 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
       viewerUrl: "http://viewer.test",
       mirror: [provider],
       github: {
-        appId: "1", appSlug: "collab", privateKeyPem: "fake",
+        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
@@ -242,20 +242,20 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
       api: fakeApi2,
       db,
       config: {
-        appId: "1", appSlug: "collab", privateKeyPem: "fake",
+        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     });
 
-    const store2 = new FsBlobStore(await mkdtemp(join(tmpdir(), "collab-blobs-life2-")));
+    const store2 = new FsBlobStore(await mkdtemp(join(tmpdir(), "scholia-blobs-life2-")));
     const app2 = createApp({
       db, store: store2,
       publicUrl: "http://content.test",
       viewerUrl: "http://viewer.test",
       mirror: [provider2],
       github: {
-        appId: "1", appSlug: "collab", privateKeyPem: "fake",
+        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
         webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },

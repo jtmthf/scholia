@@ -5,10 +5,10 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { schema } from "@collab/db";
-import { upsertGitHubInstallation, findInstallationForRepo } from "@collab/db";
-import { FsBlobStore } from "@collab/core";
-import { FakeGitHubApi } from "@collab/github";
+import { schema } from "@scholia/db";
+import { upsertGitHubInstallation, findInstallationForRepo } from "@scholia/db";
+import { FsBlobStore } from "@scholia/core";
+import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
 import { migrateWithLock } from "./helpers/migrate.js";
@@ -38,7 +38,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     sql = postgres(DB_URL!, { max: 1 });
     const db = drizzle(sql, { schema });
     await migrateWithLock(sql, db, MIGRATIONS);
-    blobDir = await mkdtemp(join(tmpdir(), "collab-blobs-m10-"));
+    blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m10-"));
 
     // Seed the fake GitHub API with a PR that touches two markdown files.
     fakeApi = new FakeGitHubApi();
@@ -70,7 +70,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       db,
       config: {
         appId: "1",
-        appSlug: "collab",
+        appSlug: "scholia",
         privateKeyPem: "fake-key",
         webhookSecret: "fake-secret",
         apiBase: "https://api.github.com",
@@ -141,7 +141,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       db: db2,
       config: {
         appId: "1",
-        appSlug: "collab",
+        appSlug: "scholia",
         privateKeyPem: "fake-key",
         webhookSecret: "fake-secret",
         apiBase: "https://api.github.com",
@@ -152,7 +152,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
 
     const app2 = createApp({
       db: db2,
-      store: new FsBlobStore(await mkdtemp(join(tmpdir(), "collab-blobs-ref-"))),
+      store: new FsBlobStore(await mkdtemp(join(tmpdir(), "scholia-blobs-ref-"))),
       publicUrl: "http://content.test",
       viewerUrl: "http://viewer.test",
       mirror: [provider2],
@@ -307,7 +307,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     });
     expect(res.status).toBe(409);
     const body = (await res.json()) as any;
-    expect(body.error).toMatch(/install the Collab GitHub App/);
+    expect(body.error).toMatch(/install the Scholia GitHub App/);
   });
 
   test("POST /sites with pr but no mirror provider configured → 400", async () => {
@@ -316,7 +316,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     const db2 = drizzle(sql2, { schema });
     const app2 = createApp({
       db: db2,
-      store: new FsBlobStore(await mkdtemp(join(tmpdir(), "collab-blobs-noprovider-"))),
+      store: new FsBlobStore(await mkdtemp(join(tmpdir(), "scholia-blobs-noprovider-"))),
       publicUrl: "http://content.test",
       viewerUrl: "http://viewer.test",
       // No mirror providers — simulates a server without GitHub configured.
@@ -338,7 +338,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
   test("non-PR-backed local Site is unaffected — still works as before", async () => {
     // Upload a local file via the blob negotiation flow (as in M3 tests).
     const bytes = enc.encode("# Local Site\n\nNo GitHub here.\n");
-    const { hashBytes } = await import("@collab/core");
+    const { hashBytes } = await import("@scholia/core");
     const hash = hashBytes(bytes);
 
     // PUT the blob.

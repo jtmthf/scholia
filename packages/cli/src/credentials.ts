@@ -4,4 +4,4 @@ export {
   credentialsPath,
   type SiteCredential,
   type CredentialStore,
-} from "@collab/client";
+} from "@scholia/client";

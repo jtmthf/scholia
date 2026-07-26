@@ -10,7 +10,7 @@ describe("FsBlobStore.size", () => {
   let store: FsBlobStore;
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), "collab-blob-size-"));
+    dir = await mkdtemp(join(tmpdir(), "scholia-blob-size-"));
     store = new FsBlobStore(dir);
   });
   afterAll(async () => {

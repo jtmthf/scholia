@@ -1,5 +1,5 @@
 {
-  "name": "@collab/local",
+  "name": "@scholia/local",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@collab/core": "workspace:*",
-    "@collab/theme": "workspace:*",
+    "@scholia/core": "workspace:*",
+    "@scholia/theme": "workspace:*",
     "@hono/node-server": "^2.0.6",
     "chokidar": "^5.0.0",
     "hono": "^4.12.26",

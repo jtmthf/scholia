@@ -4,6 +4,9 @@
 
 accepted
 
+> **Update (2026-07-26):** "Collab" below refers to what is now named Scholia
+> (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 Comments anchor to specific spans of a Page, and those anchors must survive re-uploads (new Versions) and be resolvable by agents editing local source. We store an Anchor's **primary** representation as a **text-quote** — the exact highlighted string plus prefix/suffix context (W3C-style) — and treat structural locators as **secondary** hints: a source line/column range (available for *both* markdown and HTML, since Collab hosts canonical source for both) plus XPath/CSS selectors for HTML Pages.

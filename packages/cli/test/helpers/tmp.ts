@@ -13,7 +13,7 @@ export interface TmpDir {
 // A per-test temp directory, auto-removed on teardown.
 export const test = base.extend<{ tmp: TmpDir }>({
   tmp: async ({}, use) => {
-    const root = await mkdtemp(join(tmpdir(), "collab-cli-test-"));
+    const root = await mkdtemp(join(tmpdir(), "scholia-cli-test-"));
     const api: TmpDir = {
       root,
       async write(relPath, contents) {

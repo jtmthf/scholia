@@ -9,16 +9,16 @@
 // auto-applied); v1 has no offer UI, so it is a no-op like `reopened`/`unlocked`.
 
 import type { AppDeps } from "../config.js";
-import type { InboundLifecycle } from "@collab/github";
+import type { InboundLifecycle } from "@scholia/github";
 import {
   addVersionWithManifest,
   getLatestManifest,
   setSiteState,
   findPRBackedSites,
   type Provenance,
-} from "@collab/db";
-import { hashBytes } from "@collab/core";
-import type { MirrorProvider } from "@collab/core";
+} from "@scholia/db";
+import { hashBytes } from "@scholia/core";
+import type { MirrorProvider } from "@scholia/core";
 import { buildManifestPages } from "../manifest.js";
 import { migrateConversationsToLatest } from "../migration.js";
 
@@ -68,7 +68,7 @@ async function handleSynchronize(
       prNumber: event.prNumber,
     });
   } catch (err) {
-    console.error(`[collab] lifecycle: re-fetch failed for ${slug}:`, err);
+    console.error(`[scholia] lifecycle: re-fetch failed for ${slug}:`, err);
     return;
   }
 

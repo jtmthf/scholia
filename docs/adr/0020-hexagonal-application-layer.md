@@ -4,6 +4,9 @@
 
 accepted
 
+> **Update (2026-07-26):** `@collab/*` below refers to what is now `@scholia/*`
+> (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 `@collab/db` exports ~60 free functions (`repos.ts`, ~64KB) that each take a live Drizzle

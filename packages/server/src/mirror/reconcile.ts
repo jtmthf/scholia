@@ -11,8 +11,8 @@
 // domain logic doesn't know which platform is calling it.
 
 import type { AppDeps } from "../config.js";
-import { findPRBackedSites, getGitHubSiteState, setGitHubReconcileCursor, getLatestManifest } from "@collab/db";
-import type { InboundEvent } from "@collab/github";
+import { findPRBackedSites, getGitHubSiteState, setGitHubReconcileCursor, getLatestManifest } from "@scholia/db";
+import type { InboundEvent } from "@scholia/github";
 import { importInbound } from "./importer.js";
 import { handleLifecycle } from "./lifecycle.js";
 import { botLoginFor } from "../github-config.js";
@@ -31,7 +31,7 @@ export async function reconcilePRBackedSites(deps: AppDeps): Promise<number> {
       total += n;
     } catch (err) {
       // One site's failure must not crash the whole poll — log and continue.
-      console.error(`[collab] reconcile error for site ${site.slug}:`, err);
+      console.error(`[scholia] reconcile error for site ${site.slug}:`, err);
     } finally {
       reconciling.delete(site.id);
     }
@@ -148,7 +148,7 @@ async function reconcileLifecycle(
   try {
     prInfo = await ghProvider.api.getPullRequest({ owner, name }, prNumber);
   } catch (err) {
-    console.error(`[collab] reconcile: getPullRequest failed for ${repo}#${prNumber}:`, err);
+    console.error(`[scholia] reconcile: getPullRequest failed for ${repo}#${prNumber}:`, err);
     return;
   }
 
@@ -251,7 +251,7 @@ async function fetchThreadResolveState(
   try {
     threads = await ghProvider.api.listReviewThreads({ owner, name }, prNumber);
   } catch (err) {
-    console.error(`[collab] reconcile: listReviewThreads failed for ${repo}#${prNumber}:`, err);
+    console.error(`[scholia] reconcile: listReviewThreads failed for ${repo}#${prNumber}:`, err);
     return [];
   }
 
@@ -279,7 +279,7 @@ export function startDrainLoop(deps: AppDeps, intervalMs: number): () => void {
   const timer = setInterval(() => {
     runMirrorDrain(deps).catch((err) => {
       // Log but don't throw — the loop must be resilient.
-      console.error("[collab] drain loop error:", err);
+      console.error("[scholia] drain loop error:", err);
     });
   }, intervalMs);
   return () => clearInterval(timer);

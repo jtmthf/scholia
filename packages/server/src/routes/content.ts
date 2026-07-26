@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { describeRoute } from "hono-openapi";
-import { contentType, pickEntryPath, rewriteInterPageLinks } from "@collab/core";
-import { getLatestManifest, getManifestByOrdinal, type PageEntry } from "@collab/db";
+import { contentType, pickEntryPath, rewriteInterPageLinks } from "@scholia/core";
+import { getLatestManifest, getManifestByOrdinal, type PageEntry } from "@scholia/db";
 import type { AppDeps } from "../config.js";
 import { renderContentDocument, prepareHtmlDocument } from "../content.js";
 import { contentCsp } from "../content-origin.js";

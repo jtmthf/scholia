@@ -25,7 +25,7 @@ import {
   type DocRecord,
   type Heading,
   type ManifestEntry,
-} from "@collab/core";
+} from "@scholia/core";
 import { renderPage } from "./render/layout.js";
 import { watchPath } from "./watch.js";
 import { resolveEditor, openInEditor } from "./editor.js";
@@ -354,7 +354,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
           ? await renderMdx(source, pathToFileURL(fsPath).href)
           : await renderMarkdown(source);
         contentHtml = result.html;
-        title = result.title ?? "collab";
+        title = result.title ?? "scholia";
         headings = result.headings;
         if (info) {
           renderCache.set(fsPath, {
@@ -408,7 +408,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     const job = structural ? refresh() : Promise.resolve();
     job
       .then(broadcastReload)
-      .catch((err) => console.error("[collab] refresh failed:", err));
+      .catch((err) => console.error("[scholia] refresh failed:", err));
   });
 
   const hosts = await resolveBindHosts(opts.host);

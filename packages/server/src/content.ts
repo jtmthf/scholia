@@ -1,10 +1,10 @@
-import { escapeHtml } from "@collab/core";
-import { iframeBridgeScript } from "@collab/bridge";
+import { escapeHtml } from "@scholia/core";
+import { iframeBridgeScript } from "@scholia/bridge";
 
 // Styles for the content document served into the sandboxed iframe. A trimmed
 // version of Local Preview's reading-view CSS (packages/local app.css) covering
 // just the rendered-markdown body, Shiki's dual-theme CSS variables, GitHub
-// alerts, and tables — no Collab chrome (that lives in the parent viewer).
+// alerts, and tables — no Scholia chrome (that lives in the parent viewer).
 const CONTENT_CSS = `
 :root {
   --bg: #ffffff; --fg: #1f2328; --muted: #656d76; --border: #d0d7de;

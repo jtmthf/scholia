@@ -1,4 +1,4 @@
-// Copies @collab/local's browser bundle (client JS/CSS + vendored KaTeX,
+// Copies @scholia/local's browser bundle (client JS/CSS + vendored KaTeX,
 // built by that package's own tsup config) into this package's dist/assets,
 // where the bundled server (see tsup.config.ts) expects to find it at
 // runtime.
@@ -13,4 +13,4 @@ const dest = join(here, "..", "dist", "assets");
 await rm(dest, { recursive: true, force: true });
 await cp(src, dest, { recursive: true });
 
-console.log("[collab] copied @collab/local browser bundle -> dist/assets");
+console.log("[scholia] copied @scholia/local browser bundle -> dist/assets");

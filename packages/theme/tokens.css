@@ -1,10 +1,10 @@
 /*
- * @collab/theme design tokens — ADR-0016 "editorial visual identity".
+ * @scholia/theme design tokens — ADR-0016 "editorial visual identity".
  *
  * Same light/dark mechanism as packages/local/src/client/app.css: base
  * values live on :root (light), html.dark overrides them. Consumers toggle
  * the class on <html> and persist the choice (Local Preview currently uses
- * localStorage['collab-theme']) — this file has no opinion on that wiring,
+ * localStorage['scholia-theme']) — this file has no opinion on that wiring,
  * it only defines the variables.
  *
  * Values marked "pinned" are the exact measurements from the ADR-0016

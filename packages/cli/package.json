@@ -24,7 +24,7 @@
   },
   "scripts": {
     "start": "tsx src/cli.ts",
-    "build": "pnpm --filter @collab/local build && tsup && node scripts/copy-assets.mjs",
+    "build": "pnpm --filter @scholia/local build && tsup && node scripts/copy-assets.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -32,9 +32,9 @@
     "open": "^11.0.0"
   },
   "devDependencies": {
-    "@collab/client": "workspace:*",
-    "@collab/core": "workspace:*",
-    "@collab/local": "workspace:*",
+    "@scholia/client": "workspace:*",
+    "@scholia/core": "workspace:*",
+    "@scholia/local": "workspace:*",
     "fflate": "^0.8.2",
     "tsup": "^8.5.1",
     "tsx": "^4.19.2"

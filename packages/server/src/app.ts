@@ -76,7 +76,7 @@ export function createApp(deps?: InputDeps) {
   app.get("/health", (c) =>
     c.json({
       status: "ok",
-      service: "collab-server",
+      service: "scholia-server",
       time: new Date().toISOString(),
     }),
   );
@@ -97,7 +97,7 @@ export function createApp(deps?: InputDeps) {
     "/openapi.json",
     openAPIRouteHandler(app, {
       documentation: {
-        info: { title: "Collab API", version: "2.0.0" },
+        info: { title: "Scholia API", version: "2.0.0" },
         openapi: "3.1.0",
       },
     }),

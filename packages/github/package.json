@@ -1,5 +1,5 @@
 {
-  "name": "@collab/github",
+  "name": "@scholia/github",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,6 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@collab/core": "workspace:*"
+    "@scholia/core": "workspace:*"
   }
 }

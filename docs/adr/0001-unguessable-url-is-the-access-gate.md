@@ -4,6 +4,9 @@
 
 accepted
 
+> **Update (2026-07-26):** "Collab" below refers to what is now named Scholia
+> (workspace/env-var rename, issue #15). Left as originally written.
+
 ## Context & Decision
 
 Collab promises a zero-config, no-login experience. For v1 we accept that the only access control on a Document is its **unguessable URL**: the Document ID is a long random slug, and anyone holding the link can both read and comment. There is no read/comment split and no per-user auth. Crawling is mitigated with `X-Robots-Tag: noindex` and no directory listing.

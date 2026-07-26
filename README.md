@@ -47,28 +47,27 @@ Sites, and a REST + MCP surface for reviewer agents.
 That code is written and works — the repo is at **M11** — but **none of it is in
 the released package.** The `share`, `chats`, `state`, `rotate-share`,
 `rotate-token`, and `delete-site` commands are hidden from the CLI unless you set
-`COLLAB_HOSTED=1`, and they need a server, Postgres, and a blob store you'd have to
+`SCHOLIA_HOSTED=1`, and they need a server, Postgres, and a blob store you'd have to
 run yourself (see [Development](#development)). Treat hosted mode as a roadmap
 item, not a feature you can use.
 
-See [`CONTEXT.md`](./CONTEXT.md) for the domain language, [`PLAN.md`](./PLAN.md)
-for the build sequence, and [`docs/adr/`](./docs/adr) for the architecture
-decisions.
+See [`CONTEXT.md`](./CONTEXT.md) for the domain language and [`docs/adr/`](./docs/adr)
+for the architecture decisions.
 
 ## Packages
 
-The published npm package is `scholia` (from `packages/cli`). The `@collab/*`
+The published npm package is `scholia` (from `packages/cli`). The `@scholia/*`
 scope is an internal pnpm workspace namespace — those packages are not published,
 and the ones the CLI needs are bundled into its binary.
 
 | Package          | Role                                                                 |
 | ---------------- | ------------------------------------------------------------------- |
-| `scholia`        | The `scholia` command. `scholia <path>` runs Local Preview; the hosted commands are gated behind `COLLAB_HOSTED=1`. |
-| `@collab/core`   | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. No HTTP/db. |
-| `@collab/local`  | Local Preview server (Hono): file-watch, live-reload, SSR'd reading view. |
-| `@collab/db`     | Drizzle schema + client + repositories for the mutable metadata. |
-| `@collab/server` | Hono REST API + content-origin server (`POST /sites`, content origin). |
-| `@collab/web`    | Preact + Vite viewer SPA — loads a Share URL, renders the Page in a sandboxed iframe. |
+| `scholia`        | The `scholia` command. `scholia <path>` runs Local Preview; the hosted commands are gated behind `SCHOLIA_HOSTED=1`. |
+| `@scholia/core`   | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. No HTTP/db. |
+| `@scholia/local`  | Local Preview server (Hono): file-watch, live-reload, SSR'd reading view. |
+| `@scholia/db`     | Drizzle schema + client + repositories for the mutable metadata. |
+| `@scholia/server` | Hono REST API + content-origin server (`POST /sites`, content origin). |
+| `@scholia/web`    | Preact + Vite viewer SPA — loads a Share URL, renders the Page in a sandboxed iframe. |
 
 ## Development
 
@@ -81,8 +80,8 @@ pnpm test:ci       # vitest, scoped to the shipping + pure packages
 Run the CLI from source:
 
 ```sh
-pnpm --filter @collab/local build   # build the browser bundle once
-pnpm collab ./path/to/docs
+pnpm --filter @scholia/local build   # build the browser bundle once
+pnpm scholia ./path/to/docs
 ```
 
 Build the publishable binary:
@@ -100,7 +99,7 @@ pnpm db:migrate
 pnpm dev:server                      # REST API + content origin on :8787
 pnpm dev:web                         # viewer SPA on :5173 (separate terminal)
 
-COLLAB_HOSTED=1 pnpm collab share ./path/to/page.md
+SCHOLIA_HOSTED=1 pnpm scholia share ./path/to/page.md
 ```
 
 Server and db tests silently skip unless `DATABASE_URL` is set — see

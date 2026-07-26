@@ -100,7 +100,7 @@ interface SelectionCandidate {
     const anchorRanges = new Map<string, Range>();
 
     // CSS Custom Highlight API (Chrome 105+, Safari 17.2+, FF 117+)
-    const HIGHLIGHT_NAME = "collab-anchor";
+    const HIGHLIGHT_NAME = "scholia-anchor";
     const useHighlightAPI =
       typeof CSS !== "undefined" &&
       typeof (CSS as unknown as Record<string, unknown>)["highlights"] !== "undefined" &&
@@ -111,7 +111,7 @@ interface SelectionCandidate {
       const style = document.createElement("style");
       // Avoid writing </style> literally — split across concat
       style.textContent =
-        "::highlight(collab-anchor){background-color:rgba(255,213,0,0.45);color:inherit;}";
+        "::highlight(scholia-anchor){background-color:rgba(255,213,0,0.45);color:inherit;}";
       (document.head || document.documentElement).appendChild(style);
     }
 
@@ -138,7 +138,7 @@ interface SelectionCandidate {
         try {
           const frag = range.cloneContents();
           const mark = document.createElement("mark");
-          mark.setAttribute("data-collab-anchor", id);
+          mark.setAttribute("data-scholia-anchor", id);
           mark.style.backgroundColor = "rgba(255,213,0,0.45)";
           mark.style.color = "inherit";
           mark.appendChild(frag);

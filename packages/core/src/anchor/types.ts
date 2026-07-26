@@ -6,7 +6,7 @@
 // range is derived server-side by mapping the selection's `data-sm` ids through
 // the stored Source Map (the untrusted iframe never receives the Source Map).
 //
-// These are the canonical anchoring types. `@collab/db` keeps its own structurally
+// These are the canonical anchoring types. `@scholia/db` keeps its own structurally
 // identical jsonb shapes for the `anchor` column (schema.ts); the server bridges
 // between them (they are interchangeable under TS structural typing).
 

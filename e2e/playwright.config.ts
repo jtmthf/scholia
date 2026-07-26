@@ -1,9 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 import { API_URL, MANAGE_SERVERS, REPO_ROOT, WEB_URL } from "./helpers/env.js";
 
-// End-to-end suite for the M3 vertical slice: `collab share` -> blob negotiation
+// End-to-end suite for the M3 vertical slice: `scholia share` -> blob negotiation
 // -> server -> content origin -> sandboxed viewer. Environment-agnostic — point
-// COLLAB_API_URL / COLLAB_WEB_URL at any stack (local default or staging). When
+// SCHOLIA_API_URL / SCHOLIA_WEB_URL at any stack (local default or staging). When
 // both targets are local, Playwright boots the dev server + viewer for you and
 // reuses them if already running.
 export default defineConfig({
@@ -22,14 +22,14 @@ export default defineConfig({
   webServer: MANAGE_SERVERS
     ? [
         {
-          command: "pnpm --filter @collab/server dev",
+          command: "pnpm --filter @scholia/server dev",
           url: `${API_URL}/health`,
           cwd: REPO_ROOT,
           reuseExistingServer: true,
           timeout: 120_000,
         },
         {
-          command: "pnpm --filter @collab/web dev",
+          command: "pnpm --filter @scholia/web dev",
           url: WEB_URL,
           cwd: REPO_ROOT,
           reuseExistingServer: true,

@@ -1,6 +1,6 @@
 // POST/GET /internal/drain — the platform-agnostic trigger for the outbound
 // mirror-bus drain + inbound reconcile sweep (M11, ADR-0015). Bearer-auth'd via
-// `COLLAB_INTERNAL_SECRET`; disabled (404) when unset, matching the GitHub
+// `SCHOLIA_INTERNAL_SECRET`; disabled (404) when unset, matching the GitHub
 // webhook route's disabled-when-unconfigured pattern. Self-host keeps calling
 // `runMirrorDrain` from the existing boot-time `setInterval` (`startDrainLoop`)
 // — this route exists for platforms with no persistent process (Vercel Cron
