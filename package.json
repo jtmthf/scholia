@@ -29,6 +29,7 @@
     "prettier": "^3.9.6",
     "tsx": "^4.19.2",
     "typescript": "^7.0.2",
+    "vite-plus": "^0.2.6",
     "vitest": "^2.1.8"
   },
   "engines": {

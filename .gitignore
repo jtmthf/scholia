@@ -24,3 +24,7 @@ test-results/
 .DS_Store
 .idea/
 .vscode/
+
+# PROTOTYPE (#17) task-runner trial caches
+.turbo/
+.turbo-cache/
