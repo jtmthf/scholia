@@ -1,10 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import {
-  fetchChangedPages,
-  fetchPageDiff,
-  type ChangedPage,
-  type LineDiff,
-} from "../api";
+import { fetchChangedPages, fetchPageDiff, type ChangedPage, type LineDiff } from "../api";
 
 interface DiffPanelProps {
   slug: string;
@@ -103,7 +98,9 @@ function PageDiff({
                   <tr key={i} class={`diff-line diff-line--${l.type}`}>
                     <td class="diff-gutter">{l.oldLine ?? ""}</td>
                     <td class="diff-gutter">{l.newLine ?? ""}</td>
-                    <td class="diff-sign">{l.type === "add" ? "+" : l.type === "del" ? "-" : " "}</td>
+                    <td class="diff-sign">
+                      {l.type === "add" ? "+" : l.type === "del" ? "-" : " "}
+                    </td>
                     <td class="diff-code">{l.text || " "}</td>
                   </tr>
                 ))}

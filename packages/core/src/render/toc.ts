@@ -1,3 +1,4 @@
+import type { Element, Root } from "hast";
 import { visit } from "unist-util-visit";
 import { toText } from "../util/text.js";
 import type { Heading } from "../types.js";
@@ -6,8 +7,8 @@ import type { Heading } from "../types.js";
 // array for table-of-contents rendering. Run AFTER rehype-slug and BEFORE
 // rehype-autolink-headings so the text is clean and ids are present.
 export function rehypeCollectToc(headings: Heading[]) {
-  return (tree: any) => {
-    visit(tree, "element", (node: any) => {
+  return (tree: Root) => {
+    visit(tree, "element", (node: Element) => {
       const match = /^h([1-6])$/.exec(node.tagName ?? "");
       if (!match) return;
       const depth = Number(match[1]);

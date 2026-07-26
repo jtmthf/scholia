@@ -19,7 +19,9 @@ test("floats README to the top, then orders files by frontmatter `order`", async
   expect(titles(tree)).toEqual(["Home", "Zebra", "Apple"]);
 });
 
-test("derives titles from frontmatter or a humanized filename, and builds URL paths", async ({ tmp }) => {
+test("derives titles from frontmatter or a humanized filename, and builds URL paths", async ({
+  tmp,
+}) => {
   await tmp.write("getting-started.md", "# Getting Started\n");
   await tmp.write("custom.md", "---\ntitle: A Custom Title\n---\nbody\n");
 
@@ -35,7 +37,10 @@ test("a _meta.json object sets child order and overrides titles", async ({ tmp }
     "guide/_meta.json",
     JSON.stringify({ "advanced.mdx": "Advanced Guide", "getting-started.md": "Getting Started" }),
   );
-  await tmp.write("guide/getting-started.md", "---\ntitle: Ignored Frontmatter Title\n---\n# Start\n");
+  await tmp.write(
+    "guide/getting-started.md",
+    "---\ntitle: Ignored Frontmatter Title\n---\n# Start\n",
+  );
   await tmp.write("guide/advanced.mdx", "# Advanced\n");
 
   const { tree } = await scanTree(tmp.root);
@@ -64,7 +69,9 @@ test("collects DocRecords with extracted headings", async ({ tmp }) => {
   expect(home?.headings.map((h) => h.text)).toEqual(["Home", "Details"]);
 });
 
-test("sorts numbered files by filename, not by their prose h1 label (ADR-style numbering)", async ({ tmp }) => {
+test("sorts numbered files by filename, not by their prose h1 label (ADR-style numbering)", async ({
+  tmp,
+}) => {
   // Each h1 is alphabetically out of order with its numeric filename prefix —
   // exactly the docs/adr/ shape the numeric-filename sort key protects
   // against. Sorting by label would scramble these; sorting by basename must

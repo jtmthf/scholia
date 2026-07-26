@@ -43,7 +43,7 @@ export function Composer({
   const canSubmit = body.trim().length > 0 && (!needsName || name.trim().length > 0);
 
   return (
-    <form class="composer" onSubmit={handleSubmit}>
+    <form class="composer" onSubmit={(e) => void handleSubmit(e)}>
       {label && <div class="composer-label">{label}</div>}
       {needsName && (
         <div class="composer-name-row">

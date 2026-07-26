@@ -31,7 +31,7 @@ never rendered rather than rendering broken.
     so a traversal cannot reach outside the served directory.
   - The route is `POST`, not `GET`, so an `<img>` or plain link cannot trigger it.
   - Requests whose `Sec-Fetch-Site` is not `same-origin` are rejected. Local Preview
-    binds loopback on both stacks, which means *any* page in the user's browser can
+    binds loopback on both stacks, which means _any_ page in the user's browser can
     reach it; without this check a random tab could make the editor open files.
   - The spawn passes argv as an array with no shell, so the blast radius is bounded to
     opening a file that is already inside the previewed directory.
@@ -44,8 +44,8 @@ never rendered rather than rendering broken.
 ## Amendments
 
 **Editor resolution is environment-first** (supersedes the `PATH` probe order above, which
-was never implemented). A fixed probe order opens whichever editor is *installed* first,
-not the one the user is *using* — the common failure being a Cursor user whose files open
+was never implemented). A fixed probe order opens whichever editor is _installed_ first,
+not the one the user is _using_ — the common failure being a Cursor user whose files open
 in VS Code. Resolution order is now:
 
 1. **The invoking environment.** Scholia is nearly always launched from an editor's
@@ -59,7 +59,7 @@ in VS Code. Resolution order is now:
 3. **The `PATH` probe** as originally recorded, as a last resort.
 
 An explicit `--editor` override persists to `~/.scholia/config`. This is the one piece of
-config acceptable in a zero-config tool, because it only ever appears *after* the tool has
+config acceptable in a zero-config tool, because it only ever appears _after_ the tool has
 guessed wrong for you. The "render no button rather than a broken one" rule is unchanged.
 
 **The endpoint is loopback-only, unconditionally** (see ADR-0022). The guard list above

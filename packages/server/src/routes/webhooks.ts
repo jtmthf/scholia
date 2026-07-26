@@ -55,7 +55,11 @@ export function webhooksRoutes(getDeps: () => AppDeps) {
     let accepted = 0;
     for (const event of events) {
       if (event.kind === "lifecycle") {
-        await handleLifecycle(event, deps, deps.mirror.find((p) => p.id === "github"));
+        await handleLifecycle(
+          event,
+          deps,
+          deps.mirror.find((p) => p.id === "github"),
+        );
       } else {
         accepted += await importInbound([event], {
           db: deps.db,

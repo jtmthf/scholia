@@ -175,7 +175,10 @@ test("the default host answers on both IPv4 and IPv6 loopback", async ({ tmp, se
   if (hasIpv6) expect(await reachable("[::1]")).toBe(true);
 });
 
-test("an explicit --host is bound verbatim, not expanded to both stacks", async ({ tmp, serve }) => {
+test("an explicit --host is bound verbatim, not expanded to both stacks", async ({
+  tmp,
+  serve,
+}) => {
   await tmp.write("README.md", "# Home\n\nIPv4 only.\n");
   const { port } = await serve({ host: "127.0.0.1" });
 
@@ -186,7 +189,10 @@ test("an explicit --host is bound verbatim, not expanded to both stacks", async 
   await expect(fetch(`http://[::1]:${port}/`)).rejects.toThrow();
 });
 
-test("single-file mode renders that one file for any path, without a Nav pane", async ({ tmp, serve }) => {
+test("single-file mode renders that one file for any path, without a Nav pane", async ({
+  tmp,
+  serve,
+}) => {
   const file = await tmp.write("solo.md", "# Solo Doc\n\nOnly this renders.\n");
   await tmp.write("other.md", "# Other\n");
   const { url } = await serve({ singleFile: file });

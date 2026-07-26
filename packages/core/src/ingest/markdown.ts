@@ -35,19 +35,17 @@ export async function ingestMarkdown(source: string): Promise<MarkdownIngest> {
   const smEntries: SourceMapEntry[] = [];
   const highlighter = await getHighlighter();
 
-  const processor: any = unified().use(remarkParse);
-  for (const plugin of remarkPlugins()) processor.use(plugin);
-  processor.use(remarkRehype, { allowDangerousHtml: true });
-  processor.use(rehypeRaw);
-  // Collect the Source Map first, while elements still carry their original
-  // source `position` (slug/shiki passes below synthesize nodes and rewrite
-  // code blocks, dropping positions).
-  processor.use(rehypeSourceMap, smEntries);
-  for (const plugin of rehypePlugins(highlighter, headings)) {
-    if (Array.isArray(plugin)) processor.use(plugin[0], ...plugin.slice(1));
-    else processor.use(plugin);
-  }
-  processor.use(rehypeStringify);
+  const processor = unified()
+    .use(remarkParse)
+    .use(remarkPlugins())
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeRaw)
+    // Collect the Source Map first, while elements still carry their original
+    // source `position` (slug/shiki passes below synthesize nodes and rewrite
+    // code blocks, dropping positions).
+    .use(rehypeSourceMap, smEntries)
+    .use(rehypePlugins(highlighter, headings))
+    .use(rehypeStringify);
 
   const file = await processor.process(content);
   const html = String(file);
@@ -59,7 +57,7 @@ export async function ingestMarkdown(source: string): Promise<MarkdownIngest> {
     html,
     title,
     headings,
-    data: data as Record<string, unknown>,
+    data: data,
     sourceMap: serializeSourceMap(smEntries),
   };
 }

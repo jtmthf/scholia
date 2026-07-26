@@ -21,7 +21,9 @@ Node 22 or newer, and pnpm (the version is pinned in `package.json`'s
 
 ```sh
 pnpm install
-pnpm typecheck     # tsc across the workspace — this is also the lint
+pnpm typecheck     # tsc across the workspace
+pnpm lint          # oxlint --type-aware (catches what tsc misses)
+pnpm format        # oxfmt
 pnpm test:ci       # what CI runs
 ```
 
@@ -34,8 +36,8 @@ pnpm scholia ./path/to/docs
 
 ## Things that will trip you up
 
-**`tsc` is the only check.** There's no ESLint, Prettier, or Biome. Match the
-style of the file you're editing.
+**oxlint + oxfmt are the linter and formatter** (ADR-0024). `tsc` remains the
+type gate. Match the style of the file you're editing — oxfmt will enforce it.
 
 **Relative imports use the `.js` extension**, even from `.ts` files — the repo
 is ESM with `NodeNext` resolution:
@@ -67,7 +69,7 @@ Preview change.
 
 [`CONTEXT.md`](./CONTEXT.md) defines the domain vocabulary — Site, Page,
 Version, Anchor, Thread, Outdated, Promotion, and so on — and each term has a
-list of words *not* to use for it. Please match that vocabulary in code,
+list of words _not_ to use for it. Please match that vocabulary in code,
 comments, and UI; it's the main thing keeping the codebase navigable.
 
 Significant architectural decisions live in [`docs/adr`](./docs/adr) as ADRs.
@@ -88,7 +90,7 @@ No approving review is required, so a maintainer merges once CI is green.
 History is linear: squash or rebase, no merge commits.
 
 Please keep the change and its rationale in the PR description — for anything
-non-obvious, *why* is more useful to review than *what*.
+non-obvious, _why_ is more useful to review than _what_.
 
 ## Reporting bugs
 

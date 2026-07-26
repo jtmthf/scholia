@@ -11,8 +11,13 @@
 // domain logic doesn't know which platform is calling it.
 
 import type { AppDeps } from "../config.js";
-import { findPRBackedSites, getGitHubSiteState, setGitHubReconcileCursor, getLatestManifest } from "@scholia/db";
-import type { InboundEvent } from "@scholia/github";
+import {
+  findPRBackedSites,
+  getGitHubSiteState,
+  setGitHubReconcileCursor,
+  getLatestManifest,
+} from "@scholia/db";
+import type { GitHubApi, InboundEvent } from "@scholia/github";
 import { importInbound } from "./importer.js";
 import { handleLifecycle } from "./lifecycle.js";
 import { botLoginFor } from "../github-config.js";
@@ -27,7 +32,12 @@ export async function reconcilePRBackedSites(deps: AppDeps): Promise<number> {
     if (reconciling.has(site.id)) continue;
     reconciling.add(site.id);
     try {
-      const n = await reconcileOneSite(deps, site.id, site.mirrorBinding.repo, site.mirrorBinding.prNumber);
+      const n = await reconcileOneSite(
+        deps,
+        site.id,
+        site.mirrorBinding.repo,
+        site.mirrorBinding.prNumber,
+      );
       total += n;
     } catch (err) {
       // One site's failure must not crash the whole poll — log and continue.
@@ -101,7 +111,8 @@ export async function reconcileOneSite(
     botLogin: deps.github ? botLoginFor(deps.github) : null,
   };
   const accepted =
-    (await importInbound(events, importerDeps)) + (await importInbound(resolveEvents, importerDeps));
+    (await importInbound(events, importerDeps)) +
+    (await importInbound(resolveEvents, importerDeps));
 
   if (events.length === 0) return accepted;
 
@@ -138,7 +149,14 @@ async function reconcileLifecycle(
 
   // Cast to access the wrapped GitHubApi — pragmatic: the provider owns the API
   // client. In production this is the HttpGitHubApi.
-  const ghProvider = provider as unknown as { api: { getPullRequest: (repo: { owner: string; name: string }, pr: number) => Promise<{ head: { sha: string }; state: "open" | "closed"; merged: boolean }> } };
+  const ghProvider = provider as unknown as {
+    api: {
+      getPullRequest: (
+        repo: { owner: string; name: string },
+        pr: number,
+      ) => Promise<{ head: { sha: string }; state: "open" | "closed"; merged: boolean }>;
+    };
+  };
   if (!ghProvider.api?.getPullRequest) return;
 
   const [owner, name] = repo.split("/");
@@ -198,14 +216,16 @@ async function fetchNewReviewComments(
   // Use the provider's dispatch context to fetch comments. We need the GitHubApi
   // to list review comments. Access it through the provider's internal API.
   // This is a pragmatic cast — the provider owns the API client.
-  const ghProvider = provider as unknown as { api: { listPrReviewComments: (repo: { owner: string; name: string }, pr: number, since?: string) => Promise<any[]> } };
+  const ghProvider = provider as unknown as {
+    api?: Pick<GitHubApi, "listPrReviewComments">;
+  };
   if (!ghProvider.api?.listPrReviewComments) return [];
 
   const [owner, name] = repo.split("/");
   if (!owner || !name) return [];
 
   const comments = await ghProvider.api.listPrReviewComments({ owner, name }, prNumber, since);
-  return comments.map((c: any) => ({
+  return comments.map((c) => ({
     kind: "review_comment" as const,
     repo,
     prNumber,

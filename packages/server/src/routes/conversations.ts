@@ -37,6 +37,10 @@ import {
   toMirrorIdentity,
   type EmitDeps,
 } from "../mirror/emit.js";
+import type { schema } from "@scholia/db";
+
+type CommentRow = typeof schema.comments.$inferSelect;
+type ReactionRow = typeof schema.reactions.$inferSelect;
 
 // Fixed review-oriented reaction palette (CONTEXT "Reaction").
 const REACTION_PALETTE = new Set(["👍", "👎", "✅", "👀", "🎉", "❤️"]);
@@ -68,9 +72,16 @@ function stateError(state: "open" | "read_only" | "frozen"): string {
 
 // Build the EmitDeps the outbound mirror helpers need (M10). null `mirrorBinding`
 // short-circuits every emit, so non-PR-backed Sites pay nothing.
-function emitDeps(deps: AppDeps, site: { id: string; state: "open" | "read_only" | "frozen"; mirrorBinding: { provider: string; repo: string; prNumber: number } | null }): EmitDeps {
+function emitDeps(
+  deps: AppDeps,
+  site: {
+    id: string;
+    state: "open" | "read_only" | "frozen";
+    mirrorBinding: { provider: string; repo: string; prNumber: number } | null;
+  },
+): EmitDeps {
   return {
-    mirrorBinding: site.mirrorBinding as EmitDeps["mirrorBinding"],
+    mirrorBinding: site.mirrorBinding,
     siteId: site.id,
     siteState: site.state,
     mirrorBus: deps.mirrorBus,
@@ -97,7 +108,12 @@ function rateSubject(actor: Actor, humanViewerId: string | null, c: Context): st
 // Charge one comment-creation against the limiter; returns a 429 Response (with
 // Retry-After) when over the limit, else null. Applies regardless of Site state
 // (CONTEXT "Site state").
-async function rateLimited(c: Context, deps: AppDeps, siteId: string, subject: string): Promise<Response | null> {
+async function rateLimited(
+  c: Context,
+  deps: AppDeps,
+  siteId: string,
+  subject: string,
+): Promise<Response | null> {
   const res = await deps.rateLimiter.hit(`${siteId}:${subject}`);
   if (res.ok) return null;
   const retrySec = Math.max(1, Math.ceil((res.retryAfterMs ?? 0) / 1000));
@@ -119,7 +135,7 @@ function viewerIdentity(displayName: string): Identity {
 // textQuote (and optionally sourceRange/xpath/css) directly — no smIds→sourceRange
 // Source Map lookup because agents don't have smIds (browser-side Source Map ids,
 // CONTEXT "Anchor").
-function agentAnchor(anchorInput: any): Anchor | null {
+function agentAnchor(anchorInput: Record<string, unknown>): Anchor | null {
   if (!anchorInput || typeof anchorInput.textQuote !== "object") return null;
   const textQuote = anchorInput.textQuote as { exact: string; prefix?: string; suffix?: string };
   return {
@@ -174,40 +190,32 @@ async function fetchConversationById(
   const { schema } = await import("@scholia/db");
   const { eq, and, asc, isNull, inArray } = await import("drizzle-orm");
 
-  const [conv] = await (db as any)
+  const [conv] = await db
     .select()
     .from(schema.conversations)
     .where(
-      and(
-        eq(schema.conversations.id, conversationId),
-        eq(schema.conversations.siteId, siteId),
-      ),
+      and(eq(schema.conversations.id, conversationId), eq(schema.conversations.siteId, siteId)),
     )
     .limit(1);
   if (!conv) return null;
 
-  const [createdVersion] = await (db as any)
+  const [createdVersion] = await db
     .select({ ordinal: schema.versions.ordinal })
     .from(schema.versions)
     .where(eq(schema.versions.id, conv.createdVersionId))
     .limit(1);
 
-  const commentRows = await (db as any)
+  const commentRows = await db
     .select()
     .from(schema.comments)
-    .where(
-      and(
-        eq(schema.comments.conversationId, conv.id),
-        isNull(schema.comments.hiddenAt),
-      ),
-    )
+    .where(and(eq(schema.comments.conversationId, conv.id), isNull(schema.comments.hiddenAt)))
     .orderBy(asc(schema.comments.createdAt));
 
-  const commentIds: string[] = commentRows.map((r: any) => r.id);
+  const commentIds: string[] = commentRows.map((r: CommentRow) => r.id);
 
   const reactionRows =
     commentIds.length > 0
-      ? await (db as any)
+      ? await db
           .select()
           .from(schema.reactions)
           .where(inArray(schema.reactions.commentId, commentIds))
@@ -218,7 +226,7 @@ async function fetchConversationById(
     Array<{ emoji: string; count: number; mine: boolean }>
   >();
   for (const commentId of commentIds) {
-    const rs = (reactionRows as any[]).filter((r: any) => r.commentId === commentId);
+    const rs = reactionRows.filter((r: ReactionRow) => r.commentId === commentId);
     const groups = new Map<string, { count: number; mine: boolean }>();
     for (const r of rs) {
       const g = groups.get(r.emoji) ?? { count: 0, mine: false };
@@ -236,14 +244,14 @@ async function fetchConversationById(
     );
   }
 
-  const commentDTOs = commentRows.map((c: any) => {
+  const commentDTOs = commentRows.map((c: CommentRow) => {
     const deleted = c.deletedAt !== null;
     return {
       id: c.id,
-      author: c.author as Identity,
-      body: deleted ? "" : (c.body as string),
-      createdAt: (c.createdAt as Date).toISOString(),
-      editedAt: c.editedAt ? (c.editedAt as Date).toISOString() : null,
+      author: c.author,
+      body: deleted ? "" : c.body,
+      createdAt: c.createdAt.toISOString(),
+      editedAt: c.editedAt ? c.editedAt.toISOString() : null,
       deleted,
       mine: viewerId !== null && c.authorViewerId === viewerId,
       reactions: reactionsByComment.get(c.id) ?? [],
@@ -251,14 +259,14 @@ async function fetchConversationById(
   });
 
   return {
-    id: conv.id as string,
-    pagePath: conv.pagePath as string | null,
-    anchor: (conv.anchor as Anchor | null) ?? null,
-    anchorStatus: conv.anchorStatus as "live" | "outdated",
-    createdOrdinal: (createdVersion?.ordinal as number | undefined) ?? 0,
+    id: conv.id,
+    pagePath: conv.pagePath,
+    anchor: conv.anchor ?? null,
+    anchorStatus: conv.anchorStatus,
+    createdOrdinal: createdVersion?.ordinal ?? 0,
     resolved: conv.resolvedAt !== null,
-    resolvedBy: conv.resolvedBy as string | null,
-    visibility: conv.visibility as "public" | "private",
+    resolvedBy: conv.resolvedBy,
+    visibility: conv.visibility,
     comments: commentDTOs,
   };
 }
@@ -392,7 +400,10 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     if (bearerOrQueryToken(c) !== null) {
       // ---- Token path: owner or Viewer-scoped agent ----
       if (!body || typeof body.body !== "string" || body.body.trim() === "") {
-        return c.json({ error: "expected JSON { pagePath?, anchor?, body, label?, visibility? }" }, 400);
+        return c.json(
+          { error: "expected JSON { pagePath?, anchor?, body, label?, visibility? }" },
+          400,
+        );
       }
       const auth = await resolveActor(c, deps, slug, body.label ?? null);
       if (!auth.ok) return c.json({ error: auth.error }, auth.status);
@@ -472,7 +483,11 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
     // Build the stored Anchor, resolving smIds→sourceRange via the Source Map.
     let storedAnchor: Anchor | null = null;
     if (anchorInput && typeof anchorInput.textQuote === "object") {
-      const textQuote = anchorInput.textQuote as { exact: string; prefix?: string; suffix?: string };
+      const textQuote = anchorInput.textQuote as {
+        exact: string;
+        prefix?: string;
+        suffix?: string;
+      };
       let sourceRange: { start: number; end: number } | undefined;
       const smIds: number[] = Array.isArray(anchorInput.smIds) ? anchorInput.smIds : [];
       if (smIds.length > 0 && pagePath) {
@@ -785,7 +800,9 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
 
     await promoteConversation(db, {
       conversationId,
-      keepCommentIds: (body.commentIds as unknown[]).filter((x): x is string => typeof x === "string"),
+      keepCommentIds: (body.commentIds as unknown[]).filter(
+        (x): x is string => typeof x === "string",
+      ),
       summary: typeof body.summary === "string" ? body.summary : undefined,
       summaryAuthor,
       summaryAuthorViewerId,
@@ -876,7 +893,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
       // ---- Agent reaction: toggle keyed by (commentId, emoji, author.name) ----
       const { schema } = await import("@scholia/db");
       const { eq, and, sql: sqlt } = await import("drizzle-orm");
-      const [existing] = await (db as any)
+      const [existing] = await db
         .select({ id: schema.reactions.id })
         .from(schema.reactions)
         .where(
@@ -889,9 +906,9 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
         .limit(1);
 
       if (existing) {
-        await (db as any).delete(schema.reactions).where(eq(schema.reactions.id, existing.id));
+        await db.delete(schema.reactions).where(eq(schema.reactions.id, existing.id));
       } else {
-        await (db as any).insert(schema.reactions).values({
+        await db.insert(schema.reactions).values({
           commentId,
           emoji: body.emoji as string,
           author: actor.identity,
@@ -899,7 +916,7 @@ export function conversationsRoutes(getDeps: () => AppDeps) {
         });
       }
 
-      const allReactions = await (db as any)
+      const allReactions = await db
         .select({ emoji: schema.reactions.emoji })
         .from(schema.reactions)
         .where(eq(schema.reactions.commentId, commentId));
@@ -993,17 +1010,21 @@ async function resolveHandler(c: Context, getDeps: () => AppDeps, resolved: bool
 async function newCommentDTO(db: AppDeps["db"], commentId: string, mine: boolean) {
   const { schema } = await import("@scholia/db");
   const { eq } = await import("drizzle-orm");
-  const [row] = await (db as any)
+  const [row] = await db
     .select()
     .from(schema.comments)
     .where(eq(schema.comments.id, commentId))
     .limit(1);
+  // Every caller passes an id it just wrote in the same request, so a miss means
+  // the row was deleted underneath us. Say that, rather than letting the reads
+  // below throw a bare TypeError on `undefined`.
+  if (!row) throw new Error(`comment ${commentId} disappeared before it could be returned`);
   return {
     id: row.id,
-    author: row.author as Identity,
-    body: row.deletedAt !== null ? "" : (row.body as string),
-    createdAt: (row.createdAt as Date).toISOString(),
-    editedAt: row.editedAt ? (row.editedAt as Date).toISOString() : null,
+    author: row.author,
+    body: row.deletedAt !== null ? "" : row.body,
+    createdAt: row.createdAt.toISOString(),
+    editedAt: row.editedAt ? row.editedAt.toISOString() : null,
     deleted: row.deletedAt !== null,
     mine,
     reactions: [],

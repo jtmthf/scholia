@@ -80,7 +80,7 @@ export function Comment({ slug, comment, onUpdated, onDeleted, onNeedViewer }: C
       </div>
 
       {editing ? (
-        <form class="comment-edit-form" onSubmit={handleEdit}>
+        <form class="comment-edit-form" onSubmit={(e) => void handleEdit(e)}>
           <textarea
             value={editBody}
             onInput={(e) => setEditBody((e.target as HTMLTextAreaElement).value)}

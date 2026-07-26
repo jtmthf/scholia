@@ -34,12 +34,7 @@ export interface InboundIssueComment {
   action: "created" | "edited" | "deleted";
 }
 
-export type ReviewState =
-  | "APPROVED"
-  | "CHANGES_REQUESTED"
-  | "COMMENTED"
-  | "DISMISSED"
-  | "PENDING";
+export type ReviewState = "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "DISMISSED" | "PENDING";
 
 export interface InboundReview {
   kind: "review";
@@ -69,12 +64,7 @@ export interface InboundLifecycle {
   kind: "lifecycle";
   repo: string;
   prNumber: number;
-  action:
-  | "synchronize"
-  | "closed"
-  | "reopened"
-  | "locked"
-  | "unlocked";
+  action: "synchronize" | "closed" | "reopened" | "locked" | "unlocked";
   /** New PR head commit (synchronize). Latest provenance.sha dedupe key. */
   headSha?: string;
   branch?: string;

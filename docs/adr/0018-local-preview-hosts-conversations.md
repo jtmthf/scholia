@@ -17,7 +17,7 @@ Local Preview entry)
 product. We are reversing that. **Local Preview carries the full comment surface**, and
 hosting becomes a later promotion rather than the destination.
 
-The long-term goal is unchanged and larger than either: one product, local *and* hosted,
+The long-term goal is unchanged and larger than either: one product, local _and_ hosted,
 covering what Proof and Plannotator each do and surpassing both on one consistent
 surface. Local-first is the order we build it in, not a retreat from hosting.
 
@@ -25,8 +25,8 @@ Three things drove it:
 
 - **Hosting's remaining work is the expensive kind.** Private Sites, teams and real login
   are all explicitly out of v1 scope, and reaching them means auth, a deploy target,
-  abuse handling and uptime before anyone can use the thing. M2–M11 built a *deployable
-  server*, not a *running service*.
+  abuse handling and uptime before anyone can use the thing. M2–M11 built a _deployable
+  server_, not a _running service_.
 - **The differentiator is structural, not incremental.** Comments that survive an agent's
   edits — anchored, migrated, marked Outdated — are the thing `@collab/core` already
   does and neither Proof nor Plannotator has. Plannotator's annotations appear to be
@@ -43,14 +43,14 @@ committing it is an explicit per-repo opt-in.
 **A Comment binds to the Page's content hash**, not to a Version. Hosted Versions become
 a named set of content hashes layered on top, so the binding is identical on both sides
 and promotion is a serialization rather than a translation. Provenance (commit SHA, dirty
-flag) rides alongside as context — it cannot *be* the binding, because the dominant local
+flag) rides alongside as context — it cannot _be_ the binding, because the dominant local
 case is commenting on output an agent has just written and not committed.
 
 ## Considered Options
 
 - **A session-scoped review gate** (Plannotator's shape): agent finishes, a hook opens the
   browser, you mark up, feedback returns as a blob, annotations discarded. Rejected: it
-  makes comments a *transport* rather than an artifact, and it competes with Plannotator
+  makes comments a _transport_ rather than an artifact, and it competes with Plannotator
   on installer polish and agent integrations, where they are ahead. It is also a strict
   subset — once persistence exists, a lifecycle hook that opens Scholia is small — and the
   reverse is not true.
@@ -74,7 +74,7 @@ case is commenting on output an agent has just written and not committed.
   loudly; nobody will stumble into it.
 - **Outdated becomes continuous.** Hosted resolves anchors at upload against immutable
   Versions; locally the file is live, so anchors re-resolve on every read and Outdated is
-  computed, not stored. Migration quality therefore matters *more* locally than hosted —
+  computed, not stored. Migration quality therefore matters _more_ locally than hosted —
   edits arrive continuously rather than in discrete uploads. PLAN.md §8 risk 3 (a fixture
   corpus of v1→v2 diffs, measuring migrate-vs-Outdated accuracy) is now on the critical
   path rather than a nice-to-have.

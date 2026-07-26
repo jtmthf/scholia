@@ -25,7 +25,7 @@ second version, and skew between an MCP and the application it drives. The HTTP 
 covers clients that cannot spawn a process.
 
 **Agent documentation is served, not shipped.** `/agent-docs` describes the capabilities
-of *that* instance, so a local server documents no tokens and no Versions while a hosted
+of _that_ instance, so a local server documents no tokens and no Versions while a hosted
 one documents tiers — and neither can drift from the code. A static copy ships in the
 package for bootstrap.
 
@@ -41,7 +41,7 @@ package for bootstrap.
 
 - **A generic renderer produces uniformly mediocre commands.** Positional arguments,
   short flags and sensible defaults are what make a CLI pleasant, so each verb carries a
-  CLI hint (positional order, aliases). The registry constrains *capability* parity without
+  CLI hint (positional order, aliases). The registry constrains _capability_ parity without
   flattening the interface.
 - Adding a verb means writing its LLM-facing description once, deliberately — that copy is
   part of the application layer, not an afterthought in a route handler.

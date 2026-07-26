@@ -42,15 +42,10 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     if (blobDir) await rm(blobDir, { recursive: true, force: true });
   });
 
-  const json = (
-    path: string,
-    method: string,
-    body?: unknown,
-    headers?: Record<string, string>,
-  ) =>
+  const json = (path: string, method: string, body?: unknown, headers?: Record<string, string>) =>
     app.request(path, {
       method,
-      headers: { "content-type": "application/json", ...(headers ?? {}) },
+      headers: { "content-type": "application/json", ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
@@ -75,7 +70,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       const f = files.find((x) => hashBytes(enc.encode(x.text)) === h)!;
       await app.request(`/blobs/${h}`, {
         method: "PUT",
-        body: enc.encode(f.text).buffer as ArrayBuffer,
+        body: enc.encode(f.text).buffer,
       });
     }
     const url = opts.slug ? `/sites/${opts.slug}/versions` : "/sites";
@@ -119,7 +114,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       { authorization: `Bearer ${token}` },
     );
     expect(res.status).toBe(201);
-    const conv = (await res.json()) as any;
+    const conv = await res.json();
     expect(conv.comments).toHaveLength(1);
     const comment = conv.comments[0];
     expect(comment.author.kind).toBe("agent");
@@ -130,7 +125,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     expect(conv.anchor.sourceRange).toBeUndefined();
   });
 
-  test("agent creates Thread without label — defaults to \"Owner's agent\"", async () => {
+  test('agent creates Thread without label — defaults to "Owner\'s agent"', async () => {
     const { slug, token } = await makeSite();
 
     const res = await json(
@@ -140,7 +135,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       { authorization: `Bearer ${token}` },
     );
     expect(res.status).toBe(201);
-    const conv = (await res.json()) as any;
+    const conv = await res.json();
     expect(conv.comments[0].author.name).toBe("Owner's agent");
   });
 
@@ -153,7 +148,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       body: JSON.stringify({ pagePath: null, anchor: null, body: "Token in query." }),
     });
     expect(res.status).toBe(201);
-    const conv = (await res.json()) as any;
+    const conv = await res.json();
     expect(conv.comments[0].author.kind).toBe("agent");
   });
 
@@ -192,14 +187,14 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     const { slug, token } = await makeSite();
 
     // Create thread as agent.
-    const thread = (await (
+    const thread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "First comment." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
     const convId = thread.id;
 
     const reply = await json(
@@ -209,7 +204,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       { authorization: `Bearer ${token}` },
     );
     expect(reply.status).toBe(201);
-    const replyBody = (await reply.json()) as any;
+    const replyBody = await reply.json();
     expect(replyBody.author.kind).toBe("agent");
     expect(replyBody.author.name).toBe("review-bot");
     expect(replyBody.body).toBe("Agent reply.");
@@ -220,14 +215,14 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
   test("agent resolves and reopens a Thread", async () => {
     const { slug, token } = await makeSite();
 
-    const thread = (await (
+    const thread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "Resolve me." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
     const convId = thread.id;
 
     const resolved = await json(
@@ -237,7 +232,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       { authorization: `Bearer ${token}` },
     );
     expect(resolved.status).toBe(200);
-    const resolvedBody = (await resolved.json()) as any;
+    const resolvedBody = await resolved.json();
     expect(resolvedBody.resolved).toBe(true);
     expect(resolvedBody.resolvedBy).toBe("review-bot");
 
@@ -248,7 +243,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       { authorization: `Bearer ${token}` },
     );
     expect(reopened.status).toBe(200);
-    expect(((await reopened.json()) as any).resolved).toBe(false);
+    expect((await reopened.json()).resolved).toBe(false);
   });
 
   // ---- Agent react -------------------------------------------------------
@@ -256,14 +251,14 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
   test("agent react: same label toggles off; second call re-adds", async () => {
     const { slug, token } = await makeSite();
 
-    const thread = (await (
+    const thread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "React target." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
     const commentId = thread.comments[0].id;
 
     // First call: adds ✅
@@ -303,14 +298,14 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
   test("agent react: different labels produce separate reaction rows", async () => {
     const { slug, token } = await makeSite();
 
-    const thread = (await (
+    const thread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "Multi-agent react." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
     const commentId = thread.comments[0].id;
 
     // bot-a reacts.
@@ -339,7 +334,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     const viewerId = await mintViewer(slug);
 
     // Viewer creates a thread.
-    const thread = (await (
+    const thread = await (
       await json(`/sites/${slug}/conversations`, "POST", {
         pagePath: null,
         anchor: null,
@@ -347,7 +342,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
         viewerId,
         displayName: "Jane",
       })
-    ).json()) as any;
+    ).json();
     const commentId = thread.comments[0].id;
 
     // Agent owner-deletes the viewer's comment.
@@ -370,7 +365,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     const jane = await mintViewer(slug);
     const bob = await mintViewer(slug);
 
-    const thread = (await (
+    const thread = await (
       await json(`/sites/${slug}/conversations`, "POST", {
         pagePath: null,
         anchor: null,
@@ -378,7 +373,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
         viewerId: jane,
         displayName: "Jane",
       })
-    ).json()) as any;
+    ).json();
     const commentId = thread.comments[0].id;
 
     const del = await json(`/sites/${slug}/comments/${commentId}`, "DELETE", { viewerId: bob });
@@ -405,7 +400,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
 
     const res = await app.request(`/sites/${slug}/comments`);
     expect(res.status).toBe(200);
-    const { comments } = (await res.json()) as any;
+    const { comments } = await res.json();
     expect(comments.length).toBeGreaterThanOrEqual(1);
     const dto = comments[0];
     // Check required SiteCommentDTO fields.
@@ -426,14 +421,14 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     const { slug, token } = await makeSite();
 
     // Thread A: will be resolved.
-    const tA = (await (
+    const tA = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "Thread A." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
 
     // Thread B: stays unresolved.
     await json(
@@ -453,12 +448,12 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
 
     // Without filter: both show up.
     const allRes = await app.request(`/sites/${slug}/comments`);
-    const { comments: all } = (await allRes.json()) as any;
+    const { comments: all } = await allRes.json();
     expect(all.length).toBeGreaterThanOrEqual(2);
 
     // With ?unresolved: only Thread B's comment shows.
     const unresRes = await app.request(`/sites/${slug}/comments?unresolved`);
-    const { comments: unresolved } = (await unresRes.json()) as any;
+    const { comments: unresolved } = await unresRes.json();
     const ids = unresolved.map((c: any) => c.conversationId);
     expect(ids).not.toContain(tA.id);
   });
@@ -480,19 +475,17 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     await new Promise((r) => setTimeout(r, 10));
 
     // New comment.
-    const newThread = (await (
+    const newThread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "New comment." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
 
-    const res = await app.request(
-      `/sites/${slug}/comments?since=${encodeURIComponent(cutoff)}`,
-    );
-    const { comments } = (await res.json()) as any;
+    const res = await app.request(`/sites/${slug}/comments?since=${encodeURIComponent(cutoff)}`);
+    const { comments } = await res.json();
     expect(comments.every((c: any) => c.createdAt > cutoff)).toBe(true);
     expect(comments.some((c: any) => c.conversationId === newThread.id)).toBe(true);
   });
@@ -501,14 +494,14 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     const { slug, token } = await makeSite();
 
     // Comment mentioning @alice.
-    const tAlice = (await (
+    const tAlice = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "Hey @alice please review." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
 
     // Comment mentioning @bob.
     await json(
@@ -519,7 +512,7 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     );
 
     const res = await app.request(`/sites/${slug}/comments?mentions=alice`);
-    const { comments } = (await res.json()) as any;
+    const { comments } = await res.json();
     expect(comments.every((c: any) => c.conversationId === tAlice.id)).toBe(true);
     expect(comments.length).toBeGreaterThanOrEqual(1);
   });
@@ -529,18 +522,18 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
   test("@-mentions parsed and stored; surface via list_comments ?mentions", async () => {
     const { slug, token } = await makeSite();
 
-    const thread = (await (
+    const thread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "@owner-agent please check this." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
 
     // list_comments with mentions filter.
     const res = await app.request(`/sites/${slug}/comments?mentions=owner-agent`);
-    const { comments } = (await res.json()) as any;
+    const { comments } = await res.json();
     expect(comments.some((c: any) => c.conversationId === thread.id)).toBe(true);
     // Mentions field carries the raw target.
     const dto = comments.find((c: any) => c.conversationId === thread.id);
@@ -552,38 +545,38 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
 
     // @owner-agent is the natural handle — possessive "'s" is dropped so
     // "Owner's agent" normalizes to "owner-agent", not "owners-agent".
-    const thread = (await (
+    const thread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "@owner-agent please check." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
 
     const res = await app.request(
       `/sites/${slug}/comments?mentions=${encodeURIComponent("Owner's agent")}`,
     );
-    const { comments } = (await res.json()) as any;
+    const { comments } = await res.json();
     expect(comments.some((c: any) => c.conversationId === thread.id)).toBe(true);
   });
 
   test("mentions filter: @owners-agent does NOT match 'Owner\\'s agent' (possessive 's dropped, not kept)", async () => {
     const { slug, token } = await makeSite();
 
-    const thread = (await (
+    const thread = await (
       await json(
         `/sites/${slug}/conversations`,
         "POST",
         { pagePath: null, anchor: null, body: "@owners-agent wrong handle." },
         { authorization: `Bearer ${token}` },
       )
-    ).json()) as any;
+    ).json();
 
     const res = await app.request(
       `/sites/${slug}/comments?mentions=${encodeURIComponent("Owner's agent")}`,
     );
-    const { comments } = (await res.json()) as any;
+    const { comments } = await res.json();
     expect(comments.some((c: any) => c.conversationId === thread.id)).toBe(false);
   });
 

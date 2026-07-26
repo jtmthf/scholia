@@ -15,7 +15,7 @@ durable URL. A Tunnel changes nothing except reachability: same live files, same
 same live-reload. Grouping it under `share` would misrepresent what it does.
 
 We sequence **Tunnel before hosting**. It is nearly free given ADR-0018 and ADR-0020 — the
-local server already *is* the application, with the full Conversation surface — and it
+local server already _is_ the application, with the full Conversation surface — and it
 requires no database, no blob store, no accounts, no deployment and no abuse surface. The
 payoff is that a reviewer's Comments **land in the author's working tree as files**, with
 no import, sync or export step.
@@ -34,7 +34,7 @@ or use `@ngrok/ngrok`, detect what is installed, and print instructions when not
 - **`POST /__open` must refuse tunnelled requests.** ADR-0017's guards are "POST, not GET",
   "`Sec-Fetch-Site` must be same-origin", and — load-bearing — that the server binds
   loopback only. A Tunnel invalidates the third directly. That ADR warned "without this
-  check a random tab could make the editor open files"; tunnelled, it is a random *person*.
+  check a random tab could make the editor open files"; tunnelled, it is a random _person_.
   The endpoint is loopback-only, unconditionally.
 - **Local Preview becomes multi-user, which brings back the Viewer.** Git config identifies
   the author and means nothing for a guest on another machine, so tunnelled guests are

@@ -37,7 +37,7 @@ function renderNav(nodes: NavNode[], currentPath: string): string {
           node.title,
         )}</span>${renderNav(node.children ?? [], currentPath)}</li>`;
       }
-      const active = node.urlPath === currentPath ? " class=\"active\"" : "";
+      const active = node.urlPath === currentPath ? ' class="active"' : "";
       return `<li><a href="${escapeHtml(node.urlPath)}"${active}>${escapeHtml(
         node.title,
       )}</a></li>`;
@@ -99,7 +99,10 @@ function renderPageActions(editorAvailable: boolean, relPath: string): string {
 // it. Quiet, small text (ADR-0016) — it must not compete with the article.
 function renderColophon(info: ColophonInfo | null): string {
   if (!info) return "";
-  const mtime = new Date(info.mtimeMs).toISOString().replace("T", " ").replace(/:\d\d\.\d+Z$/, " UTC");
+  const mtime = new Date(info.mtimeMs)
+    .toISOString()
+    .replace("T", " ")
+    .replace(/:\d\d\.\d+Z$/, " UTC");
   const parts = [
     `<span class="colophon-path">${escapeHtml(info.relPath)}</span>`,
     `<span class="colophon-mtime">edited ${escapeHtml(mtime)}</span>`,

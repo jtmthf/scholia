@@ -118,7 +118,7 @@ export function OwnerPanel({
                 key={s.value}
                 class={`owner-state-btn${state === s.value ? " owner-state-btn--active" : ""}`}
                 disabled={busy !== null}
-                onClick={() => changeState(s.value)}
+                onClick={() => void changeState(s.value)}
               >
                 <span class="owner-state-label">{s.label}</span>
                 <span class="owner-state-hint">{s.hint}</span>
@@ -134,7 +134,11 @@ export function OwnerPanel({
               <strong>Rotate Share URL</strong>
               <span>Invalidate a leaked link and mint a fresh one.</span>
             </div>
-            <button class="btn-secondary" disabled={busy !== null} onClick={doRotateShare}>
+            <button
+              class="btn-secondary"
+              disabled={busy !== null}
+              onClick={() => void doRotateShare()}
+            >
               {busy === "share" ? "…" : "Rotate"}
             </button>
           </div>
@@ -145,7 +149,11 @@ export function OwnerPanel({
               <strong>Rotate owner token</strong>
               <span>Revoke the current token / Agent URL and issue a new one.</span>
             </div>
-            <button class="btn-secondary" disabled={busy !== null} onClick={doRotateToken}>
+            <button
+              class="btn-secondary"
+              disabled={busy !== null}
+              onClick={() => void doRotateToken()}
+            >
               {busy === "token" ? "…" : "Rotate"}
             </button>
           </div>
@@ -161,7 +169,9 @@ export function OwnerPanel({
             <h3 class="owner-section-title">PR-backed Site</h3>
             <div class="owner-action-row">
               <div class="owner-action-copy">
-                <strong>{mirrorBinding.repo}#{mirrorBinding.prNumber}</strong>
+                <strong>
+                  {mirrorBinding.repo}#{mirrorBinding.prNumber}
+                </strong>
                 <span>Public Threads mirror to the GitHub PR.</span>
               </div>
               <a
@@ -203,15 +213,23 @@ export function OwnerPanel({
             </div>
             {confirmDelete ? (
               <div class="owner-confirm">
-                <button class="btn-danger" disabled={busy !== null} onClick={doDelete}>
+                <button class="btn-danger" disabled={busy !== null} onClick={() => void doDelete()}>
                   {busy === "delete" ? "Deleting…" : "Confirm delete"}
                 </button>
-                <button class="btn-secondary" disabled={busy !== null} onClick={() => setConfirmDelete(false)}>
+                <button
+                  class="btn-secondary"
+                  disabled={busy !== null}
+                  onClick={() => setConfirmDelete(false)}
+                >
                   Cancel
                 </button>
               </div>
             ) : (
-              <button class="btn-danger" disabled={busy !== null} onClick={() => setConfirmDelete(true)}>
+              <button
+                class="btn-danger"
+                disabled={busy !== null}
+                onClick={() => setConfirmDelete(true)}
+              >
                 Delete
               </button>
             )}

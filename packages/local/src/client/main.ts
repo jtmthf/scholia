@@ -196,18 +196,24 @@ function initTheme(): void {
 async function liveReloadSwap(): Promise<void> {
   try {
     const res = await fetch(location.href, { headers: { "x-scholia-livereload": "1" } });
-    if (!res.ok) return void location.reload();
+    if (!res.ok) return location.reload();
     const doc = new DOMParser().parseFromString(await res.text(), "text/html");
 
     const fresh = doc.querySelector(".markdown-body");
     const current = document.querySelector(".markdown-body");
-    if (!fresh || !current) return void location.reload();
+    if (!fresh || !current) return location.reload();
 
     // Replace content in place so the window scroll position is preserved.
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
-    for (const sel of [".outline", ".nav-pane", ".page-header", ".colophon", "#scholia-source-md"]) {
+    for (const sel of [
+      ".outline",
+      ".nav-pane",
+      ".page-header",
+      ".colophon",
+      "#scholia-source-md",
+    ]) {
       const next = doc.querySelector(sel);
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
@@ -265,7 +271,7 @@ function initSearch(): void {
   let active = -1; // index of the keyboard-highlighted result, -1 = none
 
   const items = (): HTMLAnchorElement[] =>
-    Array.from(results!.querySelectorAll<HTMLAnchorElement>("a"));
+    Array.from(results.querySelectorAll<HTMLAnchorElement>("a"));
 
   function setActive(next: number): void {
     const links = items();
@@ -311,7 +317,7 @@ function initSearch(): void {
 
   input.addEventListener("input", () => {
     clearTimeout(timer);
-    timer = setTimeout(run, 150);
+    timer = setTimeout(() => void run(), 150);
   });
 
   // Pointer hover keeps the keyboard highlight in sync with the mouse.
@@ -319,7 +325,7 @@ function initSearch(): void {
     if (!(e.target instanceof Element)) return;
     const link = e.target.closest("a");
     if (!link) return;
-    const idx = items().indexOf(link as HTMLAnchorElement);
+    const idx = items().indexOf(link);
     if (idx !== -1 && idx !== active) setActive(idx);
   });
 

@@ -16,7 +16,7 @@ zero-friction entry point, and nothing leaves the machine. Uploading is a separa
 explicit verb: `collab share <path>` mints the Site and returns the Share URL.
 
 We chose local-first over upload-first (the original PLAN had `collab <file>` upload
-immediately) because the funnel — *preview locally, then choose to share* — is the
+immediately) because the funnel — _preview locally, then choose to share_ — is the
 whole reason the local tool and the hosted service belong together. It also makes the
 first thing a new user experiences the renderer working perfectly with zero setup,
 and keeps the most sensitive action (publishing content to a public URL) opt-in. The

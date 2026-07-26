@@ -106,8 +106,7 @@ export function pickEntryPath(entries: ManifestEntry[], dir = ""): string | unde
 
   const relative = (p: string) => p.slice(prefix.length);
   const topLevel = scoped.filter((p) => !relative(p).includes("/"));
-  const named = (name: string) =>
-    topLevel.find((p) => relative(p).toLowerCase() === name);
+  const named = (name: string) => topLevel.find((p) => relative(p).toLowerCase() === name);
 
   return (
     named("index.html") ??

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
-import { upsertGitHubInstallation, findInstallationForRepo } from "@scholia/db";
+import { upsertGitHubInstallation } from "@scholia/db";
 import { FsBlobStore } from "@scholia/core";
 import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
@@ -42,20 +42,31 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
 
     // Seed the fake GitHub API with a PR that touches two markdown files.
     fakeApi = new FakeGitHubApi();
-    fakeApi.seedPr(
-      { owner: "octocat", name: "test-repo" },
-      42,
-      {
-        headSha: HEAD_SHA,
-        branch: "feature-branch",
-        title: "Add docs",
-        files: [
-          { filename: "README.md", status: "added", sha: "blob-sha-1", content: enc.encode(README_MD) },
-          { filename: "guide/intro.md", status: "added", sha: "blob-sha-2", content: enc.encode(GUIDE_MD) },
-          { filename: "logo.png", status: "added", sha: "blob-sha-3", content: new Uint8Array([0x89, 0x50]) },
-        ],
-      },
-    );
+    fakeApi.seedPr({ owner: "octocat", name: "test-repo" }, 42, {
+      headSha: HEAD_SHA,
+      branch: "feature-branch",
+      title: "Add docs",
+      files: [
+        {
+          filename: "README.md",
+          status: "added",
+          sha: "blob-sha-1",
+          content: enc.encode(README_MD),
+        },
+        {
+          filename: "guide/intro.md",
+          status: "added",
+          sha: "blob-sha-2",
+          content: enc.encode(GUIDE_MD),
+        },
+        {
+          filename: "logo.png",
+          status: "added",
+          sha: "blob-sha-3",
+          content: new Uint8Array([0x89, 0x50]),
+        },
+      ],
+    });
 
     // Seed an installation so `findInstallationForRepo` succeeds.
     await upsertGitHubInstallation(db, {
@@ -101,7 +112,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.slug).toBeTruthy();
     expect(body.shareUrl).toBe(`http://viewer.test/s/${body.slug}`);
     expect(typeof body.token).toBe("string");
@@ -109,7 +120,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     expect(body.mirrorBinding).toEqual({ provider: "github", repo: REPO, prNumber: 42 });
 
     // GET /sites/:slug should also report the mirrorBinding.
-    const meta = (await (await app.request(`/sites/${body.slug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${body.slug}`)).json();
     expect(meta.mirrorBinding).toEqual({ provider: "github", repo: REPO, prNumber: 42 });
     expect(meta.version).toBe(1);
     expect(meta.entryPath).toBe("README.md");
@@ -166,7 +177,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.slug).toBeTruthy();
     expect(body.entryPath).toBe("README.md");
     // Ref-backed Sites are NOT mirrored (ADR-0008 mirroring is PR-only).
@@ -190,7 +201,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(createRes.status).toBe(201);
-    const { slug, token } = (await createRes.json()) as any;
+    const { slug, token } = await createRes.json();
 
     // Attempt a local re-upload → rejected.
     const res = await app.request(`/sites/${slug}/versions`, {
@@ -202,7 +213,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(res.status).toBe(400);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.error).toMatch(/PR-backed/);
   });
 
@@ -216,22 +227,28 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(createRes.status).toBe(201);
-    const { slug, token } = (await createRes.json()) as any;
+    const { slug, token } = await createRes.json();
 
     // Advance the PR head with modified content.
     const newSha = "new789head012";
-    fakeApi.advancePrHead(
-      { owner: "octocat", name: "test-repo" },
-      42,
-      {
-        newHeadSha: newSha,
-        branch: "feature-branch",
-        files: [
-          { filename: "README.md", status: "modified", sha: "blob-sha-1b", content: enc.encode("# Hello PR v2\n\nUpdated.\n") },
-          { filename: "guide/intro.md", status: "modified", sha: "blob-sha-2b", content: enc.encode(GUIDE_MD) },
-        ],
-      },
-    );
+    fakeApi.advancePrHead({ owner: "octocat", name: "test-repo" }, 42, {
+      newHeadSha: newSha,
+      branch: "feature-branch",
+      files: [
+        {
+          filename: "README.md",
+          status: "modified",
+          sha: "blob-sha-1b",
+          content: enc.encode("# Hello PR v2\n\nUpdated.\n"),
+        },
+        {
+          filename: "guide/intro.md",
+          status: "modified",
+          sha: "blob-sha-2b",
+          content: enc.encode(GUIDE_MD),
+        },
+      ],
+    });
 
     // Re-upload via --pr (advance to new head).
     const res = await app.request(`/sites/${slug}/versions`, {
@@ -242,7 +259,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.version).toBe(2);
     expect(body.entryPath).toBe("README.md");
 
@@ -263,7 +280,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(createRes.status).toBe(201);
-    const { slug, token } = (await createRes.json()) as any;
+    const { slug, token } = await createRes.json();
 
     // The Latest Version's provenance.sha is the current PR head (HEAD_SHA or newSha
     // from the previous test, which advanced it). Re-upload with the same sha
@@ -272,7 +289,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     // We need to know the current head. After the previous test advanced it, the
     // head is "new789head012". But tests may run in any order, so we query metadata
     // to get the current version, then re-upload with the same provenance.
-    const meta = (await (await app.request(`/sites/${slug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${slug}`)).json();
     expect(meta.version).toBeGreaterThanOrEqual(1);
 
     // Re-upload with an explicit provenance.sha matching what was just stored.
@@ -291,7 +308,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     // If the head was advanced by the previous test, this is the same head → deduped.
     // If not, it's the original head → deduped.
     expect([200, 201].includes(res.status)).toBe(true);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     if (res.status === 200) {
       expect(body.deduped).toBe(true);
     }
@@ -306,7 +323,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.error).toMatch(/install the Scholia GitHub App/);
   });
 
@@ -330,7 +347,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(res.status).toBe(400);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.error).toMatch(/GitHub integration not enabled/);
     await sql2.end();
   });
@@ -344,7 +361,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     // PUT the blob.
     const putRes = await app.request(`/blobs/${hash}`, {
       method: "PUT",
-      body: bytes.buffer as ArrayBuffer,
+      body: bytes.buffer,
     });
     expect(putRes.status).toBe(200);
 
@@ -358,13 +375,13 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     expect(body.slug).toBeTruthy();
     expect(body.mirrorBinding).toBeUndefined();
     expect(body.entryPath).toBe("README.md");
 
     // Metadata has no mirrorBinding.
-    const meta = (await (await app.request(`/sites/${body.slug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${body.slug}`)).json();
     expect(meta.mirrorBinding).toBeUndefined();
   });
 });

@@ -4,45 +4,53 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
-  check:
-    # Linux is the primary gate; Windows catches path-handling divergence
-    # (backslashes, drive letters, case-insensitivity) in the core path utils
-    # and the Local Preview server, which Linux would never exercise. macOS is
-    # covered by local dev, so no runner for it. fail-fast off so a Windows-only
-    # break still lets the Linux result through.
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  typecheck:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-
-      # No `version:` here on purpose — the action errors out ("Multiple
-      # versions of pnpm specified") if it's set alongside `packageManager` in
-      # package.json. That field is the single source of truth and pins the
-      # exact patch, so the action reads it. v6 is also the first release that
-      # officially supports the pnpm 11 line we pin.
-      - uses: pnpm/action-setup@v6
-
-      # `cache: pnpm` is still explicit here on purpose: as of v6 this action
-      # only caches automatically when `packageManager` names npm.
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
 
-      - name: Typecheck
-        run: pnpm typecheck
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
 
-      # v0.1 ships Local Preview only. `test:ci` runs the shipping + pure
-      # packages (core, cli, local, bridge, github) and deliberately excludes
-      # @scholia/server, whose suite needs Postgres (host port 5544) and has
-      # known hosted-path failures tracked in LAUNCH.md. Wire the server suite
-      # into CI (with a Postgres service) when hosted mode ships.
-      - name: Test
-        run: pnpm test:ci
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:ci

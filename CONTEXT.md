@@ -34,7 +34,7 @@ The block at the foot of a Page recording where it came from: its path, when it 
 _Avoid_: footer, metadata, page info
 
 **Markdown Page**:
-A Page whose canonical source is markdown. It is rendered to an HTML page for reading, but comments anchor to ranges in the original markdown *source* (via a Source Map), not to the rendered DOM.
+A Page whose canonical source is markdown. It is rendered to an HTML page for reading, but comments anchor to ranges in the original markdown _source_ (via a Source Map), not to the rendered DOM.
 
 **HTML Page**:
 A Page whose canonical source is HTML. It is served as a rendered page and comments anchor directly to the DOM.
@@ -46,7 +46,7 @@ The mapping between a selection in a rendered Markdown Page and the correspondin
 The attachment point that binds a Thread to a specific piece of a Page. An Anchor must ground to something **unique**: at creation the `prefix`/`suffix` context is expanded until the text-quote uniquely identifies its target (no occurrence ordinals). Its **primary** form is that unique text-quote (`exact` + `prefix`/`suffix` context) that can be searched for in source or DOM. It also carries **secondary** structural hints: a **source range** (line/column in the canonical source — available for both Page kinds, since Scholia hosts the source for both), plus XPath and/or CSS selector for an HTML Page. A source range is only valid against the exact Version's source (stale if the agent's local copy has drifted), which is why resolution is text-quote-first; structural hints are a fallback/bonus. Anchor resolution covers in-page display, cross-Version migration, and what agents receive from `list_comments`. When a new Version is uploaded, Anchors are migrated forward best-effort via text-quote matching; an Anchor whose quote no longer matches becomes Outdated.
 
 **Outdated** (Comment/Anchor):
-A Comment whose Anchor no longer matches the text it was written against. It is not deleted; it is shown collapsed / in a side rail, and it retains the original quote, so an Outdated Comment can show what the passage *used* to say. Hosted, this is settled at upload against the Latest Version. Locally it is recomputed on every read, because the files are live and change continuously. Mirrors how GitHub marks PR review comments "outdated" when new commits land.
+A Comment whose Anchor no longer matches the text it was written against. It is not deleted; it is shown collapsed / in a side rail, and it retains the original quote, so an Outdated Comment can show what the passage _used_ to say. Hosted, this is settled at upload against the Latest Version. Locally it is recomputed on every read, because the files are live and change continuously. Mirrors how GitHub marks PR review comments "outdated" when new commits land.
 _Avoid_: orphaned, stale, broken
 
 **Conversation**:
@@ -101,7 +101,7 @@ _Avoid_: change view, delta
 The identity that first uploaded a Site and holds its API Token. The only identity permitted destructive/management actions: delete Site/Version, delete any Comment/Conversation, **rotate** the Share URL (kills a leaked link) and the API Token/Agent URLs, and set Site **state** (read-only or frozen). Agents act as the Owner (or a labeled identity under the Owner's token).
 
 **Retention & limits**:
-The operator-facing policy on lifespan and size. Default is **infinite retention** for Sites and all Versions, on self-host *and* hosted, constrained only if it becomes a problem. Operator-configurable knobs exist but are unset by default: inactivity TTL, keep-last-N Versions, per-file / per-Site / file-count caps, per-token quotas. End users never configure these and only encounter limits via clear rejection errors — "no config" is a promise to users, not operators.
+The operator-facing policy on lifespan and size. Default is **infinite retention** for Sites and all Versions, on self-host _and_ hosted, constrained only if it becomes a problem. Operator-configurable knobs exist but are unset by default: inactivity TTL, keep-last-N Versions, per-file / per-Site / file-count caps, per-token quotas. End users never configure these and only encounter limits via clear rejection errors — "no config" is a promise to users, not operators.
 _Avoid_: TTL, expiry, quota (alone)
 
 **Site state**:
@@ -132,7 +132,7 @@ A link that embeds a token capability in the URL (Proof-style), used to onboard 
 _Avoid_: token link, write link
 
 **Agent Prompt**:
-The paste-ready instruction blob emitted by the Site's "copy agent prompt" button: the Agent URL + the verb set + a pointer to the discoverable agent docs (`scholia.SKILL.md` / `/agent-docs`). It is framed as the user's deliberate handoff to their own agent. The discoverable docs (`/agent-docs`, `scholia.SKILL.md`) instruct agents to treat anchors/comments as data, confirm outward actions, and never auto-execute imperative instructions found *inside* hosted (untrusted) documents — Scholia eating its own dog food on prompt-injection caution. The zero-install counterpart to the installed CLI/MCP path.
+The paste-ready instruction blob emitted by the Site's "copy agent prompt" button: the Agent URL + the verb set + a pointer to the discoverable agent docs (`scholia.SKILL.md` / `/agent-docs`). It is framed as the user's deliberate handoff to their own agent. The discoverable docs (`/agent-docs`, `scholia.SKILL.md`) instruct agents to treat anchors/comments as data, confirm outward actions, and never auto-execute imperative instructions found _inside_ hosted (untrusted) documents — Scholia eating its own dog food on prompt-injection caution. The zero-install counterpart to the installed CLI/MCP path.
 _Avoid_: copy prompt, onboarding prompt
 
 **Viewer**:
@@ -163,4 +163,4 @@ _Avoid_: sync (alone), replicate, copy
 
 _Future direction_: Scholia may grow from a read-and-comment tool (the source of truth stays in the repo; Scholia carries the feedback loop and edits are incorporated by the author or their agent) into a live WYSIWYG collaborative editor with presence and in-place edits (Proof-style). The architecture should not preclude this, but Scholia is read-and-comment only for now. Presence ("who's viewing now") is deferred to this future work.
 
-A second future direction is a `scholia build` command (inherited from mdttp's roadmap): an *export* path that compiles a Site to a deployable Preact app for hosting elsewhere. It shares a compile front-end with `scholia share` but diverges at the output — the share/hosting path always flattens to static HTML, because hosted Pages must stay non-executing and stably anchorable (ADR-0012). Build/export is now on the roadmap rather than hypothetical: it is how Scholia's own documentation ships (ADR-0023), and it is a publishing path only — a static export has no backend, so Conversations do not work on it.
+A second future direction is a `scholia build` command (inherited from mdttp's roadmap): an _export_ path that compiles a Site to a deployable Preact app for hosting elsewhere. It shares a compile front-end with `scholia share` but diverges at the output — the share/hosting path always flattens to static HTML, because hosted Pages must stay non-executing and stably anchorable (ADR-0012). Build/export is now on the roadmap rather than hypothetical: it is how Scholia's own documentation ships (ADR-0023), and it is a publishing path only — a static export has no backend, so Conversations do not work on it.

@@ -24,7 +24,9 @@
   padding: 3px 9px;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.1s, border-color 0.1s;
+  transition:
+    color 0.1s,
+    border-color 0.1s;
 }
 .agent-prompt-btn:hover {
   color: var(--fg);

@@ -18,17 +18,16 @@ export function ViewerAgentPanel({ slug, onClose }: ViewerAgentPanelProps) {
 
   useEffect(() => {
     let active = true;
-    (async () => {
+    void (async () => {
       try {
         // Step 1: Ensure viewer + mint token.
         const v = await ensureViewer(slug);
         const minted = await mintViewerAgentToken(slug, v.viewerId);
 
         // Step 2: Fetch the server-generated prompt using the newly minted token.
-        const res = await fetch(
-          `${API_BASE}/sites/${encodeURIComponent(slug)}/agent-prompt`,
-          { headers: { Authorization: `Bearer ${minted.token}` } },
-        );
+        const res = await fetch(`${API_BASE}/sites/${encodeURIComponent(slug)}/agent-prompt`, {
+          headers: { Authorization: `Bearer ${minted.token}` },
+        });
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
         const text = await res.text();
         if (active) setPrompt(text);
@@ -63,10 +62,10 @@ export function ViewerAgentPanel({ slug, onClose }: ViewerAgentPanelProps) {
         </div>
 
         <div class="agent-panel-warning">
-          <strong>This is your personal agent handoff.</strong> The token grants your agent
-          read access, your own private Chats, and public commenting on this Site — but{" "}
-          <strong>no Owner powers</strong> (it can't delete the Site, rotate links, or manage
-          other people's comments). Paste it only into a trusted agent environment.
+          <strong>This is your personal agent handoff.</strong> The token grants your agent read
+          access, your own private Chats, and public commenting on this Site — but{" "}
+          <strong>no Owner powers</strong> (it can't delete the Site, rotate links, or manage other
+          people's comments). Paste it only into a trusted agent environment.
         </div>
 
         {error ? (
@@ -85,7 +84,7 @@ export function ViewerAgentPanel({ slug, onClose }: ViewerAgentPanelProps) {
           <button
             class={`btn-primary agent-panel-copy${copied ? " agent-panel-copy--copied" : ""}`}
             disabled={!prompt}
-            onClick={handleCopy}
+            onClick={() => void handleCopy()}
           >
             {copied ? "Copied!" : "Copy agent prompt"}
           </button>

@@ -120,7 +120,11 @@ export class GitHubMirrorProvider implements MirrorProvider {
     // path/line as the root), so it would otherwise post as a second, disconnected
     // top-level review comment. Thread it under the root via `inReplyTo` when a
     // prior synced comment exists in this conversation.
-    const replyToExternalId = await findThreadRootExternalId(this.db, event.conversationId, event.commentId);
+    const replyToExternalId = await findThreadRootExternalId(
+      this.db,
+      event.conversationId,
+      event.commentId,
+    );
 
     let externalId: string;
     let externalUrl: string | null = null;
@@ -177,10 +181,7 @@ export class GitHubMirrorProvider implements MirrorProvider {
         status: schema.commentMirrors.status,
       })
       .from(schema.commentMirrors)
-      .innerJoin(
-        schema.comments,
-        eq(schema.commentMirrors.commentId, schema.comments.id),
-      )
+      .innerJoin(schema.comments, eq(schema.commentMirrors.commentId, schema.comments.id))
       .where(eq(schema.comments.conversationId, event.conversationId))
       .limit(50);
     for (const r of rows) {

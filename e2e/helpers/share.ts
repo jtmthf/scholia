@@ -40,7 +40,9 @@ export async function runShare(target: string): Promise<SharedSite> {
   );
 
   if (code !== 0) {
-    throw new Error(`scholia share exited ${code}\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`);
+    throw new Error(
+      `scholia share exited ${code}\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`,
+    );
   }
 
   const shareUrl = stdout.match(/Share URL:\s*(\S+)/)?.[1];

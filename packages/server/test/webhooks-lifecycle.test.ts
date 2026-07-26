@@ -33,7 +33,10 @@ function sign(body: string, secret: string = WEBHOOK_SECRET): string {
   return "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
 }
 
-function pullRequestPayload(action: string, opts: { headSha?: string; merged?: boolean; state?: "open" | "closed" }): string {
+function pullRequestPayload(
+  action: string,
+  opts: { headSha?: string; merged?: boolean; state?: "open" | "closed" },
+): string {
   return JSON.stringify({
     action,
     pull_request: {
@@ -54,28 +57,27 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
   let fakeApi: FakeGitHubApi;
   let provider: GitHubMirrorProvider;
   let siteSlug: string;
-  let ownerToken: string;
 
   beforeAll(async () => {
     sql = postgres(DB_URL!, { max: 1 });
-    db = drizzle(sql, { schema }) as unknown as Db;
-    await migrateWithLock(sql, db as unknown as ReturnType<typeof drizzle>, MIGRATIONS);
+    db = drizzle(sql, { schema });
+    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-life-"));
 
     fakeApi = new FakeGitHubApi();
-    fakeApi.seedPr(
+    fakeApi.seedPr({ owner: "octocat", name: "lifecycle-test" }, 1, {
+      headSha: HEAD_SHA_V1,
+      branch: "feature",
+      title: "Test PR",
+      files: [
+        { filename: "README.md", status: "added", sha: "blob-1a", content: enc.encode(PAGE_MD_V1) },
+      ],
+    });
+    fakeApi.setDiffLines(
       { owner: "octocat", name: "lifecycle-test" },
-      1,
-      {
-        headSha: HEAD_SHA_V1,
-        branch: "feature",
-        title: "Test PR",
-        files: [
-          { filename: "README.md", status: "added", sha: "blob-1a", content: enc.encode(PAGE_MD_V1) },
-        ],
-      },
+      "README.md",
+      new Set([1, 3, 5]),
     );
-    fakeApi.setDiffLines({ owner: "octocat", name: "lifecycle-test" }, "README.md", new Set([1, 3, 5]));
 
     await upsertGitHubInstallation(db, {
       installationId: 99,
@@ -87,21 +89,28 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
       api: fakeApi,
       db,
       config: {
-        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-        webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
+        appId: "1",
+        appSlug: "scholia",
+        privateKeyPem: "fake",
+        webhookSecret: WEBHOOK_SECRET,
+        apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     });
 
     const store = new FsBlobStore(blobDir);
     app = createApp({
-      db, store,
+      db,
+      store,
       publicUrl: "http://content.test",
       viewerUrl: "http://viewer.test",
       mirror: [provider],
       github: {
-        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-        webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
+        appId: "1",
+        appSlug: "scholia",
+        privateKeyPem: "fake",
+        webhookSecret: WEBHOOK_SECRET,
+        apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     });
@@ -113,9 +122,8 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
       body: JSON.stringify({ contentSource: { kind: "pr", repo: REPO, prNumber: 1 } }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
+    const body = await res.json();
     siteSlug = body.slug;
-    ownerToken = body.token;
   });
 
   afterAll(async () => {
@@ -125,17 +133,18 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
 
   test("synchronize with changed Page → new Version (ordinal +1)", async () => {
     // Advance the PR head with modified content.
-    fakeApi.advancePrHead(
-      { owner: "octocat", name: "lifecycle-test" },
-      1,
-      {
-        newHeadSha: HEAD_SHA_V2,
-        branch: "feature",
-        files: [
-          { filename: "README.md", status: "modified", sha: "blob-2a", content: enc.encode(PAGE_MD_V2) },
-        ],
-      },
-    );
+    fakeApi.advancePrHead({ owner: "octocat", name: "lifecycle-test" }, 1, {
+      newHeadSha: HEAD_SHA_V2,
+      branch: "feature",
+      files: [
+        {
+          filename: "README.md",
+          status: "modified",
+          sha: "blob-2a",
+          content: enc.encode(PAGE_MD_V2),
+        },
+      ],
+    });
 
     // Send a synchronize webhook.
     const payload = pullRequestPayload("synchronize", { headSha: HEAD_SHA_V2 });
@@ -151,7 +160,7 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
     expect(res.status).toBe(200);
 
     // Verify the Site now has Version 2.
-    const meta = (await (await app.request(`/sites/${siteSlug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${siteSlug}`)).json();
     expect(meta.version).toBe(2);
     expect(meta.latestVersion).toBe(2);
 
@@ -176,14 +185,18 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
     expect(res.status).toBe(200);
 
     // Still Version 2 — no new Version was created.
-    const meta = (await (await app.request(`/sites/${siteSlug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${siteSlug}`)).json();
     expect(meta.version).toBe(2);
     expect(meta.latestVersion).toBe(2);
   });
 
   test("closed + merged → site stays open (freeze is offered, not automatic)", async () => {
     // Send a closed webhook with merged=true.
-    const payload = pullRequestPayload("closed", { headSha: HEAD_SHA_V2, merged: true, state: "closed" });
+    const payload = pullRequestPayload("closed", {
+      headSha: HEAD_SHA_V2,
+      merged: true,
+      state: "closed",
+    });
     const res = await app.request("/webhooks/github", {
       method: "POST",
       headers: {
@@ -200,7 +213,7 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
     expect(site?.state).toBe("open");
 
     // The meta route agrees.
-    const meta = (await (await app.request(`/sites/${siteSlug}`)).json()) as any;
+    const meta = await (await app.request(`/sites/${siteSlug}`)).json();
     expect(meta.state).toBe("open");
   });
 
@@ -225,38 +238,41 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
   test("handleLifecycle closed+merged on an open site → stays open", async () => {
     // Create a fresh open PR-backed Site.
     const fakeApi2 = new FakeGitHubApi();
-    fakeApi2.seedPr(
-      { owner: "octocat", name: "lifecycle-test" },
-      1,
-      {
-        headSha: HEAD_SHA_V1,
-        branch: "feature",
-        title: "Test PR",
-        files: [
-          { filename: "README.md", status: "added", sha: "blob-x", content: enc.encode(PAGE_MD_V1) },
-        ],
-      },
-    );
+    fakeApi2.seedPr({ owner: "octocat", name: "lifecycle-test" }, 1, {
+      headSha: HEAD_SHA_V1,
+      branch: "feature",
+      title: "Test PR",
+      files: [
+        { filename: "README.md", status: "added", sha: "blob-x", content: enc.encode(PAGE_MD_V1) },
+      ],
+    });
 
     const provider2 = new GitHubMirrorProvider({
       api: fakeApi2,
       db,
       config: {
-        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-        webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
+        appId: "1",
+        appSlug: "scholia",
+        privateKeyPem: "fake",
+        webhookSecret: WEBHOOK_SECRET,
+        apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     });
 
     const store2 = new FsBlobStore(await mkdtemp(join(tmpdir(), "scholia-blobs-life2-")));
     const app2 = createApp({
-      db, store: store2,
+      db,
+      store: store2,
       publicUrl: "http://content.test",
       viewerUrl: "http://viewer.test",
       mirror: [provider2],
       github: {
-        appId: "1", appSlug: "scholia", privateKeyPem: "fake",
-        webhookSecret: WEBHOOK_SECRET, apiBase: "https://api.github.com",
+        appId: "1",
+        appSlug: "scholia",
+        privateKeyPem: "fake",
+        webhookSecret: WEBHOOK_SECRET,
+        apiBase: "https://api.github.com",
         reconcileIntervalMs: 60_000,
       },
     });
@@ -266,7 +282,7 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ contentSource: { kind: "pr", repo: REPO, prNumber: 1 } }),
     });
-    const body = (await res.json()) as any;
+    const body = await res.json();
     const freshSlug = body.slug;
     const freshSite = await getSiteBySlug(db, freshSlug);
     expect(freshSite?.state).toBe("open");

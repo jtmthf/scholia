@@ -18,8 +18,8 @@ describe.skipIf(!DB_URL)("PostgresRateLimiter", () => {
 
   beforeAll(async () => {
     sql = postgres(DB_URL!, { max: 1 });
-    db = drizzle(sql, { schema }) as unknown as Db;
-    await migrateWithLock(sql, db as unknown as ReturnType<typeof drizzle>, MIGRATIONS);
+    db = drizzle(sql, { schema });
+    await migrateWithLock(sql, db, MIGRATIONS);
   });
 
   afterAll(async () => {

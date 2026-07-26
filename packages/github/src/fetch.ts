@@ -11,7 +11,7 @@ export function parseRepo(s: string): RepoPath {
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
     throw new Error(`invalid repo "${s}" — expected owner/name`);
   }
-  return { owner: parts[0]!, name: parts[1]! };
+  return { owner: parts[0], name: parts[1] };
 }
 
 function isDocPath(path: string): boolean {

@@ -1,12 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { resolve } from "node:path";
-import {
-  isDoc,
-  isMdx,
-  toUrlPath,
-  resolveWithinRoot,
-  classifyFile,
-} from "../../src/util/paths.js";
+import { isDoc, isMdx, toUrlPath, resolveWithinRoot, classifyFile } from "../../src/util/paths.js";
 
 describe("classifyFile (hosted Page vs Asset, M4)", () => {
   test(".md/.markdown are Markdown Pages", () => {
@@ -53,9 +47,7 @@ describe("resolveWithinRoot (directory-traversal guard)", () => {
   const root = resolve("/srv/docs");
 
   test("resolves a normal request path inside the root", () => {
-    expect(resolveWithinRoot(root, "/guide/intro.md")).toBe(
-      resolve("/srv/docs/guide/intro.md"),
-    );
+    expect(resolveWithinRoot(root, "/guide/intro.md")).toBe(resolve("/srv/docs/guide/intro.md"));
   });
 
   test("treats the bare root path as the root directory", () => {
@@ -63,9 +55,7 @@ describe("resolveWithinRoot (directory-traversal guard)", () => {
   });
 
   test("strips query strings before resolving", () => {
-    expect(resolveWithinRoot(root, "/intro.md?foo=bar")).toBe(
-      resolve("/srv/docs/intro.md"),
-    );
+    expect(resolveWithinRoot(root, "/intro.md?foo=bar")).toBe(resolve("/srv/docs/intro.md"));
   });
 
   test("rejects attempts to escape the root with ..", () => {

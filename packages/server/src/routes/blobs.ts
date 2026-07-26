@@ -17,7 +17,7 @@ export function blobsRoutes(getDeps: () => AppDeps) {
 
     const { store } = getDeps();
     const results = await Promise.all(
-      (body.hashes as string[]).map(async (hash) => ({ hash, has: await store.has(hash) })),
+      body.hashes.map(async (hash) => ({ hash, has: await store.has(hash) })),
     );
     return c.json({ missing: results.filter((r) => !r.has).map((r) => r.hash) });
   });
@@ -35,7 +35,9 @@ export function blobsRoutes(getDeps: () => AppDeps) {
       const declared = Number(c.req.header("content-length"));
       if (Number.isFinite(declared) && declared > limits.maxFileBytes) {
         return c.json(
-          { error: `file too large: ${declared} bytes exceeds the limit of ${limits.maxFileBytes} bytes` },
+          {
+            error: `file too large: ${declared} bytes exceeds the limit of ${limits.maxFileBytes} bytes`,
+          },
           413,
         );
       }
@@ -46,7 +48,9 @@ export function blobsRoutes(getDeps: () => AppDeps) {
 
     if (limits.maxFileBytes !== undefined && bytes.length > limits.maxFileBytes) {
       return c.json(
-        { error: `file too large: ${bytes.length} bytes exceeds the limit of ${limits.maxFileBytes} bytes` },
+        {
+          error: `file too large: ${bytes.length} bytes exceeds the limit of ${limits.maxFileBytes} bytes`,
+        },
         413,
       );
     }

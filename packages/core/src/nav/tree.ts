@@ -25,9 +25,7 @@ function orderOf(data: Record<string, unknown>): number {
 
 // Optional per-directory override file: an array of filenames defining order,
 // or an object mapping filename -> display title (fumadocs-style _meta).
-async function readMeta(
-  dir: string,
-): Promise<{ order: string[]; titles: Record<string, string> }> {
+async function readMeta(dir: string): Promise<{ order: string[]; titles: Record<string, string> }> {
   for (const name of ["_meta.json", "meta.json"]) {
     try {
       const raw = await readFile(join(dir, name), "utf8");

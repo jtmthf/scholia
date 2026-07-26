@@ -94,10 +94,7 @@ export interface PromotionMirrorEvent extends MirrorEventBase {
   }>;
 }
 
-export type MirrorEvent =
-  | CommentMirrorEvent
-  | ResolveMirrorEvent
-  | PromotionMirrorEvent;
+export type MirrorEvent = CommentMirrorEvent | ResolveMirrorEvent | PromotionMirrorEvent;
 
 // ---- Context handed to `dispatch` so a provider can resolve stored bytes ----
 

@@ -2,8 +2,8 @@ import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { basename, resolve as resolvePath } from "node:path";
 import net from "node:net";
-import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
+import { Hono, type Context } from "hono";
+import { streamSSE, type SSEStreamingApi } from "hono/streaming";
 import { serve, type ServerType } from "@hono/node-server";
 import {
   renderMarkdown,
@@ -145,7 +145,11 @@ async function findPort(preferred: number, hosts: string[], strict: boolean): Pr
   );
 }
 
-function listen(fetch: Parameters<typeof serve>[0]["fetch"], port: number, hostname: string): Promise<ServerType> {
+function listen(
+  fetch: Parameters<typeof serve>[0]["fetch"],
+  port: number,
+  hostname: string,
+): Promise<ServerType> {
   return new Promise((resolve, reject) => {
     const srv = serve({ fetch, port, hostname }, () => resolve(srv));
     // Stays attached after resolution on purpose: an 'error' with no listener
@@ -216,7 +220,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   await refresh();
 
   const app = new Hono();
-  const sseClients = new Set<any>();
+  const sseClients = new Set<SSEStreamingApi>();
 
   function broadcastReload(): void {
     for (const client of sseClients) {
@@ -282,9 +286,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       return c.json({ ok: false, error: "missing path" }, 400);
     }
 
-    const target = dirMode
-      ? resolveWithinRoot(opts.rootDir, requestedPath)
-      : opts.singleFile!;
+    const target = dirMode ? resolveWithinRoot(opts.rootDir, requestedPath) : opts.singleFile!;
     if (!target) {
       return c.json({ ok: false, error: "path outside served root" }, 400);
     }
@@ -331,7 +333,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return c.body(new Uint8Array(buf), 200, { "Content-Type": contentType(target) });
   });
 
-  async function renderDoc(c: any, fsPath: string, showNav: boolean) {
+  async function renderDoc(c: Context, fsPath: string, showNav: boolean) {
     const currentPath = toUrlPath(opts.rootDir, fsPath);
     const useMdx = opts.mdxEnabled && isMdx(fsPath);
 
@@ -402,13 +404,9 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   const watchTarget = opts.singleFile ?? opts.rootDir;
   const watcher = watchPath(watchTarget, (paths) => {
     for (const p of paths) renderCache.delete(p);
-    const structural = paths.some(
-      (p) => isDoc(p) || /(^|[\\/])_?meta\.json$/i.test(p),
-    );
+    const structural = paths.some((p) => isDoc(p) || /(^|[\\/])_?meta\.json$/i.test(p));
     const job = structural ? refresh() : Promise.resolve();
-    job
-      .then(broadcastReload)
-      .catch((err) => console.error("[scholia] refresh failed:", err));
+    job.then(broadcastReload).catch((err) => console.error("[scholia] refresh failed:", err));
   });
 
   const hosts = await resolveBindHosts(opts.host);
@@ -436,9 +434,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     port,
     close: async () => {
       await watcher.close();
-      await Promise.all(
-        servers.map((s) => new Promise<void>((res) => s.close(() => res()))),
-      );
+      await Promise.all(servers.map((s) => new Promise<void>((res) => s.close(() => res()))));
     },
   };
 }

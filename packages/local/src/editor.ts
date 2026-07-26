@@ -39,7 +39,9 @@ function parseEnvEditor(value: string | undefined): ResolvedEditor | null {
   if (!trimmed) return null;
   const parts = trimmed.split(/\s+/);
   const bin = parts[0]!;
-  const name = basename(bin).toLowerCase().replace(/\.exe$/, "");
+  const name = basename(bin)
+    .toLowerCase()
+    .replace(/\.exe$/, "");
   if (TUI_EDITOR_NAMES.has(name)) return null;
   return { command: bin, args: parts.slice(1) };
 }

@@ -1,4 +1,4 @@
-import { create, insert, remove, search } from "@orama/orama";
+import { create, insert, remove, search, type Results, type TypedDocument } from "@orama/orama";
 import type { DocRecord, Heading } from "../types.js";
 
 export interface SearchHit {
@@ -53,7 +53,11 @@ export function createSearchIndex(initial: DocRecord[] = []): SearchIndex {
 
   function drop(urlPath: string): void {
     const id = ids.get(urlPath);
-    if (id !== undefined) remove(db, id);
+    // Orama types `remove` as `boolean | Promise<boolean>` to cover async
+    // components; this index uses the default synchronous ones (same assumption
+    // the `as string` on `insert` above makes), so nothing is actually deferred
+    // and there is no promise to await.
+    if (id !== undefined) void remove(db, id);
     ids.delete(urlPath);
     sigs.delete(urlPath);
     bodies.delete(urlPath);
@@ -62,7 +66,7 @@ export function createSearchIndex(initial: DocRecord[] = []): SearchIndex {
 
   function update(docs: DocRecord[]): void {
     const next = new Set(docs.map((d) => d.urlPath));
-    for (const urlPath of [...ids.keys()]) {
+    for (const urlPath of ids.keys()) {
       if (!next.has(urlPath)) drop(urlPath);
     }
     for (const d of docs) {
@@ -94,14 +98,17 @@ export function createSearchIndex(initial: DocRecord[] = []): SearchIndex {
   function query(term: string, limit = 20): SearchHit[] {
     const trimmed = term.trim();
     if (!trimmed) return [];
+    // Orama types `search` as `Results<T> | Promise<Results<T>>` to cover async
+    // components; the default synchronous ones are in use here (see `drop`), so
+    // the cast picks the sync branch rather than widening the result away.
     const result = search(db, {
       term: trimmed,
       properties: ["title", "headings", "body"],
       limit,
       boost: { title: 3, headings: 2 },
       tolerance: 1,
-    }) as any;
-    return result.hits.map((hit: any) => {
+    }) as Results<TypedDocument<typeof db>>;
+    return result.hits.map((hit) => {
       const path = String(hit.document.path);
       return {
         path: path + anchorFor(path, trimmed),

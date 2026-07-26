@@ -70,7 +70,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     });
     const { missing } = (await diff.json()) as { missing: string[] };
     for (const h of missing) {
-      await app_.request(`/blobs/${h}`, { method: "PUT", body: bytes.buffer as ArrayBuffer });
+      await app_.request(`/blobs/${h}`, { method: "PUT", body: bytes.buffer });
     }
     const res = await app_.request("/sites", {
       method: "POST",
@@ -108,9 +108,9 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     // Owner → read_only.
     const set = await json(`/sites/${slug}/state`, "PATCH", { state: "read_only" }, token);
     expect(set.status).toBe(200);
-    expect(((await set.json()) as any).state).toBe("read_only");
+    expect((await set.json()).state).toBe("read_only");
     // Reflected in Site metadata.
-    expect(((await (await app.request(`/sites/${slug}`)).json()) as any).state).toBe("read_only");
+    expect((await (await app.request(`/sites/${slug}`)).json()).state).toBe("read_only");
 
     // Public commenting disabled…
     expect((await newThread(slug, viewerId)).status).toBe(403);
@@ -129,11 +129,12 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     const { slug, token } = await makeSite();
     const viewerId = await mintViewer(slug);
     // A public Thread created while open.
-    const conv = (await newThread(slug, viewerId)).status === 201
-      ? await (await newThread(slug, viewerId, "seed")).json()
-      : null;
+    const conv =
+      (await newThread(slug, viewerId)).status === 201
+        ? await (await newThread(slug, viewerId, "seed")).json()
+        : null;
     expect(conv).toBeTruthy();
-    const commentId = (conv as any).comments[0].id;
+    const commentId = conv.comments[0].id;
 
     await json(`/sites/${slug}/state`, "PATCH", { state: "frozen" }, token);
 
@@ -145,7 +146,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
       displayName: "Jane",
     });
     expect(react.status).toBe(403);
-    const resolve = await json(`/sites/${slug}/conversations/${(conv as any).id}/resolve`, "POST", {
+    const resolve = await json(`/sites/${slug}/conversations/${conv.id}/resolve`, "POST", {
       viewerId,
       displayName: "Jane",
     });
@@ -158,7 +159,9 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
 
   test("rejects an invalid state value", async () => {
     const { slug, token } = await makeSite();
-    expect((await json(`/sites/${slug}/state`, "PATCH", { state: "nope" }, token)).status).toBe(400);
+    expect((await json(`/sites/${slug}/state`, "PATCH", { state: "nope" }, token)).status).toBe(
+      400,
+    );
   });
 
   // ---- Owner delete (Conversation + Site) ----
@@ -166,7 +169,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
   test("owner deletes any Conversation; non-owner cannot", async () => {
     const { slug, token } = await makeSite();
     const viewerId = await mintViewer(slug);
-    const conv = (await (await newThread(slug, viewerId)).json()) as any;
+    const conv = await (await newThread(slug, viewerId)).json();
 
     // Non-owner (no token) → 401.
     expect((await json(`/sites/${slug}/conversations/${conv.id}`, "DELETE")).status).toBe(401);
@@ -178,7 +181,9 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     const listed = await (await app.request(`/sites/${slug}/conversations?path=README.md`)).json();
     expect(listed).toHaveLength(0);
     // Deleting again → 404.
-    expect((await json(`/sites/${slug}/conversations/${conv.id}`, "DELETE", undefined, token)).status).toBe(404);
+    expect(
+      (await json(`/sites/${slug}/conversations/${conv.id}`, "DELETE", undefined, token)).status,
+    ).toBe(404);
   });
 
   test("owner deletes the whole Site", async () => {
@@ -195,7 +200,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     const { slug, token } = await makeSite();
     const res = await json(`/sites/${slug}/rotate-share`, "POST", undefined, token);
     expect(res.status).toBe(200);
-    const { slug: newSlug, shareUrl } = (await res.json()) as any;
+    const { slug: newSlug, shareUrl } = await res.json();
     expect(newSlug).not.toBe(slug);
     expect(shareUrl).toBe(`http://viewer.test/s/${newSlug}`);
     expect((await app.request(`/sites/${slug}`)).status).toBe(404);
@@ -206,13 +211,17 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     const { slug, token } = await makeSite();
     const res = await json(`/sites/${slug}/rotate-token`, "POST", undefined, token);
     expect(res.status).toBe(200);
-    const { token: newToken } = (await res.json()) as any;
+    const { token: newToken } = await res.json();
     expect(newToken).not.toBe(token);
 
     // Old token no longer authorizes an owner action.
-    expect((await json(`/sites/${slug}/state`, "PATCH", { state: "frozen" }, token)).status).toBe(403);
+    expect((await json(`/sites/${slug}/state`, "PATCH", { state: "frozen" }, token)).status).toBe(
+      403,
+    );
     // New token does.
-    expect((await json(`/sites/${slug}/state`, "PATCH", { state: "frozen" }, newToken)).status).toBe(200);
+    expect(
+      (await json(`/sites/${slug}/state`, "PATCH", { state: "frozen" }, newToken)).status,
+    ).toBe(200);
   });
 
   // ---- Token list + revoke ----
@@ -224,7 +233,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     const vt = await json(`/sites/${slug}/viewers/${viewerId}/agent-token`, "POST");
     expect(vt.status).toBe(201);
 
-    const list = (await (await json(`/sites/${slug}/tokens`, "GET", undefined, token)).json()) as any;
+    const list = await (await json(`/sites/${slug}/tokens`, "GET", undefined, token)).json();
     const owner = list.tokens.find((t: any) => t.kind === "owner");
     const viewer = list.tokens.find((t: any) => t.kind === "viewer");
     expect(owner).toBeTruthy();
@@ -233,9 +242,13 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     expect(JSON.stringify(list)).not.toContain(token);
 
     // Revoke the viewer token → 204.
-    expect((await json(`/sites/${slug}/tokens/${viewer.id}`, "DELETE", undefined, token)).status).toBe(204);
+    expect(
+      (await json(`/sites/${slug}/tokens/${viewer.id}`, "DELETE", undefined, token)).status,
+    ).toBe(204);
     // The last live owner token cannot be revoked → 409.
-    expect((await json(`/sites/${slug}/tokens/${owner.id}`, "DELETE", undefined, token)).status).toBe(409);
+    expect(
+      (await json(`/sites/${slug}/tokens/${owner.id}`, "DELETE", undefined, token)).status,
+    ).toBe(409);
   });
 
   // ---- Upload caps (operator retention/quota, default-unset) ----
@@ -252,7 +265,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     const a = enc.encode("# A\n");
     const b = enc.encode("# B\n");
     for (const bytes of [a, b]) {
-      await capped.request(`/blobs/${hashBytes(bytes)}`, { method: "PUT", body: bytes.buffer as ArrayBuffer });
+      await capped.request(`/blobs/${hashBytes(bytes)}`, { method: "PUT", body: bytes.buffer });
     }
     const res = await capped.request("/sites", {
       method: "POST",
@@ -266,7 +279,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
       }),
     });
     expect(res.status).toBe(413);
-    expect(((await res.json()) as any).error).toMatch(/too many files/);
+    expect((await res.json()).error).toMatch(/too many files/);
   });
 
   test("per-file byte cap rejects an oversize blob at PUT with 413", async () => {
@@ -281,7 +294,7 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
     const big = enc.encode("this is more than eight bytes");
     const res = await capped.request(`/blobs/${hashBytes(big)}`, {
       method: "PUT",
-      body: big.buffer as ArrayBuffer,
+      body: big.buffer,
     });
     expect(res.status).toBe(413);
   });
@@ -306,7 +319,12 @@ describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
       limited.request(`/sites/${slug}/conversations`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pagePath: "README.md", body: "spam", viewerId, displayName: "Jane" }),
+        body: JSON.stringify({
+          pagePath: "README.md",
+          body: "spam",
+          viewerId,
+          displayName: "Jane",
+        }),
       });
 
     expect((await post()).status).toBe(201);

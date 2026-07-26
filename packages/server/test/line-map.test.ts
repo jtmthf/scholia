@@ -53,7 +53,10 @@ describe("botBody", () => {
   });
 
   test("agent author — name + on behalf of", () => {
-    const body = botBody({ name: "Jane's agent", kind: "agent", onBehalfOf: "Jane" }, "Found a bug.");
+    const body = botBody(
+      { name: "Jane's agent", kind: "agent", onBehalfOf: "Jane" },
+      "Found a bug.",
+    );
     expect(body).toBe("**Jane's agent (on behalf of Jane)** (via Scholia)\n\nFound a bug.");
   });
 
@@ -65,11 +68,9 @@ describe("botBody", () => {
 
 describe("botFileLevelBody", () => {
   test("includes quoted anchor text", () => {
-    const body = botFileLevelBody(
-      { name: "Jane", kind: "human" },
-      "See this issue.",
-      { textQuote: { exact: "Some bold text" } },
-    );
+    const body = botFileLevelBody({ name: "Jane", kind: "human" }, "See this issue.", {
+      textQuote: { exact: "Some bold text" },
+    });
     expect(body).toContain("**Jane** (via Scholia)");
     expect(body).toContain("See this issue.");
     expect(body).toContain("> Some bold text");

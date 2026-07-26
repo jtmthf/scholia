@@ -7,7 +7,6 @@
 import type { Db } from "@scholia/db";
 import {
   createConversation,
-  addComment,
   tombstoneComment,
   detachMirror,
   mirrorExistsByExternal,
@@ -75,7 +74,8 @@ async function importReviewComment(
   deps: ImporterDeps,
 ): Promise<boolean> {
   if (event.action === "created") return importCreatedComment(event, deps, "review");
-  if (event.action === "deleted") return handleDeleted(event.repo, event.prNumber, event.externalId, deps);
+  if (event.action === "deleted")
+    return handleDeleted(event.repo, event.prNumber, event.externalId, deps);
   // edited: ignore in v1 (DB is authoritative; we don't sync edits inbound)
   return false;
 }
@@ -87,7 +87,8 @@ async function importIssueComment(
   deps: ImporterDeps,
 ): Promise<boolean> {
   if (event.action === "created") return importCreatedComment(event, deps, "issue");
-  if (event.action === "deleted") return handleDeleted(event.repo, event.prNumber, event.externalId, deps);
+  if (event.action === "deleted")
+    return handleDeleted(event.repo, event.prNumber, event.externalId, deps);
   return false;
 }
 
@@ -137,9 +138,10 @@ async function importCreatedComment(
     if (!latest) continue;
 
     // Build an anchor from the line/path (review comments) or null (issue comments).
-    const anchor = source === "review" && "path" in event && "line" in event
-      ? await lineToAnchor(deps, latest.id, event.path, event.line)
-      : null;
+    const anchor =
+      source === "review" && "path" in event && "line" in event
+        ? await lineToAnchor(deps, latest.id, event.path, event.line)
+        : null;
 
     // Use the path from the event for pagePath, or null for page-level.
     const pagePath = "path" in event ? event.path : null;

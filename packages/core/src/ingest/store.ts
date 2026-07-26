@@ -22,10 +22,7 @@ export type StoredMarkdownPage = StoredPage;
 // rendered HTML, serialized Source Map — to the content-addressed blob store,
 // returning their hashes for a `manifest_entries` row. Idempotent by content:
 // re-storing identical bytes is a no-op (PLAN §3, ADR-0004).
-export async function storeMarkdownPage(
-  store: BlobStore,
-  source: string,
-): Promise<StoredPage> {
+export async function storeMarkdownPage(store: BlobStore, source: string): Promise<StoredPage> {
   const ingest = await ingestMarkdown(source);
   return storeArtifacts(store, source, ingest.html, ingest.sourceMap, ingest.title);
 }
@@ -34,10 +31,7 @@ export async function storeMarkdownPage(
 // immutable artifacts — raw source, served HTML (with `data-sm` stamps), and the
 // serialized Source Map — to the content-addressed store. Same shape as the
 // Markdown path so a `manifest_entries` row is built identically.
-export async function storeHtmlPage(
-  store: BlobStore,
-  source: string,
-): Promise<StoredPage> {
+export async function storeHtmlPage(store: BlobStore, source: string): Promise<StoredPage> {
   const ingest = ingestHtml(source);
   return storeArtifacts(store, source, ingest.html, ingest.sourceMap, ingest.title);
 }

@@ -43,9 +43,7 @@ describe.skipIf(!DB_URL)("M7: ScholiaClient round-trips (in-process)", () => {
     // Stub global fetch to route through the in-process app.
     vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) => {
       const urlStr = input instanceof Request ? input.url : String(input);
-      const path = urlStr.startsWith(FAKE_SERVER)
-        ? urlStr.slice(FAKE_SERVER.length)
-        : urlStr;
+      const path = urlStr.startsWith(FAKE_SERVER) ? urlStr.slice(FAKE_SERVER.length) : urlStr;
       const reqInit =
         input instanceof Request
           ? {
@@ -79,7 +77,7 @@ describe.skipIf(!DB_URL)("M7: ScholiaClient round-trips (in-process)", () => {
     });
     await app.request(`/blobs/${hash}`, {
       method: "PUT",
-      body: enc.encode(README_TEXT).buffer as ArrayBuffer,
+      body: enc.encode(README_TEXT).buffer,
     });
     const res = await app.request("/sites", {
       method: "POST",
@@ -132,7 +130,7 @@ describe.skipIf(!DB_URL)("M7: ScholiaClient round-trips (in-process)", () => {
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ pagePath: null, anchor: null, body: "Will be resolved." }),
     });
-    const conv = (await convRes.json()) as any;
+    const conv = await convRes.json();
     await app.request(`/sites/${slug}/conversations/${conv.id}/resolve`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
@@ -236,7 +234,7 @@ describe.skipIf(!DB_URL)("M7: ScholiaClient round-trips (in-process)", () => {
         displayName: "TestViewer",
       }),
     });
-    const conv = (await convRes.json()) as any;
+    const conv = await convRes.json();
     const commentId = conv.comments[0].id;
 
     await expect(client.deleteComment({ commentId })).resolves.toBeUndefined();

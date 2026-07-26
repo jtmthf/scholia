@@ -23,9 +23,7 @@ export function PromoteDialog({
 }: PromoteDialogProps) {
   // Tombstones can't be promoted; offer only live Comments (all checked by default).
   const selectable = conversation.comments.filter((c) => !c.deleted);
-  const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(selectable.map((c) => c.id)),
-  );
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(selectable.map((c) => c.id)));
   const [summary, setSummary] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,18 +70,14 @@ export function PromoteDialog({
         </div>
 
         <p class="promote-note">
-          Choose which messages become public. This Chat flips to a public Thread —
-          everyone with the Share URL will see the selected messages.
+          Choose which messages become public. This Chat flips to a public Thread — everyone with
+          the Share URL will see the selected messages.
         </p>
 
         <div class="promote-comments">
           {selectable.map((c) => (
             <label key={c.id} class="promote-comment">
-              <input
-                type="checkbox"
-                checked={checked.has(c.id)}
-                onChange={() => toggle(c.id)}
-              />
+              <input type="checkbox" checked={checked.has(c.id)} onChange={() => toggle(c.id)} />
               <span class="promote-comment-author">{c.author.name}</span>
               <span class="promote-comment-body">{c.body}</span>
             </label>
@@ -103,11 +97,7 @@ export function PromoteDialog({
         {error && <div class="composer-error">{error}</div>}
 
         <div class="promote-footer">
-          <button
-            class="btn-primary"
-            disabled={!canPromote}
-            onClick={() => void handlePromote()}
-          >
+          <button class="btn-primary" disabled={!canPromote} onClick={() => void handlePromote()}>
             {submitting ? "Promoting…" : "Promote"}
           </button>
           <button class="btn-secondary" onClick={onClose}>

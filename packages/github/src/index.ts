@@ -28,11 +28,7 @@ export {
   type HttpGitHubApiOptions,
 } from "./rest.js";
 
-export {
-  parseWebhook,
-  verifySignature,
-  WebhookSignatureError,
-} from "./webhook.js";
+export { parseWebhook, verifySignature, WebhookSignatureError } from "./webhook.js";
 
 export { fetchPRFiles, fetchRefFiles, parseRepo } from "./fetch.js";
 

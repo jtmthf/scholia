@@ -42,15 +42,10 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
     if (blobDir) await rm(blobDir, { recursive: true, force: true });
   });
 
-  const json = (
-    path: string,
-    method: string,
-    body?: unknown,
-    headers?: Record<string, string>,
-  ) =>
+  const json = (path: string, method: string, body?: unknown, headers?: Record<string, string>) =>
     app.request(path, {
       method,
-      headers: { "content-type": "application/json", ...(headers ?? {}) },
+      headers: { "content-type": "application/json", ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
@@ -63,7 +58,7 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
     const diff = await json("/blobs/diff", "POST", { hashes: [hash] });
     const { missing } = (await diff.json()) as { missing: string[] };
     for (const h of missing) {
-      await app.request(`/blobs/${h}`, { method: "PUT", body: bytes.buffer as ArrayBuffer });
+      await app.request(`/blobs/${h}`, { method: "PUT", body: bytes.buffer });
     }
     const res = await json("/sites", "POST", {
       contentSource: { kind: "local" },
@@ -118,8 +113,12 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
 
     // Unknown viewer / site → 404.
     expect(
-      (await json(`/sites/${slug}/viewers/00000000-0000-0000-0000-000000000000/agent-token`, "POST"))
-        .status,
+      (
+        await json(
+          `/sites/${slug}/viewers/00000000-0000-0000-0000-000000000000/agent-token`,
+          "POST",
+        )
+      ).status,
     ).toBe(404);
     expect((await json(`/sites/nope/viewers/${viewerId}/agent-token`, "POST")).status).toBe(404);
   });
@@ -184,7 +183,7 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
       bearer(agentToken),
     );
     expect(reply.status).toBe(201);
-    const replyDto = (await reply.json()) as any;
+    const replyDto = await reply.json();
     expect(replyDto.author.kind).toBe("agent");
     expect(replyDto.author.tier).toBe("viewer");
     expect(replyDto.author.name).toBe("Jane's agent");
@@ -220,7 +219,7 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
       bearer(agentToken),
     );
     expect(res.status).toBe(201);
-    const conv = (await res.json()) as any;
+    const conv = await res.json();
     expect(conv.visibility).toBe("public");
     expect(conv.comments[0].author.kind).toBe("agent");
     expect(conv.comments[0].author.tier).toBe("viewer");
@@ -251,7 +250,7 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
       { body: "internal agent scratch note" },
       bearer(agentToken),
     );
-    const replyId = ((await reply.json()) as any).id as string;
+    const replyId = (await reply.json()).id as string;
 
     // Promote: keep only the first (human) comment, add a summary.
     const promoted = await json(`/sites/${slug}/conversations/${chat.id}/promote`, "POST", {
@@ -260,7 +259,7 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
       viewerId: jane,
     });
     expect(promoted.status).toBe(200);
-    const dto = (await promoted.json()) as any;
+    const dto = await promoted.json();
     expect(dto.visibility).toBe("public");
 
     const bodies = dto.comments.map((c: any) => c.body);
@@ -327,7 +326,7 @@ describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
       displayName: "Jane",
     });
     expect(created.status).toBe(201);
-    const conv = (await created.json()) as any;
+    const conv = await created.json();
     expect(conv.visibility).toBe("public");
 
     // In the public listing, absent from /chats.

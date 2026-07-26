@@ -104,8 +104,6 @@ export class S3BlobStore implements BlobStore {
 function isNotFound(err: unknown): boolean {
   const meta = (err as { $metadata?: { httpStatusCode?: number }; name?: string }) ?? {};
   return (
-    meta.$metadata?.httpStatusCode === 404 ||
-    meta.name === "NotFound" ||
-    meta.name === "NoSuchKey"
+    meta.$metadata?.httpStatusCode === 404 || meta.name === "NotFound" || meta.name === "NoSuchKey"
   );
 }

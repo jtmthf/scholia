@@ -48,12 +48,14 @@ interface SelectionCandidate {
     function send(msg: object): void {
       try {
         parent.postMessage({ ns: NS, v: V, msg }, "*");
-      } catch (_) {
+      } catch {
         // cross-origin postMessage can throw in some environments; swallow.
       }
     }
 
-    function isOurEnvelope(data: unknown): data is { ns: string; v: number; msg: Record<string, unknown> } {
+    function isOurEnvelope(
+      data: unknown,
+    ): data is { ns: string; v: number; msg: Record<string, unknown> } {
       if (typeof data !== "object" || data === null) return false;
       const d = data as Record<string, unknown>;
       return d["ns"] === NS && d["v"] === V && typeof d["msg"] === "object" && d["msg"] !== null;
@@ -146,7 +148,7 @@ interface SelectionCandidate {
           range.deleteContents();
           range.insertNode(mark);
           marks.push(mark);
-        } catch (_) {
+        } catch {
           // Range may span elements — best-effort only.
         }
         fallbackMarks.set(id, marks);
@@ -182,7 +184,7 @@ interface SelectionCandidate {
           }
         ).highlights.delete(HIGHLIGHT_NAME);
       } else {
-        for (const id of [...anchorRanges.keys()]) removeHighlight(id);
+        for (const id of anchorRanges.keys()) removeHighlight(id);
       }
     }
 
@@ -208,7 +210,12 @@ interface SelectionCandidate {
       return count;
     }
 
-    function buildUniqueQuote(exact: string, bodyText: string, selStart: number, selEnd: number): TextQuote {
+    function buildUniqueQuote(
+      exact: string,
+      bodyText: string,
+      selStart: number,
+      selEnd: number,
+    ): TextQuote {
       // Start with 32-char context (same as library default), then grow.
       let ctxLen = 32;
       while (ctxLen <= MAX_CONTEXT) {
@@ -300,7 +307,7 @@ interface SelectionCandidate {
         }
 
         // Build text-quote via library (gives us exact + 32-char context to start)
-        const libQuote = fromRange(body, range) as { exact: string; prefix?: string; suffix?: string };
+        const libQuote = fromRange(body, range);
 
         // Uniqueness-expand the quote
         const bodyText = body.textContent ?? "";
@@ -337,7 +344,7 @@ interface SelectionCandidate {
             xpath = getXPath(ancestor);
             css = getCssSelector(ancestor);
           }
-        } catch (_) {
+        } catch {
           // best-effort
         }
 
@@ -349,8 +356,21 @@ interface SelectionCandidate {
           ...(css ? { css } : {}),
         };
 
-        send({ type: "selection", candidate, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height, top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left } });
-      } catch (_) {
+        send({
+          type: "selection",
+          candidate,
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            left: rect.left,
+          },
+        });
+      } catch {
         // swallow — we never crash the page
       }
     }
@@ -372,7 +392,8 @@ interface SelectionCandidate {
 
     document.addEventListener("click", function (e: MouseEvent) {
       try {
-        const cx = e.clientX, cy = e.clientY;
+        const cx = e.clientX,
+          cy = e.clientY;
         for (const [id, range] of anchorRanges) {
           const rects = range.getClientRects();
           for (let i = 0; i < rects.length; i++) {
@@ -383,7 +404,7 @@ interface SelectionCandidate {
             }
           }
         }
-      } catch (_) {
+      } catch {
         // swallow
       }
     });
@@ -406,7 +427,7 @@ interface SelectionCandidate {
           const id = m["id"] as string;
           const quote = m["quote"] as TextQuote;
           try {
-            const range = toRange(body, quote) as Range | null;
+            const range = toRange(body, quote);
             if (range) {
               // Remove any existing highlight for this id before re-adding
               removeHighlight(id);
@@ -416,12 +437,21 @@ interface SelectionCandidate {
                 type: "anchor-resolved",
                 id,
                 found: true,
-                rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height, top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left },
+                rect: {
+                  x: rect.x,
+                  y: rect.y,
+                  width: rect.width,
+                  height: rect.height,
+                  top: rect.top,
+                  right: rect.right,
+                  bottom: rect.bottom,
+                  left: rect.left,
+                },
               });
             } else {
               send({ type: "anchor-resolved", id, found: false });
             }
-          } catch (_) {
+          } catch {
             send({ type: "anchor-resolved", id, found: false });
           }
           break;
@@ -441,7 +471,7 @@ interface SelectionCandidate {
               range.insertNode(el);
               el.scrollIntoView({ block: "center", behavior: "smooth" });
               el.parentNode?.removeChild(el);
-            } catch (_) {
+            } catch {
               try {
                 const container = range.startContainer;
                 const target =
@@ -451,7 +481,7 @@ interface SelectionCandidate {
                 if (target instanceof Element) {
                   target.scrollIntoView({ block: "center", behavior: "smooth" });
                 }
-              } catch (_2) {
+              } catch {
                 // best-effort
               }
             }
@@ -467,7 +497,7 @@ interface SelectionCandidate {
 
     send({ type: "ready" });
     reportHeight();
-  } catch (_) {
+  } catch {
     // Outer try/catch ensures we never crash the hosted page.
   }
 })();

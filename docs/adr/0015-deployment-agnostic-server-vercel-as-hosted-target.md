@@ -11,8 +11,8 @@ accepted
 
 ADR-0011 picked Hono partly because it "deploys to Cloudflare Workers, matching the
 PLAN's R2 content-origin/edge grain" — deployment portability was a goal from the
-start. Scoping out a Vercel deployment for the *official hosted* service (not just
-self-host — genuinely multi-tenant, per CONTEXT.md's "self-host *and* hosted"
+start. Scoping out a Vercel deployment for the _official hosted_ service (not just
+self-host — genuinely multi-tenant, per CONTEXT.md's "self-host _and_ hosted"
 Retention & limits language) surfaced two places where M9/M10 quietly broke that goal
 by assuming a single, persistent Node process:
 
@@ -42,7 +42,7 @@ We decided:
    in-memory one (interface unchanged — it was already injectable). Selection is an
    explicit `COLLAB_RATELIMIT_STORE` env var, default `memory`. No platform
    auto-detection (e.g. sniffing `VERCEL=1`) in core code — a platform adapter may
-   *choose* a default for itself, but `config.ts` never branches on which platform
+   _choose_ a default for itself, but `config.ts` never branches on which platform
    it's running on.
 4. **`config.ts` is decomposed** from one monolithic `depsFromEnv()` into small
    per-resource builders (`dbFromEnv`, `storeFromEnv`, `urlsFromEnv`, `limitsFromEnv`,
@@ -54,7 +54,7 @@ We decided:
    so serverless pool sizing is a caller decision.
 5. **Platform entry points are thin adapter files, not new workspace packages** —
    `packages/server/src/adapters/vercel.ts` wraps `hono/vercel` (already ships in
-   the `hono` dependency). Adapters are the *only* place allowed to hardcode
+   the `hono` dependency). Adapters are the _only_ place allowed to hardcode
    platform-specific behavior: the Vercel adapter forces `contentWildcard: true`
    (per-Site subdomain isolation, required once the deployment is multi-tenant —
    self-host keeps path-based as the default) and rejects

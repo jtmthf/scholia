@@ -47,9 +47,7 @@ describe("webhook: verifySignature", () => {
     );
   });
   test("accepts a Uint8Array body", () => {
-    expect(() =>
-      verifySignature(new TextEncoder().encode(body), sign(body), SECRET),
-    ).not.toThrow();
+    expect(() => verifySignature(new TextEncoder().encode(body), sign(body), SECRET)).not.toThrow();
   });
 });
 
@@ -71,7 +69,9 @@ describe("webhook: parseWebhook", () => {
   });
 
   test("unsupported action yields []", () => {
-    expect(parseWebhook("pull_request_review_comment", reviewCommentPayload("labeled"))).toEqual([]);
+    expect(parseWebhook("pull_request_review_comment", reviewCommentPayload("labeled"))).toEqual(
+      [],
+    );
   });
 
   test("issue_comment only on a PR-linked issue", () => {
@@ -117,13 +117,20 @@ describe("webhook: parseWebhook", () => {
   test("pull_request_review submitted", () => {
     const ev = parseWebhook("pull_request_review", {
       action: "submitted",
-      review: { id: 5, html_url: "u", user: { login: "x" }, state: "APPROVED", body: "ship", commit_id: "c" },
+      review: {
+        id: 5,
+        html_url: "u",
+        user: { login: "x" },
+        state: "APPROVED",
+        body: "ship",
+        commit_id: "c",
+      },
       pull_request: { number: 3 },
       repository: { full_name: "o/r" },
     });
     expect(ev.length).toBe(1);
     expect(ev[0]!.kind).toBe("review");
-    ev[0]!.kind === "review" && expect(ev[0]!.state).toBe("APPROVED");
+    if (ev[0]!.kind === "review") expect(ev[0]!.state).toBe("APPROVED");
   });
 
   test("pull_request_review_thread resolved → InboundThreadResolved", () => {

@@ -37,7 +37,7 @@ export function buildMirrorContext(deps: AppDepsLike): MirrorContext {
       if (!row) return null;
       return {
         path: row.path,
-        kind: row.kind as "markdown" | "html" | "asset",
+        kind: row.kind,
         contentHash: row.contentHash,
         renderedHash: row.renderedHash,
         sourceMapHash: row.sourceMapHash,

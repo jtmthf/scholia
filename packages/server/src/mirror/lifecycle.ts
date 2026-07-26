@@ -15,7 +15,6 @@ import {
   getLatestManifest,
   setSiteState,
   findPRBackedSites,
-  type Provenance,
 } from "@scholia/db";
 import { hashBytes } from "@scholia/core";
 import type { MirrorProvider } from "@scholia/core";
@@ -94,7 +93,7 @@ async function handleSynchronize(
   await addVersionWithManifest(deps.db, {
     siteId,
     contentSource: { kind: "pr", repo: event.repo, prNumber: event.prNumber },
-    provenance: fetched.provenance as Provenance,
+    provenance: fetched.provenance,
     pages,
   });
 

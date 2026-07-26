@@ -26,7 +26,7 @@ export interface PullRequestInfo {
 
 export interface PrFile {
   filename: string;
-  status: "added" | "modified" | "removed" | "renamed" | "changed" | string;
+  status: string;
   /** Blob SHA at the PR head for this file. */
   sha: string;
 }
@@ -361,7 +361,11 @@ export class HttpGitHubApi implements GitHubApi {
     return { id: json.id, nodeId: json.node_id, url: json.url };
   }
 
-  async createIssueComment(repo: RepoPath, prNumber: number, body: string): Promise<CreatedComment> {
+  async createIssueComment(
+    repo: RepoPath,
+    prNumber: number,
+    body: string,
+  ): Promise<CreatedComment> {
     const path = `repos/${repoKey(repo)}/issues/${prNumber}/comments`;
     const res = await this.fetchImpl(`${this.apiBase}/${path}`, {
       method: "POST",
@@ -381,7 +385,10 @@ export class HttpGitHubApi implements GitHubApi {
     const res = await this.fetchImpl(`${this.apiBase}/graphql`, {
       method: "POST",
       headers: { ...(await this.apiHeaders()), "content-type": "application/json" },
-      body: JSON.stringify({ query, variables: { owner: repo.owner, name: repo.name, number: prNumber } }),
+      body: JSON.stringify({
+        query,
+        variables: { owner: repo.owner, name: repo.name, number: prNumber },
+      }),
     });
     await this.ensureOk(res, "POST", "graphql");
     const json = (await res.json()) as {
@@ -484,7 +491,13 @@ export interface FakeRepoState {
   content: Map<string, Uint8Array>;
   reviewComments: PrReviewComment[];
   reviewThreads: ReviewThread[];
-  issueComments: Array<{ id: number; nodeId: string; url: string; body: string; authorLogin: string }>;
+  issueComments: Array<{
+    id: number;
+    nodeId: string;
+    url: string;
+    body: string;
+    authorLogin: string;
+  }>;
 }
 
 /**
@@ -493,8 +506,18 @@ export interface FakeRepoState {
  * issue comments) and feed inbound dedup (re-list the same comments).
  */
 export class FakeGitHubApi implements GitHubApi {
-  readonly createdReviewComments: Array<{ repo: RepoPath; pr: number; input: CreateReviewCommentInput; created: CreatedComment }> = [];
-  readonly createdIssueComments: Array<{ repo: RepoPath; pr: number; body: string; created: CreatedComment }> = [];
+  readonly createdReviewComments: Array<{
+    repo: RepoPath;
+    pr: number;
+    input: CreateReviewCommentInput;
+    created: CreatedComment;
+  }> = [];
+  readonly createdIssueComments: Array<{
+    repo: RepoPath;
+    pr: number;
+    body: string;
+    created: CreatedComment;
+  }> = [];
   readonly resolveCalls: Array<{ threadId: string; resolve: boolean }> = [];
   readonly deletedComments: number[] = [];
   private repos = new Map<string, FakeRepoState>();
@@ -513,7 +536,12 @@ export class FakeGitHubApi implements GitHubApi {
     opts: {
       headSha: string;
       branch?: string;
-      files: Array<{ filename: string; status: PrFile["status"]; sha: string; content: Uint8Array }>;
+      files: Array<{
+        filename: string;
+        status: PrFile["status"];
+        sha: string;
+        content: Uint8Array;
+      }>;
       title?: string;
     },
   ): void {
@@ -545,7 +573,16 @@ export class FakeGitHubApi implements GitHubApi {
   advancePrHead(
     repo: RepoPath,
     pr: number,
-    opts: { newHeadSha: string; branch?: string; files: Array<{ filename: string; status: PrFile["status"]; sha: string; content: Uint8Array }> },
+    opts: {
+      newHeadSha: string;
+      branch?: string;
+      files: Array<{
+        filename: string;
+        status: PrFile["status"];
+        sha: string;
+        content: Uint8Array;
+      }>;
+    },
   ): void {
     const state = this.require(repo, pr);
     state.pr.head = { sha: opts.newHeadSha, ref: opts.branch ?? state.pr.head.ref };
@@ -568,7 +605,12 @@ export class FakeGitHubApi implements GitHubApi {
   }
 
   /** Seed an existing review comment from native GitHub (inbound import). */
-  seedReviewComment(repo: RepoPath, pr: number, c: Partial<PrReviewComment> & Pick<PrReviewComment, "id" | "path" | "line" | "body" | "commitId" | "nodeId" | "url">): void {
+  seedReviewComment(
+    repo: RepoPath,
+    pr: number,
+    c: Partial<PrReviewComment> &
+      Pick<PrReviewComment, "id" | "path" | "line" | "body" | "commitId" | "nodeId" | "url">,
+  ): void {
     const state = this.require(repo, pr);
     const full: PrReviewComment = {
       id: c.id,
@@ -602,7 +644,11 @@ export class FakeGitHubApi implements GitHubApi {
   seedReviewThread(
     repo: RepoPath,
     pr: number,
-    thread: { id: string; isResolved: boolean; comments: Array<{ databaseId: number; path?: string | null; line?: number | null }> },
+    thread: {
+      id: string;
+      isResolved: boolean;
+      comments: Array<{ databaseId: number; path?: string | null; line?: number | null }>;
+    },
   ): void {
     const state = this.require(repo, pr);
     state.reviewThreads.push({
@@ -651,7 +697,11 @@ export class FakeGitHubApi implements GitHubApi {
     throw new Error(`FakeGitHubApi: no content for ${ref}:${path}`);
   }
 
-  async listPrReviewComments(repo: RepoPath, prNumber: number, since?: string): Promise<PrReviewComment[]> {
+  async listPrReviewComments(
+    repo: RepoPath,
+    prNumber: number,
+    since?: string,
+  ): Promise<PrReviewComment[]> {
     const state = this.require(repo, prNumber);
     void since;
     return [...state.reviewComments];
@@ -666,7 +716,11 @@ export class FakeGitHubApi implements GitHubApi {
     return null;
   }
 
-  async createPrReviewComment(repo: RepoPath, prNumber: number, input: CreateReviewCommentInput): Promise<CreatedComment> {
+  async createPrReviewComment(
+    repo: RepoPath,
+    prNumber: number,
+    input: CreateReviewCommentInput,
+  ): Promise<CreatedComment> {
     const state = this.require(repo, prNumber);
     // Out-of-diff rejection (mirror the real API's 422).
     const allowed = this.lockedLines.get(`${repoKey(repo)}:${input.path}`);
@@ -703,14 +757,18 @@ export class FakeGitHubApi implements GitHubApi {
     return created;
   }
 
-  async createIssueComment(repo: RepoPath, prNumber: number, body: string): Promise<CreatedComment> {
+  async createIssueComment(
+    repo: RepoPath,
+    prNumber: number,
+    body: string,
+  ): Promise<CreatedComment> {
     const state = this.require(repo, prNumber);
     const id = this.freshId();
     const nodeId = `IC_${id}`;
     const url = `https://github.com/${repoKey(repo)}/issues/${prNumber}#issuecomment-${id}`;
     const created: CreatedComment = { id, nodeId, url };
     this.createdIssueComments.push({ repo, pr: prNumber, body, created });
-    state.issueComments.push({ id, nodeId, url, body, authorLogin: "scholia-bot[bot]" } );
+    state.issueComments.push({ id, nodeId, url, body, authorLogin: "scholia-bot[bot]" });
     return created;
   }
 

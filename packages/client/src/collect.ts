@@ -23,7 +23,12 @@ async function walkDir(dir: string, prefix: string, out: CollectedFile[]): Promi
       await walkDir(join(dir, entry.name), relPath, out);
     } else if (entry.isFile()) {
       const bytes = new Uint8Array(await readFile(join(dir, entry.name)));
-      out.push({ path: relPath, kind: classifyFile(relPath), contentHash: hashBytes(bytes), bytes });
+      out.push({
+        path: relPath,
+        kind: classifyFile(relPath),
+        contentHash: hashBytes(bytes),
+        bytes,
+      });
     }
   }
 }

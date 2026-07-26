@@ -1,9 +1,4 @@
-import {
-  envelope,
-  isEnvelope,
-  type ParentMessage,
-  type Theme,
-} from "./protocol.js";
+import { envelope, isEnvelope, type ParentMessage, type Theme } from "./protocol.js";
 import type { TextQuote, SelectionCandidate } from "@scholia/core";
 
 // Parent-side (viewer chrome) end of the bridge. Attaches to a content iframe,

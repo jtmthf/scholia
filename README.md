@@ -3,7 +3,7 @@
 Preview markdown on your own machine, and — eventually — publish it somewhere
 humans and AI agents can annotate it together through anchored comment threads.
 
-*Scholia* are the marginal annotations classical commentators layered onto a text:
+_Scholia_ are the marginal annotations classical commentators layered onto a text:
 anchored, multi-author notes on a document. That's the whole idea.
 
 **Shipping today: `scholia <path>`, the Local Preview CLI.** Everything hosted is
@@ -60,14 +60,14 @@ The published npm package is `scholia` (from `packages/cli`). The `@scholia/*`
 scope is an internal pnpm workspace namespace — those packages are not published,
 and the ones the CLI needs are bundled into its binary.
 
-| Package          | Role                                                                 |
-| ---------------- | ------------------------------------------------------------------- |
-| `scholia`        | The `scholia` command. `scholia <path>` runs Local Preview; the hosted commands are gated behind `SCHOLIA_HOSTED=1`. |
-| `@scholia/core`   | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. No HTTP/db. |
-| `@scholia/local`  | Local Preview server (Hono): file-watch, live-reload, SSR'd reading view. |
-| `@scholia/db`     | Drizzle schema + client + repositories for the mutable metadata. |
-| `@scholia/server` | Hono REST API + content-origin server (`POST /sites`, content origin). |
-| `@scholia/web`    | Preact + Vite viewer SPA — loads a Share URL, renders the Page in a sandboxed iframe. |
+| Package           | Role                                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `scholia`         | The `scholia` command. `scholia <path>` runs Local Preview; the hosted commands are gated behind `SCHOLIA_HOSTED=1`. |
+| `@scholia/core`   | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. No HTTP/db.                             |
+| `@scholia/local`  | Local Preview server (Hono): file-watch, live-reload, SSR'd reading view.                                            |
+| `@scholia/db`     | Drizzle schema + client + repositories for the mutable metadata.                                                     |
+| `@scholia/server` | Hono REST API + content-origin server (`POST /sites`, content origin).                                               |
+| `@scholia/web`    | Preact + Vite viewer SPA — loads a Share URL, renders the Page in a sandboxed iframe.                                |
 
 ## Development
 

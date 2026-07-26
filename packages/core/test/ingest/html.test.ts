@@ -29,7 +29,9 @@ describe("ingestHtml (M4)", () => {
   });
 
   test("preserves uploaded scripts (ADR-0003 — interactivity is not stripped)", () => {
-    const { html } = ingestHtml(`<body><button id="b">x</button><script>document.title="hi"</script></body>`);
+    const { html } = ingestHtml(
+      `<body><button id="b">x</button><script>document.title="hi"</script></body>`,
+    );
     expect(html).toContain("<script>");
     expect(html).toContain(`document.title="hi"`);
   });

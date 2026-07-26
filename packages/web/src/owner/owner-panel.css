@@ -40,7 +40,9 @@
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.1s, background 0.1s;
+  transition:
+    border-color 0.1s,
+    background 0.1s;
 }
 .owner-state-btn:hover:not(:disabled) {
   border-color: var(--muted);

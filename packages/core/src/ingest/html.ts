@@ -102,7 +102,7 @@ export function ingestHtml(source: string): HtmlIngest {
       }
       if (!SKIP_TAGS.has(tag) && node.sourceCodeLocation) {
         const { startOffset, endOffset } = node.sourceCodeLocation;
-        if (startOffset != null && endOffset != null) {
+        if (startOffset !== null && endOffset !== null) {
           const id = entries.length;
           setAttr(node, SOURCE_MAP_ATTR, String(id));
           entries.push({ id, tag, start: startOffset, end: endOffset });

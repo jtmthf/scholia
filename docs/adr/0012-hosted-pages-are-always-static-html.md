@@ -9,7 +9,7 @@ accepted
 
 ## Context & Decision
 
-mdttp *evaluates* MDX — it runs the file as Preact code — which is fine for Local
+mdttp _evaluates_ MDX — it runs the file as Preact code — which is fine for Local
 Preview (trusted, the author's machine) but unacceptable for hosted collab, which treats
 all hosted content as **untrusted, agent-generated** bytes. The domain model has only two
 Page kinds (Markdown Page, HTML Page); there is no "MDX Page."
@@ -35,6 +35,6 @@ independent reasons require this:
   output, not its `.mdx` source — accepted for v1.
 - The untrusted-code-execution surface on collab's infra is exactly zero.
 - A future `collab build` (mdttp's planned build command) is two things sharing one
-  compile front-end: an *export* path that emits a deployable Preact app for hosting
-  **elsewhere**, and the *share* path that always flattens to static HTML for collab
+  compile front-end: an _export_ path that emits a deployable Preact app for hosting
+  **elsewhere**, and the _share_ path that always flattens to static HTML for collab
   hosting. They diverge only at the output.
