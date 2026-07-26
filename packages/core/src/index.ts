@@ -64,6 +64,10 @@ export { extractHeadings } from "./util/headings.js";
 export { contentType } from "./util/mime.js";
 export { classifyFile, isDoc, isMdx, toUrlPath, resolveWithinRoot } from "./util/paths.js";
 export { toText, escapeHtml, humanize } from "./util/text.js";
+// Best-effort git facts (CONTEXT "Provenance", ADR-0007) — shared by
+// @collab/cli (frozen at upload) and @collab/local (read live for the
+// Colophon).
+export { getProvenance, type Provenance } from "./util/provenance.js";
 // @-mention parsing + matching for the agent routing filter (M7, CONTEXT "Mention").
 export { parseMentions, mentionsMatch } from "./util/mentions.js";
 

@@ -98,6 +98,71 @@ function initScrollSpy(): void {
   for (const h of heads) outlineObserver.observe(h);
 }
 
+// ---- Open in editor (ADR-0017) ----
+// The button only exists when the server's startup probe found an editor, so
+// this is purely delegated click wiring — no capability check on the client.
+// Delegated on `document` (not bound per-element) so it survives the
+// live-reload page-header swap without needing re-init.
+function initOpenInEditor(): void {
+  document.addEventListener("click", (e) => {
+    if (!(e.target instanceof Element)) return;
+    const btn = e.target.closest<HTMLButtonElement>("#collab-open-editor");
+    if (!btn || btn.disabled) return;
+    const path = btn.dataset.path;
+    if (!path) return;
+
+    const original = btn.textContent ?? "Open in editor";
+    btn.disabled = true;
+    fetch("/__open", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path }),
+    })
+      .then((res) => res.json().catch(() => ({ ok: false })))
+      .then((data: { ok?: boolean }) => {
+        if (data.ok) return;
+        btn.textContent = "Couldn't open";
+        setTimeout(() => (btn.textContent = original), 1500);
+      })
+      .catch(() => {
+        btn.textContent = "Couldn't open";
+        setTimeout(() => (btn.textContent = original), 1500);
+      })
+      .finally(() => {
+        btn.disabled = false;
+      });
+  });
+}
+
+// ---- Copy markdown ----
+// The raw source is embedded server-side (`#collab-source-md`, a JSON string
+// so entities never need decoding) — reused here rather than a fetch, since
+// the server already read it to render the page.
+function initCopyMarkdown(): void {
+  document.addEventListener("click", (e) => {
+    if (!(e.target instanceof Element)) return;
+    const btn = e.target.closest<HTMLButtonElement>("#collab-copy-md");
+    if (!btn) return;
+
+    const raw = document.getElementById("collab-source-md")?.textContent ?? "";
+    let source: string;
+    try {
+      source = JSON.parse(raw);
+    } catch {
+      return;
+    }
+
+    const original = btn.textContent ?? "Copy markdown";
+    void navigator.clipboard
+      ?.writeText(source)
+      .then(() => {
+        btn.textContent = "Copied";
+        setTimeout(() => (btn.textContent = original), 1500);
+      })
+      .catch(() => {});
+  });
+}
+
 // ---- Mobile navigation drawer ----
 function initNav(): void {
   document.getElementById("collab-menu-toggle")?.addEventListener("click", () => {
@@ -142,7 +207,7 @@ async function liveReloadSwap(): Promise<void> {
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
-    for (const sel of [".outline", ".nav-pane"]) {
+    for (const sel of [".outline", ".nav-pane", ".page-header", ".colophon", "#collab-source-md"]) {
       const next = doc.querySelector(sel);
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
@@ -300,6 +365,8 @@ connectLiveReload();
 initTheme();
 initNav();
 initSearch();
+initOpenInEditor();
+initCopyMarkdown();
 addCopyButtons();
 initScrollSpy();
 void renderMermaid();
