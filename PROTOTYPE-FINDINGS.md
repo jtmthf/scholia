@@ -154,12 +154,39 @@ scope. Within the scope trialled, Vite+ is slower than doing nothing on `test`
 
 1. **Adopt TypeScript 7** — the entire measured win, on its own.
 2. **No task runner yet.** Record as the issue's explicit "not yet" outcome.
-3. Revisit when either is true: the workspace outgrows a single root `tsc`, or CI
-   minutes start costing real money — at which point **Turborepo** is the
-   candidate, because it was the only one that was both correct and fast.
+3. **Turborepo is deferred, not rejected.** See the triggers below.
 4. Re-evaluate **Vite+** after the tracking bug is fixed and it leaves beta. The
    oxc alignment with ADR-0024 is genuine and the toolchain-pinning story is
    attractive; the caching is not trustworthy yet under TS 7.
+
+## Revisit triggers — Turborepo is deferred, not rejected
+
+This must survive into the ADR. Read casually, "no tool yet" looks like a tool
+that failed; it isn't. Turborepo was **correct on every check** and won the
+no-change case by roughly 6x (1.08s vs 6.90s). The verdict is contingent on the
+workspace's *size and shape*, not on the tool's quality — so it should be
+re-opened when the shape changes, not on a calendar.
+
+The whole reason it loses today: packages export `./src/index.ts` with no build
+step between them, so per-package `tsc` re-checks dependencies' source seven
+times over. That duplication — not Turborepo — is what costs more than the cache
+returns.
+
+Any one of these flips the math:
+
+1. **Packages gain real build boundaries.** If they ever publish built `dist` +
+   `.d.ts` instead of exporting source, the duplication disappears and
+   per-package caching starts paying immediately. This is the likeliest trigger
+   and the one to watch — it arrives on its own the moment a second publishable
+   artifact is wanted.
+2. **The root `tsc` stops being fast.** It is ~1.2s warm on TS 7. Past roughly
+   5s, the 3.6x TS 7 win has been consumed and caching unchanged packages pays.
+3. **CI minutes start costing real money.** That argues specifically for remote
+   caching, Turborepo's strongest axis — and the one thing that needs a login or
+   a self-hosted cache.
+
+When any of these lands, re-run the trial rather than re-deciding on paper:
+`pnpm trial run <label>` / `pnpm trial report`.
 
 ## Branches
 
