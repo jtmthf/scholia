@@ -1,6 +1,6 @@
-# Collab
+# Scholia
 
-A zero-config service for hosting markdown and HTML documents and letting humans and AI agents collaborate on them through anchored comment threads. Positioned as a familiar, Notion-like rich-comment collaboration surface pointed at agent-generated md/html whose source of truth lives in a git repo: the repo stays canonical, Collab hosts rendered Versions and the feedback loop around them.
+A zero-config tool for reading markdown and HTML documents and letting humans and AI agents collaborate on them through anchored comment threads. It runs **local-first** — pointed at a folder on disk, with Conversations persisted beside the content in the same repository — and hosts the same documents and Conversations remotely when they need to outlive the machine. Positioned as a familiar, Notion-like rich-comment collaboration surface pointed at agent-generated md/html whose source of truth lives in a git repo: the repo stays canonical, Scholia carries the feedback loop around it.
 
 ## Language
 
@@ -43,18 +43,18 @@ A Page whose canonical source is HTML. It is served as a rendered page and comme
 The mapping between a selection in a rendered Markdown Page and the corresponding character/line range in the original markdown source, produced at render time on the server. Lets a reviewer highlight rendered text and have the comment resolve to a source location. Both Page kinds render inside the sandboxed content iframe (see ADR-0003); the Source Map is the Markdown flavor of the shared anchor-resolution bridge.
 
 **Anchor**:
-The attachment point that binds a Thread to a specific piece of a Page. An Anchor must ground to something **unique**: at creation the `prefix`/`suffix` context is expanded until the text-quote uniquely identifies its target (no occurrence ordinals). Its **primary** form is that unique text-quote (`exact` + `prefix`/`suffix` context) that can be searched for in source or DOM. It also carries **secondary** structural hints: a **source range** (line/column in the canonical source — available for both Page kinds, since Collab hosts the source for both), plus XPath and/or CSS selector for an HTML Page. A source range is only valid against the exact Version's source (stale if the agent's local copy has drifted), which is why resolution is text-quote-first; structural hints are a fallback/bonus. Anchor resolution covers in-page display, cross-Version migration, and what agents receive from `list_comments`. When a new Version is uploaded, Anchors are migrated forward best-effort via text-quote matching; an Anchor whose quote no longer matches becomes Outdated.
+The attachment point that binds a Thread to a specific piece of a Page. An Anchor must ground to something **unique**: at creation the `prefix`/`suffix` context is expanded until the text-quote uniquely identifies its target (no occurrence ordinals). Its **primary** form is that unique text-quote (`exact` + `prefix`/`suffix` context) that can be searched for in source or DOM. It also carries **secondary** structural hints: a **source range** (line/column in the canonical source — available for both Page kinds, since Scholia hosts the source for both), plus XPath and/or CSS selector for an HTML Page. A source range is only valid against the exact Version's source (stale if the agent's local copy has drifted), which is why resolution is text-quote-first; structural hints are a fallback/bonus. Anchor resolution covers in-page display, cross-Version migration, and what agents receive from `list_comments`. When a new Version is uploaded, Anchors are migrated forward best-effort via text-quote matching; an Anchor whose quote no longer matches becomes Outdated.
 
 **Outdated** (Comment/Anchor):
-A Comment whose Anchor no longer matches the Latest Version after a re-upload. It is not deleted; it is shown collapsed / in a side rail with a link to its original Version context. Mirrors how GitHub marks PR review comments "outdated" when new commits land.
+A Comment whose Anchor no longer matches the text it was written against. It is not deleted; it is shown collapsed / in a side rail, and it retains the original quote, so an Outdated Comment can show what the passage *used* to say. Hosted, this is settled at upload against the Latest Version. Locally it is recomputed on every read, because the files are live and change continuously. Mirrors how GitHub marks PR review comments "outdated" when new commits land.
 _Avoid_: orphaned, stale, broken
 
 **Conversation**:
-The single entity for all discussion: attached to an Anchor or to a whole Page (Page-level has no Anchor), an ordered flat (non-nested) list of Comments, a Resolved flag, and a **visibility** that is either Private (a Chat) or Public (a Thread). Anchoring, Outdated migration, Reactions, and resolve behave identically regardless of visibility. A new highlight over overlapping text starts a separate Conversation.
+The single entity for all discussion: attached to an Anchor or to a whole Page (Page-level has no Anchor), an ordered flat (non-nested) list of Comments, a Resolved flag, and a **visibility** that is either Private (a Chat) or Public (a Thread). Anchoring, Outdated migration, Reactions, and resolve behave identically regardless of visibility. A new highlight over overlapping text starts a separate Conversation. A Conversation is the unit of consistency: it is stored, moved, and merged whole.
 _Avoid_: discussion
 
 **Chat**:
-A **Private** Conversation, visible only to its owning viewer and that viewer's agent(s). The default for "highlight a span and ask my agent" — the viewer's agent grounds its answer in the actual code (via the Anchor's text-quote/source range) without Collab needing repo access.
+A **Private** Conversation, visible only to its owning viewer and that viewer's agent(s). The default for "highlight a span and ask my agent" — the viewer's agent grounds its answer in the actual code (via the Anchor's text-quote/source range) without Scholia needing repo access.
 _Avoid_: DM, private comment, assistant session
 
 **Thread**:
@@ -65,7 +65,7 @@ Flipping a Chat to a Thread (private → public). The promoting human selects wh
 _Avoid_: publish, share (verb), expose
 
 **Comment**:
-A single message within a Conversation, left by a human or agent. A Comment is bound to the Version it was made on. Uploading a new Version and commenting are independent operations — an upload never carries comment data. Authors may edit/delete their own Comments (edits show an "edited" marker; deletes leave a tombstone); the Owner may delete anyone's.
+A single message within a Conversation, left by a human or agent. A Comment is bound to the **content hash** of the Page as it stood when the Comment was made — one binding local and hosted alike, since a hosted Version is a named set of content hashes. Provenance rides alongside it as context, not as the binding. Uploading a new Version and commenting are independent operations — an upload never carries comment data. Authors may edit/delete their own Comments (edits show an "edited" marker; deletes leave a tombstone); the Owner may delete anyone's.
 
 **Mention**:
 An `@`-reference to an existing Identity on the Site (e.g. `@owner-agent`, `@Jane`) used to route/address feedback. Mentioning an agent surfaces in that agent's `list_comments --mentions` filter (and later triggers push). Absence of a Mention = ambient feedback the human tells the agent to sweep.
@@ -79,11 +79,11 @@ A flag marking a Conversation as addressed. For a public Thread, anyone may reso
 _Avoid_: closed, done
 
 **Provenance**:
-Best-effort git facts about the directory the content came from: repo remote URL, commit SHA, branch, and a dirty-working-tree flag. In Local Preview they are read live from the working directory, so they track edits as they happen; on upload they are frozen onto the Version, since a Version is immutable and its Provenance must not drift. Surfaced to agents (so a reviewer's agent can fetch/checkout the matching commit and detect drift before grounding answers in code) and shown to humans in the Colophon as a trust signal ("generated from `main` @ `a1b2c3d`, uncommitted changes"). Collab never accesses the repo itself — Provenance is metadata only (see ADR-0007).
+Best-effort git facts about the directory the content came from: repo remote URL, commit SHA, branch, and a dirty-working-tree flag. In Local Preview they are read live from the working directory, so they track edits as they happen; on upload they are frozen onto the Version, since a Version is immutable and its Provenance must not drift. Surfaced to agents (so a reviewer's agent can fetch/checkout the matching commit and detect drift before grounding answers in code) and shown to humans in the Colophon as a trust signal ("generated from `main` @ `a1b2c3d`, uncommitted changes"). Scholia never accesses the repo itself — Provenance is metadata only (see ADR-0007).
 _Avoid_: source ref, git info
 
 **Version**:
-An immutable snapshot of an entire Site created by an upload. A Site is an ordered series of Versions; re-uploading creates a new Version rather than overwriting. A Comment is bound to the Version it was made against. Every upload is full-Site (no partial/single-Page update); the wire transfer is content-hash-negotiated so only missing blobs are sent. A Version's bytes come from a **Content source** (local path / git ref / PR). For a **PR-backed Site**, advancing the PR head commit (when it touches an in-scope Page) produces a new Version automatically, alongside manual re-upload.
+An immutable snapshot of an entire hosted Site created by an upload — a named, ordered set of content hashes. A Site is an ordered series of Versions; re-uploading creates a new Version rather than overwriting. Versions are a **hosted-only** concept: Local Preview has none, because the files on disk are live rather than snapshotted. Every upload is full-Site (no partial/single-Page update); the wire transfer is content-hash-negotiated so only missing blobs are sent. A Version's bytes come from a **Content source** (local path / git ref / PR). For a **PR-backed Site**, advancing the PR head commit (when it touches an in-scope Page) produces a new Version automatically, alongside manual re-upload.
 
 **Latest**:
 The most recent Version of a Site. The shareable Site URL always resolves to Latest; individual Versions are also addressable by their own permalinks.
@@ -94,7 +94,7 @@ The Version a given viewer most recently looked at, tracked client-side. Used as
 _Avoid_: last read, checkpoint
 
 **Diff**:
-A per-Page, source-level comparison between two Versions of a Site, available in the viewer (default: Last Seen Version vs Latest) and via the API alongside `list_versions`. v1 does not overlay diffs on the rendered page.
+A per-Page, source-level comparison between two states of a Page. Hosted, the two states are Versions (default: Last Seen Version vs Latest), available in the viewer and via the API alongside `list_versions`. Locally there are no Versions, so the baseline is git — the working tree against `HEAD`. Diffs are not overlaid on the rendered page.
 _Avoid_: change view, delta
 
 **Owner**:
@@ -109,11 +109,19 @@ An Owner-set posture on a Site: **open** (default — read + public comment), **
 _Avoid_: status, mode, locked
 
 **API Token**:
-The credential generated on first upload that authenticates write actions (upload Versions, owner/destructive actions, identity-attributed Comments) for a Site. For the installed path it is stored transparently in a local credentials file (`~/.collab/credentials`) and read silently. Agent-authored Comments are attributed to a named identity tied to the Token. Losing the Token means losing Owner control of the Site in v1.
+The credential generated on first upload that authenticates write actions (upload Versions, owner/destructive actions, identity-attributed Comments) for a Site. For the installed path it is stored transparently in a local credentials file (`~/.scholia/credentials`) and read silently. Agent-authored Comments are attributed to a named identity tied to the Token. Losing the Token means losing Owner control of the Site in v1.
 
 **Local Preview**:
-Rendering a local file or folder in the browser straight from the CLI (`collab <path>`) with no account, token, or network — the default, zero-friction entry point. It uses the same render / Nav / Entry Page engine as a hosted Site but produces no Version and no Share URL; nothing leaves the machine. Sharing is an explicit promotion (`collab share`) that uploads the same content as the first Version of a Site. The locally-served reading view carries no comment chrome (there is nothing to anchor to yet).
+Rendering a local file or folder in the browser straight from the CLI (`scholia <path>`) with no account, token, or network — the default, zero-friction entry point. It uses the same render / Nav / Entry Page engine as a hosted Site and carries the same comment surface: Conversations anchor to the **live files on disk** and persist to the Sidecar. It produces no Version and no Share URL, and nothing leaves the machine unless a Tunnel is opened. Hosting is a separate, explicit promotion (`scholia share`) that uploads the same content as the first Version of a Site.
 _Avoid_: serve, dev server, local mode (as the noun)
+
+**Sidecar**:
+Where a local Site's Conversations live: beside the content, inside the same repository, rather than in a database. Untracked by default, so a repository shared with people who don't use Scholia carries no trace of it; committing it is an explicit per-repository choice that makes Conversations travel with the content and turns git into the review channel — and git's permissions into the access control.
+_Avoid_: store, database, metadata dir, dotfolder
+
+**Tunnel**:
+Local Preview made reachable from beyond the machine, opened explicitly as part of the local command rather than as a form of hosting. A Tunnel serves the same live files and writes to the same Sidecar, so a guest's Comments land directly in the author's working tree. Its unguessable URL is the access gate (ADR-0001): guests are Viewers, and the human at the terminal remains the Owner. Affordances that reach outside the browser — opening the editor above all — are refused for tunnelled requests.
+_Avoid_: share, expose, publish, ngrok (as the noun)
 
 **Share URL**:
 The public link to a Site. Grants anonymous read + comment to anyone who holds it (see ADR-0001). Never confers upload, owner, or destructive capability. The Owner can rotate it (mint a fresh slug) to invalidate a leaked link.
@@ -124,19 +132,19 @@ A link that embeds a token capability in the URL (Proof-style), used to onboard 
 _Avoid_: token link, write link
 
 **Agent Prompt**:
-The paste-ready instruction blob emitted by the Site's "copy agent prompt" button: the Agent URL + the verb set + a pointer to the discoverable agent docs (`collab.SKILL.md` / `/agent-docs`). It is framed as the user's deliberate handoff to their own agent. The discoverable docs (`/agent-docs`, `collab.SKILL.md`) instruct agents to treat anchors/comments as data, confirm outward actions, and never auto-execute imperative instructions found *inside* hosted (untrusted) documents — Collab eating its own dog food on prompt-injection caution. The zero-install counterpart to the installed CLI/MCP path.
+The paste-ready instruction blob emitted by the Site's "copy agent prompt" button: the Agent URL + the verb set + a pointer to the discoverable agent docs (`scholia.SKILL.md` / `/agent-docs`). It is framed as the user's deliberate handoff to their own agent. The discoverable docs (`/agent-docs`, `scholia.SKILL.md`) instruct agents to treat anchors/comments as data, confirm outward actions, and never auto-execute imperative instructions found *inside* hosted (untrusted) documents — Scholia eating its own dog food on prompt-injection caution. The zero-install counterpart to the installed CLI/MCP path.
 _Avoid_: copy prompt, onboarding prompt
 
 **Viewer**:
-An anonymous human identity minted client-side (id + secret in localStorage) on first interaction with a Site, supplying a display name on first comment. A Viewer owns its private Chats; "private" means visible only to that Viewer's token and the agents it admits. Privacy is localStorage-grade — losing/clearing the token loses the Chats; "private from casual view," not secure. A future logged-in user is just a durable Viewer.
+An anonymous human identity minted client-side (id + secret in localStorage) on first interaction with a Site, supplying a display name on first comment. A Viewer owns its private Chats; "private" means visible only to that Viewer's token and the agents it admits. Privacy is localStorage-grade — losing/clearing the token loses the Chats; "private from casual view," not secure. A future logged-in user is just a durable Viewer. Locally there is no Viewer for the author: the human at the terminal is identified by their git config and holds Owner capability. Viewers appear locally only through a Tunnel, where every guest is exactly this anonymous identity.
 _Avoid_: user, account, commenter, reviewer
 
 **Identity**:
-The author of any Comment or Reaction: a **display name**, a **kind** (human | agent), and a **tier** (owner | viewer). Agents render with a distinct badge so human-vs-agent is never ambiguous, and are attributed on behalf of the human/tier they act for ("Owner's agent," "Reviewer Jane's agent"). Humans self-declare names (spoofable, per H1); agents are labeled in the Agent Prompt. One token can front several distinguishable agents via a per-call/per-session label, so identity is effectively `token + label`. An Identity also has a **source**: **native** (a Collab Viewer/agent/Owner) or **github** (synthesized from an inbound GitHub comment author, rendered with their GitHub login/avatar). Comments Collab mirrors outward to GitHub are authored by a single Collab **bot** (GitHub App) with the real native Identity named in the body ("Reviewer Jane (via Collab)").
+The author of any Comment or Reaction: a **display name**, a **kind** (human | agent), and a **tier** (owner | viewer). Agents render with a distinct badge so human-vs-agent is never ambiguous, and are attributed on behalf of the human/tier they act for ("Owner's agent," "Reviewer Jane's agent"). Humans self-declare names (spoofable, per H1); agents are labeled in the Agent Prompt. One token can front several distinguishable agents via a per-call/per-session label, so identity is effectively `token + label`. Locally there are no tokens: the human's name comes from git config and an agent simply declares its own, which is the same spoofable-by-design posture applied to files you already own. An Identity also has a **source**: **native** (a Scholia Viewer/agent/Owner) or **github** (synthesized from an inbound GitHub comment author, rendered with their GitHub login/avatar). Comments Scholia mirrors outward to GitHub are authored by a single Scholia **bot** (GitHub App) with the real native Identity named in the body ("Reviewer Jane (via Scholia)").
 _Avoid_: author, persona
 
 **Actor tiers**:
-The three levels of capability on a Site: **Owner** (full write — see Owner/Agent URL) → **Viewer + Viewer's agent** (read + own Chats + create/post public Threads, no Owner powers) → **anonymous passerby** (read + public comment via the Share URL). Agents exist at the Owner tier (Owner-scoped Agent URL) and the Viewer tier (Viewer-scoped agent token).
+The three levels of capability on a Site: **Owner** (full write — see Owner/Agent URL) → **Viewer + Viewer's agent** (read + own Chats + create/post public Threads, no Owner powers) → **anonymous passerby** (read + public comment via the Share URL). Agents exist at the Owner tier (Owner-scoped Agent URL) and the Viewer tier (Viewer-scoped agent token). Locally the same tiers are held by **position** rather than by token: whoever holds the terminal (and their agents) is the Owner, because they hold the filesystem; Tunnel guests are Viewers.
 _Future_: public/private Sites, roles, teams, real login are anticipated but out of scope for v1.
 
 ### GitHub integration
@@ -146,13 +154,13 @@ Where a Version's bytes come from: a **local path** (file/folder/zip), a **git r
 _Avoid_: input type, upload mode
 
 **PR-backed Site**:
-A Site whose Content source is a GitHub PR. Its Pages are the PR's changed md/html files rendered at the PR head commit (Pages outside the PR are excluded); its **Public Threads** mirror to and from the PR's native GitHub comments while **Private Chats** stay Collab-only. The comment backend is chosen by **visibility, not configuration**: private = DB, public = DB + GitHub. Each comment is owned by its **origin** (the side it was authored on) and is read-only on the other side.
+A Site whose Content source is a GitHub PR. Its Pages are the PR's changed md/html files rendered at the PR head commit (Pages outside the PR are excluded); its **Public Threads** mirror to and from the PR's native GitHub comments while **Private Chats** stay Scholia-only. The comment backend is chosen by **visibility, not configuration**: private = DB, public = DB + GitHub. Each comment is owned by its **origin** (the side it was authored on) and is read-only on the other side.
 _Avoid_: GitHub site, linked site, synced site
 
 **Mirror**:
-The act and result of projecting a Public Thread's Comments onto native GitHub PR comments (outbound) and importing GitHub PR comments as Threads (inbound). A `github_comment_id ↔ comment_id` mapping dedupes the loop. GitHub's native "outdated" review comments and resolve state map onto Collab's **Outdated** and **Resolved**.
+The act and result of projecting a Public Thread's Comments onto native GitHub PR comments (outbound) and importing GitHub PR comments as Threads (inbound). A `github_comment_id ↔ comment_id` mapping dedupes the loop. GitHub's native "outdated" review comments and resolve state map onto Scholia's **Outdated** and **Resolved**.
 _Avoid_: sync (alone), replicate, copy
 
-_Future direction_: Collab may grow from a host-and-comment tool (source of truth lives in the agent's repo; Collab hosts rendered Versions and feedback is incorporated locally then re-uploaded) into a live WYSIWYG collaborative editor with presence and in-place edits (Proof-style). The v1 architecture should not preclude this, but v1 is host-and-comment only. Presence ("who's viewing now") is deferred to this future work, not v1.
+_Future direction_: Scholia may grow from a read-and-comment tool (the source of truth stays in the repo; Scholia carries the feedback loop and edits are incorporated by the author or their agent) into a live WYSIWYG collaborative editor with presence and in-place edits (Proof-style). The architecture should not preclude this, but Scholia is read-and-comment only for now. Presence ("who's viewing now") is deferred to this future work.
 
-A second future direction is a `collab build` command (inherited from mdttp's roadmap): an *export* path that compiles a Site to a deployable Preact app for hosting elsewhere. It shares a compile front-end with `collab share` but diverges at the output — the share/hosting path always flattens to static HTML, because hosted Pages must stay non-executing and stably anchorable (ADR-0012). Build/export is not v1.
+A second future direction is a `scholia build` command (inherited from mdttp's roadmap): an *export* path that compiles a Site to a deployable Preact app for hosting elsewhere. It shares a compile front-end with `scholia share` but diverges at the output — the share/hosting path always flattens to static HTML, because hosted Pages must stay non-executing and stably anchorable (ADR-0012). Build/export is now on the roadmap rather than hypothetical: it is how Scholia's own documentation ships (ADR-0023), and it is a publishing path only — a static export has no backend, so Conversations do not work on it.

@@ -40,3 +40,28 @@ never rendered rather than rendering broken.
 - The probe is best-effort and deliberately silent. A user with no GUI editor on `PATH`
   sees "Copy path" in its place and is never told why — surfacing editor detection
   failures would be config-shaped, which is what this tool exists not to be.
+
+## Amendments
+
+**Editor resolution is environment-first** (supersedes the `PATH` probe order above, which
+was never implemented). A fixed probe order opens whichever editor is *installed* first,
+not the one the user is *using* — the common failure being a Cursor user whose files open
+in VS Code. Resolution order is now:
+
+1. **The invoking environment.** Scholia is nearly always launched from an editor's
+   integrated terminal, which says exactly which editor that is: `TERM_PROGRAM=vscode`,
+   `TERM_PROGRAM=zed`, `TERMINAL_EMULATOR=JetBrains-JediTerm`. Cursor and Windsurf are
+   VS Code forks and also report `TERM_PROGRAM=vscode`, so they are discriminated by the
+   application path in `VSCODE_GIT_ASKPASS_NODE` / `VSCODE_IPC_HOOK_CLI`. **That
+   discrimination is the actual fix.**
+2. **Repository markers** — `.vscode/`, `.idea/`, `.zed/`. A weak signal: `.vscode/` is
+   committed by people who do not use VS Code.
+3. **The `PATH` probe** as originally recorded, as a last resort.
+
+An explicit `--editor` override persists to `~/.scholia/config`. This is the one piece of
+config acceptable in a zero-config tool, because it only ever appears *after* the tool has
+guessed wrong for you. The "render no button rather than a broken one" rule is unchanged.
+
+**The endpoint is loopback-only, unconditionally** (see ADR-0022). The guard list above
+rests on the server binding loopback, which a Tunnel invalidates — the "random tab"
+this ADR guards against becomes a random person. Tunnelled requests are refused.
