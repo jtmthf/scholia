@@ -17,6 +17,7 @@
     "dev:server": "pnpm --filter @scholia/server dev",
     "dev:web": "pnpm --filter @scholia/web dev",
     "scholia": "tsx packages/cli/src/cli.ts",
+    "trial": "node scripts/prototype-task-runner-trial.mjs",
     "e2e": "pnpm --filter @scholia/e2e test",
     "e2e:install": "pnpm --filter @scholia/e2e install:browsers"
   },
