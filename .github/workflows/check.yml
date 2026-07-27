@@ -24,3 +24,53 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm test:ci
+
+  # Playwright e2e suite (e2e/) — the select-to-comment flow the unit/integration
+  # tests can't cover. Ubuntu-only: it needs the docker-compose stack (Postgres +
+  # MinIO) and a headless browser, which a Windows runner would only slow down.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Seconds on the trap from AGENTS.md: host port 5544 (not 5432), 127.0.0.1
+      # (not localhost, to sidestep IPv6 ::1).
+      DATABASE_URL: postgres://scholia:scholia@127.0.0.1:5544/scholia
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: scholia-blobs
+      S3_ACCESS_KEY_ID: scholia
+      S3_SECRET_ACCESS_KEY: scholia-secret
+      S3_FORCE_PATH_STYLE: "true"
+      # Registers the `scholia share` command the e2e seed drives.
+      SCHOLIA_HOSTED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Bring up the stack the suite talks to: Postgres (state) + MinIO (blobs).
+      # `--wait` blocks until the healthchecks pass; minio-init then creates the
+      # blob bucket as a one-shot and exits.
+      - run: docker compose up -d --wait postgres minio
+      - run: docker compose run --rm minio-init
+      - run: pnpm db:migrate
+
+      # Browsers + their OS libs, then the suite. Playwright's webServer boots the
+      # API + viewer and reuses them.
+      - run: pnpm --filter @scholia/e2e exec playwright install --with-deps chromium
+      - run: pnpm e2e
+
+      # HTML report + per-test traces (trace: on-first-retry) for diagnosing
+      # failures without re-running the suite.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
