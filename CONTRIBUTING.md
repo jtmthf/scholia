@@ -24,7 +24,7 @@ pnpm install
 pnpm typecheck     # tsc across the workspace
 pnpm lint          # oxlint --type-aware (catches what tsc misses)
 pnpm format        # oxfmt
-pnpm test:ci       # what CI runs
+pnpm test:ci       # full vitest suite (CI job test-hosted sets DATABASE_URL)
 ```
 
 Run the CLI from source:
@@ -61,9 +61,13 @@ host-managed Postgres — and use **`127.0.0.1`**, not `localhost`, which can
 resolve to IPv6 `::1` and fail to connect. Getting this wrong is the most
 common failure in this repo.
 
-CI runs `pnpm test:ci`, which is scoped to the shipping and pure packages and
-deliberately excludes `@scholia/server`. You don't need Postgres for a Local
-Preview change.
+CI runs two test jobs. `check` (ubuntu + windows) runs typecheck, lint, format,
+and `pnpm test:no-db` — the Local-Preview-and-pure-packages subset, no Postgres
+needed. `test-hosted` (ubuntu only) stands up a Postgres service container,
+migrates, runs the full `pnpm test:ci` with `DATABASE_URL` set, and fails if any
+test silently skips — so a skip that passes locally is caught at the gate.
+You don't need Postgres for a Local Preview change; you do for anything on the
+hosted path.
 
 ## Language and architecture
 
@@ -81,10 +85,13 @@ gain HTTP or database dependencies; keep those in `server` and `db`.
 
 ## Pull requests
 
-`main` is protected: changes land through a PR, and both CI legs
-(`check (ubuntu-latest)` and `check (windows-latest)`) must pass. The Windows
-leg exists because path handling is the most likely thing to diverge across
-platforms — if you touch path logic, expect it to be the one that catches you.
+`main` is protected: changes land through a PR, and CI must pass. Three jobs
+run: `check (ubuntu-latest)`, `check (windows-latest)`, and
+`test-hosted (ubuntu-latest)`. The Windows leg exists because path handling is
+the most likely thing to diverge across platforms — if you touch path logic,
+expect it to be the one that catches you. `test-hosted` covers the hosted path
+against real Postgres and runs on Linux only because GitHub's Windows runners
+can't host a Postgres service container.
 
 No approving review is required, so a maintainer merges once CI is green.
 History is linear: squash or rebase, no merge commits.

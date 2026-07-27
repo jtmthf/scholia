@@ -16,6 +16,9 @@ playwright-report/
 test-results/
 .last-run.json
 
+# vitest JSON reporter output (written by .github/workflows/check.yml test-hosted job)
+results.json
+
 # agent-tool scratch (own node_modules, session plans, page/console dumps)
 .opencode/
 .playwright-cli/
