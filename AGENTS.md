@@ -48,12 +48,7 @@ imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp
 
 ## Changesets
 
-A PR touching the published CLI (`packages/cli`, package `scholia`) needs a
-changeset — CI fails without one. `@scholia/*` internal packages don't.
-`pnpm changeset` is interactive; **agents write the file directly** (the format
-and rules are in [`.changeset/README.md`](.changeset/README.md)). Releases run
-automatically on merge to `main` via trusted publishing (OIDC, no `NPM_TOKEN`)
-— see ADR-0026 and `CONTRIBUTING.md`'s Releasing section.
+A PR touching `packages/cli` (package `scholia`) needs a changeset — `@scholia/*` internals don't; agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
 
 ## Running the hosted-path tests (the trap)
 
