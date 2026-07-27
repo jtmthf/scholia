@@ -78,3 +78,23 @@ jobs:
             e2e/playwright-report
             e2e/test-results
           retention-days: 7
+
+  # Enforces that PRs with user-facing CLI changes carry a changeset. Private
+  # `@scholia/*` packages are opted out of versioning in `.changeset/config.json`,
+  # so a PR touching only internal packages passes without one.
+  changeset:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `changeset status --since=origin/main` needs the full history to
+          # compute the diff against the PR base.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm changeset status --since=origin/main

@@ -97,3 +97,19 @@ non-obvious, _why_ is more useful to review than _what_.
 Open an [issue](https://github.com/jtmthf/scholia/issues) with your
 `scholia --version`, `node --version`, OS, and something reproducible. The bug
 template asks for exactly this.
+
+## Releasing
+
+Releases are automated via Changesets and npm trusted publishing; see
+[ADR-0026](./docs/adr/0026-release-automation-via-changesets-and-trusted-publishing.md)
+for the why. The short version:
+
+- A PR that changes the published CLI (`packages/cli`, package name `scholia`)
+  **must include a changeset** — run `pnpm changeset`, pick `scholia`, and write
+  a one-line summary. CI's `changeset` job fails a PR that skips this. Internal
+  `@scholia/*` packages are private, so a change confined to them does not need
+  one.
+- Merging to `main` either opens a `chore(release): version packages` PR (when
+  changesets are pending) or publishes (`pnpm release` → builds `dist`,
+  publishes to npm via OIDC, tags `v<version>`, opens a GitHub Release). No
+  `npm publish` from a laptop, no `NPM_TOKEN` in repo secrets.

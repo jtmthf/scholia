@@ -46,6 +46,10 @@ oxlint (`pnpm lint`) + oxfmt (`pnpm format`) from the oxc project (ADR-0024).
 imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp } from
 "../src/app.js"`).
 
+## Changesets
+
+A PR touching `packages/cli` (package `scholia`) needs a changeset — `@scholia/*` internals don't; agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
+
 ## Running the hosted-path tests (the trap)
 
 Server/db integration tests **silently skip when `DATABASE_URL` is unset** — a green
