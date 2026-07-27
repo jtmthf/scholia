@@ -19,9 +19,13 @@
     "dev:web": "pnpm --filter @scholia/web dev",
     "scholia": "tsx packages/cli/src/cli.ts",
     "e2e": "pnpm --filter @scholia/e2e test",
-    "e2e:install": "pnpm --filter @scholia/e2e install:browsers"
+    "e2e:install": "pnpm --filter @scholia/e2e install:browsers",
+    "changeset": "changeset",
+    "release": "pnpm --filter scholia build && pnpm changeset publish"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.0",
+    "@changesets/cli": "^2.27.12",
     "@types/node": "^22.10.2",
     "oxfmt": "^0.60.0",
     "oxlint": "^1.75.0",

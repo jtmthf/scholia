@@ -6,12 +6,17 @@ import { API_URL, MANAGE_SERVERS, REPO_ROOT, WEB_URL } from "./helpers/env.js";
 // SCHOLIA_API_URL / SCHOLIA_WEB_URL at any stack (local default or staging). When
 // both targets are local, Playwright boots the dev server + viewer for you and
 // reuses them if already running.
+const CI = !!process.env.CI;
+// The HTML report is always emitted (local `open: "never"` so it never steals
+// focus); CI additionally streams `github` annotations to the run log.
+const HTML_REPORT: ["html", { open: "never" }] = ["html", { open: "never" }];
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : [["list"], ["html", { open: "never" }]],
+  forbidOnly: CI,
+  retries: CI ? 1 : 0,
+  reporter: CI ? [["github"], HTML_REPORT] : [["list"], HTML_REPORT],
   timeout: 60_000,
   expect: { timeout: 15_000 },
   use: {
@@ -22,7 +27,9 @@ export default defineConfig({
   webServer: MANAGE_SERVERS
     ? [
         {
-          command: "pnpm --filter @scholia/server dev",
+          // `start` (no watch) in CI — bounded runtime and no file-watcher churn;
+          // `dev` locally for the hot-reload loop.
+          command: CI ? "pnpm --filter @scholia/server start" : "pnpm --filter @scholia/server dev",
           url: `${API_URL}/health`,
           cwd: REPO_ROOT,
           reuseExistingServer: true,
