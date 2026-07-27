@@ -93,3 +93,60 @@ end-to-end verification, not the automation code.
 - **Hand-maintained `CHANGELOG.md`.** Rejected: it does not scale past one
   package and loses the commit-link context the changelog function writes for
   free.
+
+## Future: migration to pnpm native versioning
+
+[pnpm/rfcs#18 "Native monorepo versioning"](https://github.com/pnpm/rfcs/pull/18)
+(merged 2026-07-13) proposes a built-in replacement for `@changesets/cli`:
+`pnpm change [--bump <type>] [--summary <text>] [<pkg>...]`,
+`pnpm change status`, `pnpm change check`, `pnpm version -r`. The `--bump` and
+`--summary` flags are exactly the non-interactive authoring surface
+`@changesets/cli` lacks — an agent can call them without driving an interactive
+prompt. The RFC was written for pnpm's own monorepo and is already substantially
+implemented (pnpm/pnpm#12953, #12949, #12971, #12979, #13195), with releases
+shipping out of the new pipeline (pnpm/pnpm#12986, #13113).
+
+The decision here is to **stay on Changesets and adopt the direct-to-file
+authoring convention, not migrate yet**. Reasons:
+
+- **Direct-to-file is already agent-friendly.** A changeset is a small Markdown
+  file with YAML frontmatter. An agent writes it in one shot; no interactive
+  prompt to drive. `AGENTS.md` documents the format. pnpm native versioning's
+  agent win is convenience (a CLI flag), not capability — both paths produce the
+  same `.changeset/*.md` artifact, by design.
+- **The RFC makes Changesets forward-compatible, not throwaway.** On-disk intent
+  files are the same YAML-frontmatter format. The RFC quotes "Existing
+  repositories can adopt it by deleting a devDependency." Our change files survive
+  the migration unchanged.
+- **The release-side seam is unsettled.** Our release workflow's load-bearing
+  piece is OIDC publish from GitHub Actions via `changesets/action@v1`. The RFC
+  lists "first-party GitHub Action vs recipes-only" as an _open_ Unresolved
+  Question. Until pnpm ships a first-party action or a known-good recipe for
+  OIDC publish + tag + GitHub Release, migrating means writing that seam
+  ourselves on a <2-week-old feature.
+- **The feature is not done.** Follow-up pnpm/pnpm#13134 ("finish native
+  versioning") is open. Adopting on a moving target, on the release pipeline
+  (highest blast radius), is not worth the convenience gain at the authoring
+  layer.
+
+Migration becomes worth the cost when **all three** of these fire:
+
+1. **pnpm declares the feature done** — pnpm/pnpm#13134 closes.
+2. **Our `packageManager` pin is already ≥ pnpm 11.14** — native versioning first
+   shipped in 11.13.0; the pin today is `pnpm@11.7.0`. We migrate when an
+   _unrelated_ reason takes pnpm past 11.14 (security advisory, workspace
+   feature), not by bumping pnpm solely for this.
+3. **The GitHub-Action question is resolved** — pnpm ships a first-party action,
+   or a known-good `pnpm version -r` + `pnpm publish -r` + tag + GitHub-Release
+   recipe emerges.
+
+A natural review checkpoint fires when (2) happens: we're bumping pnpm anyway,
+so we re-check (1) and (3) at the same time. No calendar review.
+
+When that day comes, the migration is small and local: drop the `@changesets/cli`
+and `@changesets/changelog-github` devDependencies, move
+`.changeset/config.json` into a `versioning:` key in `pnpm-workspace.yaml`, and
+point `AGENTS.md` at `pnpm change` instead of the file format. The release
+workflow is the one piece that needs rewriting, and only because the action
+seam changes. The change files, the changelog, and the trusted-publishing posture
+all carry over.
