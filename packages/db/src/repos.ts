@@ -2,7 +2,7 @@
 // (PLAN §1: server is the only place HTTP + db meet). These keep route handlers
 // free of query plumbing and own the multi-row invariants of an upload
 // (site + owner token + first Version + manifest, in one transaction).
-import { and, asc, desc, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { Db } from "./client.js";
 
 // A Drizzle handle that is either the root client or an open transaction — lets a
@@ -1479,7 +1479,17 @@ export async function listSiteComments(
     isNull(comments.hiddenAt),
   ];
   if (filter.unresolved) conds.push(isNull(conversations.resolvedAt));
-  if (filter.since) conds.push(gt(comments.createdAt, new Date(filter.since)));
+  // `since` is compared against the *emitted* precision, not the stored one.
+  // Postgres keeps `created_at` to the microsecond, but the DTO serializes it to
+  // an ISO string with millisecond precision — so a plain `created_at > since`
+  // re-returns the boundary comment forever when a client pages by feeding the
+  // last `createdAt` it saw back in as `since` (stored .850400 > emitted .850).
+  // Emitted values are floor-truncated, so "strictly after the emitted value"
+  // is exactly "at or after the next whole millisecond" — and unlike
+  // date_trunc() in the predicate, this stays a plain index-friendly range scan.
+  if (filter.since) {
+    conds.push(gte(comments.createdAt, new Date(new Date(filter.since).getTime() + 1)));
+  }
 
   const rows = await db
     .select({
@@ -1917,6 +1927,17 @@ export async function findPRBackedSites(
 export interface RateLimitHit {
   count: number;
   resetAt: Date;
+  /**
+   * Milliseconds until `resetAt`, measured against the *Postgres* clock in the
+   * same statement that read `resetAt`. Callers must use this rather than
+   * subtracting `resetAt` from their own `Date.now()`: the app server and the
+   * database are different machines with independently-drifting clocks, so a
+   * cross-clock subtraction leaks the skew into the retry hint (overstating it
+   * when the DB runs ahead, understating it — and inviting an immediate repeat
+   * 429 — when it runs behind). Single-clock, so `0 <= retryAfterMs <= windowMs`
+   * holds by construction.
+   */
+  retryAfterMs: number;
 }
 
 // Atomic fixed-window increment for `PostgresRateLimiter` (M11, ADR-0015): one
@@ -1936,6 +1957,12 @@ export async function hitRateLimit(db: Db, key: string, windowMs: number): Promi
         resetAt: sql`case when ${rateLimits.resetAt} <= now() then ${newResetAt} else ${rateLimits.resetAt} end`,
       },
     })
-    .returning({ count: rateLimits.count, resetAt: rateLimits.resetAt });
+    .returning({
+      count: rateLimits.count,
+      resetAt: rateLimits.resetAt,
+      // Computed here, not by the caller: RETURNING sees the row's final
+      // `reset_at` and compares it to `now()` on the same clock that set it.
+      retryAfterMs: sql<number>`greatest(0, extract(epoch from (${rateLimits.resetAt} - now())) * 1000)::double precision`,
+    });
   return row!;
 }
