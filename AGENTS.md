@@ -46,6 +46,16 @@ oxlint (`pnpm lint`) + oxfmt (`pnpm format`) from the oxc project (ADR-0024).
 imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp } from
 "../src/app.js"`).
 
+## Changesets
+
+A PR that changes the published CLI (`packages/cli`, package name `scholia`) must
+include a changeset before commit — run `pnpm changeset`, pick `scholia`, and
+write a one-line summary. CI's `changeset` job fails a PR that skips this. The
+private `@scholia/*` packages are opted out of versioning, so a change confined
+to one of them does not need a changeset. Releases run automatically on merge to
+`main` via trusted publishing (OIDC, no `NPM_TOKEN`) — see ADR-0026 and
+`CONTRIBUTING.md`'s Releasing section.
+
 ## Running the hosted-path tests (the trap)
 
 Server/db integration tests **silently skip when `DATABASE_URL` is unset** — a green
