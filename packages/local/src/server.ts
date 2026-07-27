@@ -29,6 +29,7 @@ import {
 import { renderPage } from "./render/layout.js";
 import { watchPath } from "./watch.js";
 import { resolveEditor, openInEditor } from "./editor.js";
+import { checkOpenRequest, isLocalView } from "./open-guard.js";
 
 export interface StartOptions {
   rootDir: string;
@@ -40,6 +41,9 @@ export interface StartOptions {
   // When true, a busy `port` is a hard error instead of falling back to the
   // next open one — used when the caller passed an explicit --port and means it.
   strictPort?: boolean;
+  // The editor to open files in, from `--editor` or ~/.scholia/config. Wins
+  // over detection (ADR-0017); an unusable value falls back to detection.
+  editorOverride?: string | null;
 }
 
 export interface RunningServer {
@@ -88,6 +92,10 @@ function resolveIndex(rootDir: string, dir: string, docs: DocRecord[]): string |
 // the default `localhost`, bind both addresses. An explicit --host is a
 // deliberate choice and is honoured verbatim.
 const LOOPBACK_ADDRESSES = ["127.0.0.1", "::1"];
+
+interface NodeBindings {
+  incoming?: { socket?: { remoteAddress?: string } };
+}
 
 type PortState = "free" | "busy" | "unavailable";
 
@@ -184,10 +192,13 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   const rootName = basename(resolvePath(opts.rootDir));
 
   // Editor resolution is a one-time, best-effort probe (ADR-0017): the
-  // result gates whether "Open in editor" is ever rendered, so a miss never
-  // shows a broken button. `/__open` reuses this same resolution rather than
-  // re-probing per request.
-  const editor = await resolveEditor();
+  // result gates whether "Open in editor" is ever rendered, so a miss shows
+  // "Copy path" instead of a broken button. `/__open` reuses this same
+  // resolution rather than re-probing per request.
+  const editor = await resolveEditor({
+    rootDir: opts.rootDir,
+    override: opts.editorOverride,
+  });
 
   async function refresh(): Promise<void> {
     if (dirMode) {
@@ -219,7 +230,11 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
   await refresh();
 
-  const app = new Hono();
+  // @hono/node-server hands the underlying Node request through `c.env`, which
+  // is how /__open reaches the socket's peer address. Declared optional: the
+  // Hono app is a plain fetch handler and nothing guarantees a caller went
+  // through the Node adapter.
+  const app = new Hono<{ Bindings: NodeBindings }>();
   const sseClients = new Set<SSEStreamingApi>();
 
   function broadcastReload(): void {
@@ -259,25 +274,19 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // ADR-0017: Local Preview spawns the user's editor from a guarded loopback
   // route. Registered before the catch-all "*" route below, same as
   // /__livereload, /search, and /__assets/* — a specific path must win over
-  // the wildcard. Three guards, in order — each is load-bearing on a server
-  // that binds loopback on both stacks (any tab in the user's browser can
-  // reach it):
-  //   1. POST only.
-  //   2. Sec-Fetch-Site, when present, must be same-origin.
-  //   3. The target path is resolved through the same resolveWithinRoot
-  //      guard the page route uses, so a traversal cannot reach outside the
-  //      served directory.
-  // Only after all three pass do we check whether an editor resolved at
-  // startup, and spawn it detached (no waiting on the child, no piping its
-  // output back).
+  // the wildcard. The request-shape guards (POST only, same-origin, loopback
+  // peer and Host, no proxy headers) live in ./open-guard.ts; the path guard
+  // has to stay here because it needs the served root. Only after all of them
+  // pass do we check whether an editor resolved at startup, and spawn it
+  // detached (no waiting on the child, no piping its output back).
   app.all("/__open", async (c) => {
-    if (c.req.method !== "POST") {
-      return c.json({ ok: false, error: "method not allowed" }, 405);
-    }
-
-    const site = c.req.header("Sec-Fetch-Site");
-    if (site && site !== "same-origin") {
-      return c.json({ ok: false, error: "cross-site request rejected" }, 403);
+    const rejection = checkOpenRequest({
+      method: c.req.method,
+      header: (name) => c.req.header(name),
+      remoteAddress: c.env.incoming?.socket?.remoteAddress,
+    });
+    if (rejection) {
+      return c.json({ ok: false, error: rejection.error }, rejection.status);
     }
 
     const body = await c.req.json().catch(() => null);
@@ -388,7 +397,12 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       currentPath,
       showNav: showNav && tree.length > 0,
       rootName,
-      editorAvailable: editor !== null,
+      // Two conditions, not one: an editor has to have resolved at startup,
+      // *and* this reader has to be the person at this machine. /__open would
+      // refuse a LAN or tunnelled request (ADR-0022), so offering them the
+      // button would be offering a guaranteed 403.
+      editorAvailable: editor !== null && isLocalView((name) => c.req.header(name)),
+      filePath: fsPath,
       sourceMarkdown: source,
       colophon: info
         ? { relPath: currentPath.replace(/^\/+/, ""), mtimeMs: info.mtimeMs, provenance }

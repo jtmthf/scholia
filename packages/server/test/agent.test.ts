@@ -469,9 +469,18 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
       { authorization: `Bearer ${token}` },
     );
 
-    const cutoff = new Date().toISOString();
+    // Take the cutoff from the `createdAt` the API itself emitted, not from
+    // `new Date()`. Rows are stamped by the Postgres clock while the test runs
+    // on the Node clock, and the two drift independently — a locally-captured
+    // cutoff can land *before* the timestamp of a comment already written, which
+    // no server-side filter can be expected to fix. Reading it back also makes
+    // this the exact cursor-paging case: feed the last seen `createdAt` in as
+    // `since` and that comment must not come back a second time.
+    const beforeRes = await app.request(`/sites/${slug}/comments`);
+    const { comments: before } = await beforeRes.json();
+    const cutoff = before.find((c: any) => c.body === "Old comment.").createdAt;
 
-    // Brief pause to ensure timestamps differ (Postgres has ms precision).
+    // Brief pause so the next comment lands in a later millisecond.
     await new Promise((r) => setTimeout(r, 10));
 
     // New comment.
@@ -487,6 +496,10 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     const res = await app.request(`/sites/${slug}/comments?since=${encodeURIComponent(cutoff)}`);
     const { comments } = await res.json();
     expect(comments.every((c: any) => c.createdAt > cutoff)).toBe(true);
+    // The comment *at* the cursor must be excluded, not merely tolerated:
+    // `since` has to round-trip against the `createdAt` the API emits, or a
+    // paging client receives the boundary comment on every poll.
+    expect(comments.some((c: any) => c.body === "Old comment.")).toBe(false);
     expect(comments.some((c: any) => c.conversationId === newThread.id)).toBe(true);
   });
 

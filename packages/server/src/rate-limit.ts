@@ -88,9 +88,12 @@ export class PostgresRateLimiter implements RateLimiter {
   ) {}
 
   async hit(key: string): Promise<RateLimitResult> {
-    const { count, resetAt } = await hitRateLimit(this.db, key, this.windowMs);
+    const { count, retryAfterMs } = await hitRateLimit(this.db, key, this.windowMs);
     if (count > this.limit) {
-      return { ok: false, retryAfterMs: Math.max(0, resetAt.getTime() - Date.now()) };
+      // `retryAfterMs` comes back measured against the Postgres clock. Do not
+      // recompute it from `resetAt` and `Date.now()` — that mixes two machines'
+      // clocks and leaks their skew into the hint (see RateLimitHit).
+      return { ok: false, retryAfterMs };
     }
     return { ok: true };
   }

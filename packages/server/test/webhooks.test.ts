@@ -24,12 +24,19 @@ const WEBHOOK_SECRET = "test-webhook-secret";
 const enc = new TextEncoder();
 const PAGE_MD = "# Hello PR\n\nSome **bold** text.\n\nA second paragraph.\n";
 const HEAD_SHA = "inbound-head-sha";
-const REPO = "octocat/inbound-test";
-
-// Unique external IDs per test run so DB residue from a previous run doesn't
-// trigger dedup (the shared DB persists between vitest invocations).
+// Unique external IDs *and* a unique repo per test run, so DB residue from a
+// previous run can't interfere (the shared DB persists between vitest
+// invocations). The repo has to be unique too, not just the external ids: the
+// importer fans a comment out to every PR-backed Site matching repo+prNumber,
+// but `comment_mirrors` is UNIQUE on (provider, external_id) globally — so with
+// a fixed repo name, a Site left behind by an earlier run claims the import and
+// this run's Site silently gets nothing.
 const ID_BASE = Date.now();
 const id = (n: number) => ID_BASE + n;
+const REPO_OWNER = "octocat";
+const REPO_NAME = `inbound-test-${ID_BASE}`;
+const REPO = `${REPO_OWNER}/${REPO_NAME}`;
+const REPO_REF = { owner: REPO_OWNER, name: REPO_NAME };
 
 function sign(body: string, secret: string = WEBHOOK_SECRET): string {
   return "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
@@ -125,7 +132,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
 
     // Seed the fake GitHub API.
     fakeApi = new FakeGitHubApi();
-    fakeApi.seedPr({ owner: "octocat", name: "inbound-test" }, 1, {
+    fakeApi.seedPr(REPO_REF, 1, {
       headSha: HEAD_SHA,
       branch: "feature",
       title: "Test PR",
@@ -133,11 +140,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
         { filename: "README.md", status: "added", sha: "blob-1", content: enc.encode(PAGE_MD) },
       ],
     });
-    fakeApi.setDiffLines(
-      { owner: "octocat", name: "inbound-test" },
-      "README.md",
-      new Set([1, 3, 5]),
-    );
+    fakeApi.setDiffLines(REPO_REF, "README.md", new Set([1, 3, 5]));
 
     await upsertGitHubInstallation(db, {
       installationId: 88,
@@ -423,10 +426,10 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
   test("reconciliation poll imports missed comments", async () => {
     // Seed the fake GitHub API with a review comment that was "missed" by the
     // webhook (never delivered). The reconcile poller should pick it up.
-    fakeApi.seedReviewComment({ owner: "octocat", name: "inbound-test" }, 1, {
+    fakeApi.seedReviewComment(REPO_REF, 1, {
       id: id(6),
       nodeId: "PRRC_3001",
-      url: "https://github.com/octocat/inbound-test/pull/1#discussion_r3001",
+      url: `https://github.com/${REPO}/pull/1#discussion_r3001`,
       path: "README.md",
       line: 3,
       side: "RIGHT",
@@ -596,7 +599,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
 
     // Seed the fake API's thread state as already resolved (as if resolved
     // natively on GitHub, with no webhook delivered).
-    fakeApi.seedReviewThread({ owner: "octocat", name: "inbound-test" }, 1, {
+    fakeApi.seedReviewThread(REPO_REF, 1, {
       id: `PRRT_${id(21)}`,
       isResolved: true,
       comments: [{ databaseId: id(21) }],
