@@ -23,4 +23,48 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm format:check
-      - run: pnpm test:ci
+      # Postgres isn't available on Windows GitHub runners as a service
+      # container, so the hosted-path suite runs in the test-hosted job below on
+      # Linux. Both legs run the non-DB subset here — Windows stays useful
+      # because path handling is what diverges across platforms.
+      - run: pnpm test:no-db
+
+  # The hosted path (server/db integration tests) used to be excluded from CI
+  # entirely, which let hosted-path regressions hide behind silent
+  # `describe.skipIf(!DATABASE_URL)` skips. This job runs the full suite against
+  # a real Postgres and refuses to pass if anything skipped for want of a
+  # database. The check itself is `scripts/check-no-skipped-tests.mjs`.
+  test-hosted:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: scholia
+          POSTGRES_PASSWORD: scholia
+          POSTGRES_DB: scholia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scholia"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # 127.0.0.1, not localhost — sidesteps IPv6 ::1 resolution failures.
+      DATABASE_URL: postgres://scholia:scholia@127.0.0.1:5432/scholia
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      # Default reporter for humans; JSON reporter writes the file the
+      # no-skipped check reads. `--` lets pnpm forward args to vitest.
+      - run: pnpm test:ci -- --reporter=default --reporter=json --outputFile=results.json
+      - name: Fail if any test was skipped
+        if: always()
+        run: node ./scripts/check-no-skipped-tests.mjs results.json

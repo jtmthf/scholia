@@ -74,7 +74,7 @@ and the ones the CLI needs are bundled into its binary.
 ```sh
 pnpm install
 pnpm typecheck     # tsc across the workspace — this is also the lint
-pnpm test:ci       # vitest, scoped to the shipping + pure packages
+pnpm test:ci       # vitest — the full suite, including the hosted path if DATABASE_URL is set
 ```
 
 Run the CLI from source:
@@ -103,7 +103,9 @@ SCHOLIA_HOSTED=1 pnpm scholia share ./path/to/page.md
 ```
 
 Server and db tests silently skip unless `DATABASE_URL` is set — see
-[`CLAUDE.md`](./CLAUDE.md) for the exact invocation.
+[`CLAUDE.md`](./CLAUDE.md) for the exact invocation. CI runs the full suite
+against a Postgres service container in the `test-hosted` job and fails if
+any test is skipped, so locally-skipped fixes have to keep passing there.
 
 [`CONTRIBUTING.md`](./CONTRIBUTING.md) covers the setup gotchas, the domain
 vocabulary, and how to get a PR through CI.
