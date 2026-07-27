@@ -5,7 +5,7 @@
 // `describe.skipIf(!DATABASE_URL)`.
 //
 // Reads the JSON reporter output vitest writes to results.json:
-//   pnpm test:ci -- --reporter=json --outputFile=results.json
+//   pnpm test:ci --reporter=default --reporter=json --outputFile=results.json
 //
 // Usage: node ./scripts/check-no-skipped-tests.mjs <results.json>
 import { readFileSync } from "node:fs";
