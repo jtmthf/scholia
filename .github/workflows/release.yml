@@ -1,0 +1,57 @@
+name: release
+
+# Runs on every push to main. When pending changesets exist, the action opens a
+# `chore(release): version packages` PR that consumes them. When that PR lands
+# with no further changesets pending, the action publishes to npm via trusted
+# publishing (OIDC), tags `v<version>`, and creates a GitHub Release.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # version-PR commits + git tags + GitHub Releases
+  pull-requests: write # the version PR
+  id-token: write # npm trusted publishing (OIDC) — no NPM_TOKEN secret
+
+# Two release runs must never overlap: the publish step depends on the lockfile
+# and the dist build, and a second run could publish a stale version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so `changeset version` can compute the diff and the
+          # action can detect prior tags.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          # `registry-url` writes the registry into `.npmrc`; `npm publish`
+          # then sees the OIDC token minted via `id-token: write` above and
+          # `publishConfig.provenance: true` in `packages/cli/package.json`.
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: changesets/action@v1
+        with:
+          # `pnpm release` builds the CLI bundle (`packages/cli/dist`) and then
+          # publishes — `dist` is gitignored, so the publish step needs the
+          # build right before it.
+          version: pnpm changeset version
+          publish: pnpm release
+          commit: "chore(release): version packages"
+          title: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
