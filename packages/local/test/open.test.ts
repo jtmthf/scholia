@@ -1,4 +1,4 @@
-import { describe, expect, vi } from "vitest";
+import { beforeEach, describe, expect, vi } from "vitest";
 import { test as tmpTest } from "./helpers/tmp.js";
 import { startServer, type RunningServer, type StartOptions } from "../src/server.js";
 import type { ResolvedEditor } from "../src/editor.js";
@@ -9,12 +9,18 @@ import type { ResolvedEditor } from "../src/editor.js";
 // `vi.hoisted` so these are safe to reference from the (hoisted) `vi.mock`
 // factory below.
 const { resolveEditor, openInEditor } = vi.hoisted(() => ({
-  resolveEditor: vi.fn<() => Promise<ResolvedEditor | null>>(),
+  resolveEditor: vi.fn<(opts: unknown) => Promise<ResolvedEditor | null>>(),
   openInEditor: vi.fn(),
 }));
 vi.mock("../src/editor.js", () => ({ resolveEditor, openInEditor }));
 
-const FAKE_EDITOR: ResolvedEditor = { command: "fake-editor", args: [] };
+const FAKE_EDITOR: ResolvedEditor = { command: "fake-editor", args: [], source: "path" };
+
+// Both spies are module-level, so without this a "never spawned" assertion
+// would be satisfied by an earlier test's spawn instead of this test's.
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 async function waitUntilAccepting(url: string, attempts = 100): Promise<void> {
   for (let i = 0; i < attempts; i++) {
@@ -151,5 +157,51 @@ describe("POST /__open (ADR-0017)", () => {
       body: JSON.stringify({ path: "README.md" }),
     });
     expect(res.status).toBe(200);
+  });
+
+  // ADR-0022: the endpoint is loopback-only, unconditionally. A tunnel
+  // provider runs on this machine and proxies over loopback, so the forwarding
+  // headers are what distinguish a stranger's click from the author's.
+  test("guard 4: rejects a request forwarded through a tunnel", async ({ tmp, serve }) => {
+    resolveEditor.mockResolvedValueOnce(FAKE_EDITOR);
+    await tmp.write("README.md", "# Home\n");
+    const { url } = await serve();
+
+    const res = await fetch(`${url}/__open`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "Sec-Fetch-Site": "same-origin",
+        "X-Forwarded-For": "203.0.113.7",
+      },
+      body: JSON.stringify({ path: "README.md" }),
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).ok).toBe(false);
+    expect(openInEditor).not.toHaveBeenCalled();
+  });
+});
+
+describe("the page action when no editor resolves (ADR-0017)", () => {
+  test("renders Copy path instead of a broken Open in editor button", async ({ tmp, serve }) => {
+    resolveEditor.mockResolvedValueOnce(null);
+    const file = await tmp.write("README.md", "# Home\n");
+    const { url } = await serve();
+
+    const html = await (await fetch(`${url}/README.md`)).text();
+    expect(html).not.toContain("scholia-open-editor");
+    expect(html).toContain("Copy path");
+    // The absolute path is the payload — it's what pastes usefully anywhere else.
+    expect(html).toContain(`id="scholia-copy-path" class="btn" type="button" data-path="${file}"`);
+  });
+
+  test("renders Open in editor, and no Copy path, when one does", async ({ tmp, serve }) => {
+    resolveEditor.mockResolvedValueOnce(FAKE_EDITOR);
+    await tmp.write("README.md", "# Home\n");
+    const { url } = await serve();
+
+    const html = await (await fetch(`${url}/README.md`)).text();
+    expect(html).toContain("Open in editor");
+    expect(html).not.toContain("scholia-copy-path");
   });
 });
