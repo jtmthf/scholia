@@ -29,7 +29,7 @@ import {
 import { renderPage } from "./render/layout.js";
 import { watchPath } from "./watch.js";
 import { resolveEditor, openInEditor } from "./editor.js";
-import { checkOpenRequest } from "./open-guard.js";
+import { checkOpenRequest, isLocalView } from "./open-guard.js";
 
 export interface StartOptions {
   rootDir: string;
@@ -397,7 +397,11 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       currentPath,
       showNav: showNav && tree.length > 0,
       rootName,
-      editorAvailable: editor !== null,
+      // Two conditions, not one: an editor has to have resolved at startup,
+      // *and* this reader has to be the person at this machine. /__open would
+      // refuse a LAN or tunnelled request (ADR-0022), so offering them the
+      // button would be offering a guaranteed 403.
+      editorAvailable: editor !== null && isLocalView((name) => c.req.header(name)),
       filePath: fsPath,
       sourceMarkdown: source,
       colophon: info

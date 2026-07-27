@@ -53,6 +53,28 @@ export function isLoopbackHost(host: string): boolean {
   return isLoopbackAddress(hostname);
 }
 
+type Header = (name: string) => string | undefined;
+
+/** Why this request isn't reaching us from this machine, or null when it is. */
+function nonLocalReason(header: Header): "tunnelled" | "non-loopback-host" | null {
+  for (const name of PROXY_HEADERS) {
+    if (header(name) !== undefined) return "tunnelled";
+  }
+  const host = header("Host");
+  if (!host || !isLoopbackHost(host)) return "non-loopback-host";
+  return null;
+}
+
+// Whether the page being rendered is being *viewed* from this machine.
+//
+// The page decides which button to render, and it has to agree with what the
+// endpoint will accept: a viewer reaching Local Preview over a LAN bind or a
+// tunnel gets "Copy path", because an "Open in editor" they'd only ever get a
+// 403 from is exactly the broken button ADR-0017 forbids.
+export function isLocalView(header: Header): boolean {
+  return nonLocalReason(header) === null;
+}
+
 // Returns the rejection to send, or null when the request may proceed. Order
 // matters: cheapest and most specific first, so a plain GET reads as "method
 // not allowed" rather than something about tunnels.
@@ -69,10 +91,9 @@ export function checkOpenRequest(req: OpenRequestInfo): OpenRejection | null {
     return { status: 403, error: "cross-site request rejected" };
   }
 
-  for (const name of PROXY_HEADERS) {
-    if (req.header(name) !== undefined) {
-      return { status: 403, error: "tunnelled request rejected — /__open is loopback-only" };
-    }
+  const reason = nonLocalReason(req.header);
+  if (reason === "tunnelled") {
+    return { status: 403, error: "tunnelled request rejected — /__open is loopback-only" };
   }
 
   const remote = req.remoteAddress;
@@ -80,8 +101,7 @@ export function checkOpenRequest(req: OpenRequestInfo): OpenRejection | null {
     return { status: 403, error: "non-loopback request rejected" };
   }
 
-  const host = req.header("Host");
-  if (!host || !isLoopbackHost(host)) {
+  if (reason) {
     return { status: 403, error: "non-loopback request rejected" };
   }
 

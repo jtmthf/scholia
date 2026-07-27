@@ -19,7 +19,9 @@ are internal and unpublished; changes to them appear here only where they affect
 - `--editor <command>` for when detection still guesses wrong. Saved to
   `~/.scholia/config`, so it is only ever passed once.
 - **Copy path** replaces the button when no editor can be resolved, instead of an
-  "Open in editor" that fails on click.
+  "Open in editor" that fails on click. It also replaces it for a reader who
+  reached the preview from somewhere other than this machine — `/__open` would
+  refuse them, so the button is not offered.
 
 ### Changed
 

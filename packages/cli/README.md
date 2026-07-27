@@ -87,7 +87,9 @@ fail on click.
 
 The endpoint behind the button (`POST /__open`) only ever accepts same-origin
 requests from loopback, so no other page in your browser — and nothing off your
-machine — can make your editor open files.
+machine — can make your editor open files. If you bind a non-loopback `--host`
+and read the preview from another address, you get **Copy path** there too: the
+button is only offered to whoever is at the machine holding the files.
 
 ## MDX runs code on your machine
 

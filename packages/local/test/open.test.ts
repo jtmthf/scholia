@@ -204,4 +204,17 @@ describe("the page action when no editor resolves (ADR-0017)", () => {
     expect(html).toContain("Open in editor");
     expect(html).not.toContain("scholia-copy-path");
   });
+
+  // /__open would refuse this reader (ADR-0022), so the button they'd get a
+  // guaranteed 403 from must not be offered in the first place.
+  test("renders Copy path for a reader who arrived through a tunnel", async ({ tmp, serve }) => {
+    resolveEditor.mockResolvedValueOnce(FAKE_EDITOR);
+    await tmp.write("README.md", "# Home\n");
+    const { url } = await serve();
+
+    const res = await fetch(`${url}/README.md`, { headers: { "X-Forwarded-For": "203.0.113.7" } });
+    const html = await res.text();
+    expect(html).not.toContain("scholia-open-editor");
+    expect(html).toContain("Copy path");
+  });
 });
