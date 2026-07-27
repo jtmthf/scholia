@@ -48,30 +48,12 @@ imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp
 
 ## Changesets
 
-A PR that changes the published CLI (`packages/cli`, package name `scholia`) must
-include a changeset before commit. CI's `changeset` job fails a PR that skips
-this. The private `@scholia/*` packages are opted out of versioning, so a change
-confined to one of them does not need a changeset. Releases run automatically on
-merge to `main` via trusted publishing (OIDC, no `NPM_TOKEN`) — see ADR-0026 and
-`CONTRIBUTING.md`'s Releasing section.
-
-`pnpm changeset` is interactive — agents should **write the file directly**
-instead. A changeset is one Markdown file under `.changeset/` with this exact
-shape:
-
-```md
----
-"scholia": patch
----
-
-One-line summary in the present tense. Markdown is allowed below the blank line;
-the summary becomes the CHANGELOG entry.
-```
-
-The version bump is `patch` (bug fix), `minor` (feature), or `major` (breaking).
-The filename is arbitrary (kebab-case, e.g. `.changeset/fix-port-cli-flag.md`);
-only one changeset per change. Verify with `pnpm changeset status --since=origin/main`
-before committing — exit 0 means the gate will pass.
+A PR touching the published CLI (`packages/cli`, package `scholia`) needs a
+changeset — CI fails without one. `@scholia/*` internal packages don't.
+`pnpm changeset` is interactive; **agents write the file directly** (the format
+and rules are in [`.changeset/README.md`](.changeset/README.md)). Releases run
+automatically on merge to `main` via trusted publishing (OIDC, no `NPM_TOKEN`)
+— see ADR-0026 and `CONTRIBUTING.md`'s Releasing section.
 
 ## Running the hosted-path tests (the trap)
 

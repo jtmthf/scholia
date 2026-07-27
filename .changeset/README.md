@@ -13,13 +13,27 @@ internal package does not need a changeset.
 
 ## Adding one
 
-```sh
-pnpm changeset
+`pnpm changeset` is interactive — **agents should write the file directly
+instead**. A changeset is one Markdown file under `.changeset/` with this exact
+shape:
+
+```md
+---
+"scholia": patch
+---
+
+One-line summary in the present tense. Markdown is allowed below the blank line;
+the summary becomes the CHANGELOG entry.
 ```
 
-Pick `scholia` → `patch` / `minor` / `major` and write a one-line summary in the
-present tense. The CI `changeset` job runs `pnpm changeset status --since=origin/main`
-and fails a PR that touches the CLI without a changeset.
+The version bump is `patch` (bug fix), `minor` (feature), or `major` (breaking).
+The filename is arbitrary (kebab-case, e.g. `.changeset/fix-port-cli-flag.md`);
+only one changeset per change.
+
+Humans can run `pnpm changeset` and pick `scholia` → `patch` / `minor` / `major`
+interactively. Either way, the CI `changeset` job runs
+`pnpm changeset status --since=origin/main` and fails a PR that touches the CLI
+without a changeset.
 
 ## Releasing
 
