@@ -13,6 +13,7 @@ import {
   type SiteCredential,
 } from "@scholia/client";
 import { share } from "./share.js";
+import { resolveEditorPreference } from "./editor-preference.js";
 
 const cli = cac("scholia");
 
@@ -61,6 +62,7 @@ interface PreviewOptions {
   host: string;
   open: boolean;
   mdx: boolean;
+  editor?: string;
 }
 
 // Resolve the owner credential for an ops command the same way `share`/`chats` do:
@@ -275,6 +277,7 @@ cli
   .option("--host <host>", "Host to bind", { default: "localhost" })
   .option("--no-open", "Do not open the browser automatically")
   .option("--no-mdx", "Disable MDX rendering (.mdx served as plain markdown)")
+  .option("--editor <command>", "Editor to open files in, e.g. cursor (saved to ~/.scholia/config)")
   .action(async (target: string | undefined, options: PreviewOptions) => {
     const input = resolve(target ?? ".");
 
@@ -298,6 +301,14 @@ cli
       process.exit(1);
     }
 
+    let editorOverride: string | undefined;
+    try {
+      editorOverride = await resolveEditorPreference(options.editor);
+    } catch (err) {
+      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+
     let server: Awaited<ReturnType<typeof startServer>>;
     try {
       server = await startServer({
@@ -308,6 +319,7 @@ cli
         mdxEnabled: options.mdx !== false,
         open: options.open !== false,
         strictPort: explicitPort,
+        editorOverride,
       });
     } catch (err) {
       console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);

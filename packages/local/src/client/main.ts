@@ -98,20 +98,32 @@ function initScrollSpy(): void {
   for (const h of heads) outlineObserver.observe(h);
 }
 
-// ---- Open in editor (ADR-0017) ----
-// The button only exists when the server's startup probe found an editor, so
-// this is purely delegated click wiring — no capability check on the client.
-// Delegated on `document` (not bound per-element) so it survives the
-// live-reload page-header swap without needing re-init.
-function initOpenInEditor(): void {
+// Every page-action button is wired this way: delegated on `document` rather
+// than bound per-element, so it survives the live-reload page-header swap
+// without needing re-init.
+function onButtonClick(selector: string, handler: (btn: HTMLButtonElement) => void): void {
   document.addEventListener("click", (e) => {
     if (!(e.target instanceof Element)) return;
-    const btn = e.target.closest<HTMLButtonElement>("#scholia-open-editor");
+    const btn = e.target.closest<HTMLButtonElement>(selector);
     if (!btn || btn.disabled) return;
+    handler(btn);
+  });
+}
+
+// ---- Open in editor (ADR-0017) ----
+// The button only exists when the server's startup probe found an editor, so
+// this is purely click wiring — no capability check on the client.
+function initOpenInEditor(): void {
+  onButtonClick("#scholia-open-editor", (btn) => {
     const path = btn.dataset.path;
     if (!path) return;
 
     const original = btn.textContent ?? "Open in editor";
+    const failed = () => {
+      btn.textContent = "Couldn't open";
+      setTimeout(() => (btn.textContent = original), 1500);
+    };
+
     btn.disabled = true;
     fetch("/__open", {
       method: "POST",
@@ -120,18 +132,25 @@ function initOpenInEditor(): void {
     })
       .then((res) => res.json().catch(() => ({ ok: false })))
       .then((data: { ok?: boolean }) => {
-        if (data.ok) return;
-        btn.textContent = "Couldn't open";
-        setTimeout(() => (btn.textContent = original), 1500);
+        if (!data.ok) failed();
       })
-      .catch(() => {
-        btn.textContent = "Couldn't open";
-        setTimeout(() => (btn.textContent = original), 1500);
-      })
+      .catch(failed)
       .finally(() => {
         btn.disabled = false;
       });
   });
+}
+
+// Copy `text`, flashing "Copied" on the button and restoring its label.
+function copyWithFeedback(btn: HTMLButtonElement, text: string): void {
+  const original = btn.textContent ?? "";
+  void navigator.clipboard
+    ?.writeText(text)
+    .then(() => {
+      btn.textContent = "Copied";
+      setTimeout(() => (btn.textContent = original), 1500);
+    })
+    .catch(() => {});
 }
 
 // ---- Copy markdown ----
@@ -139,11 +158,7 @@ function initOpenInEditor(): void {
 // so entities never need decoding) — reused here rather than a fetch, since
 // the server already read it to render the page.
 function initCopyMarkdown(): void {
-  document.addEventListener("click", (e) => {
-    if (!(e.target instanceof Element)) return;
-    const btn = e.target.closest<HTMLButtonElement>("#scholia-copy-md");
-    if (!btn) return;
-
+  onButtonClick("#scholia-copy-md", (btn) => {
     const raw = document.getElementById("scholia-source-md")?.textContent ?? "";
     let source: string;
     try {
@@ -152,14 +167,18 @@ function initCopyMarkdown(): void {
       return;
     }
 
-    const original = btn.textContent ?? "Copy markdown";
-    void navigator.clipboard
-      ?.writeText(source)
-      .then(() => {
-        btn.textContent = "Copied";
-        setTimeout(() => (btn.textContent = original), 1500);
-      })
-      .catch(() => {});
+    copyWithFeedback(btn, source);
+  });
+}
+
+// ---- Copy path (ADR-0017) ----
+// Rendered in place of "Open in editor" when no editor resolved at startup:
+// the absolute path is still the thing the user wants, and pasting it into
+// their own editor works everywhere.
+function initCopyPath(): void {
+  onButtonClick("#scholia-copy-path", (btn) => {
+    const path = btn.dataset.path;
+    if (path) copyWithFeedback(btn, path);
   });
 }
 
@@ -372,6 +391,7 @@ initTheme();
 initNav();
 initSearch();
 initOpenInEditor();
+initCopyPath();
 initCopyMarkdown();
 addCopyButtons();
 initScrollSpy();

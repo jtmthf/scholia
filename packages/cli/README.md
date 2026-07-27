@@ -43,6 +43,7 @@ the whole tree with navigation and search.
 | `--host <host>`     | Host to bind. Default `localhost`, which binds both loopback addresses (`127.0.0.1` and `::1`) so either one reaches the server. An explicit value is bound verbatim. |
 | `--no-open`         | Don't open the browser automatically.                                                                                                                                 |
 | `--no-mdx`          | Render `.mdx` as plain markdown instead of evaluating it. See below.                                                                                                  |
+| `--editor <cmd>`    | Editor for "Open in editor", e.g. `cursor`. Saved to `~/.scholia/config`, so you only pass it once. See below.                                                        |
 | `-h, --help`        | Show help.                                                                                                                                                            |
 | `-v, --version`     | Show the version.                                                                                                                                                     |
 
@@ -63,6 +64,32 @@ the whole tree with navigation and search.
 - **Live reload** — edits to watched files refresh the open page.
 
 Non-markdown files in the tree (images, CSS, data files) are served as-is.
+
+## Open in editor
+
+Every page has an **Open in editor** button, which opens that file in the editor
+you are actually using — not the first one it can find installed. scholia works
+that out from the terminal it was launched from: an integrated terminal names its
+editor exactly, including telling Cursor, Windsurf and VSCodium apart from VS Code
+(they all report themselves as VS Code). Failing that it looks for `.zed/`,
+`.idea/` or `.vscode/` in the previewed tree, and only then falls back to
+searching your `PATH`.
+
+If it still guesses wrong, say so once:
+
+```sh
+scholia ./docs --editor cursor
+```
+
+That is saved to `~/.scholia/config` and used from then on. When no editor can be
+found at all, the button is replaced by **Copy path** rather than left there to
+fail on click.
+
+The endpoint behind the button (`POST /__open`) only ever accepts same-origin
+requests from loopback, so no other page in your browser — and nothing off your
+machine — can make your editor open files. If you bind a non-loopback `--host`
+and read the preview from another address, you get **Copy path** there too: the
+button is only offered to whoever is at the machine holding the files.
 
 ## MDX runs code on your machine
 

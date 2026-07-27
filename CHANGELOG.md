@@ -9,6 +9,27 @@ are internal and unpublished; changes to them appear here only where they affect
 
 ## [Unreleased]
 
+### Added
+
+- **Open in editor** now opens the editor you are actually using, rather than the
+  first one found on `PATH`. Detection reads the terminal scholia was launched from
+  — which tells Cursor, Windsurf and VSCodium apart from VS Code, even though all of
+  them report themselves as VS Code — then repository markers (`.zed/`, `.idea/`,
+  `.vscode/`), then `PATH` (ADR-0017).
+- `--editor <command>` for when detection still guesses wrong. Saved to
+  `~/.scholia/config`, so it is only ever passed once.
+- **Copy path** replaces the button when no editor can be resolved, instead of an
+  "Open in editor" that fails on click. It also replaces it for a reader who
+  reached the preview from somewhere other than this machine — `/__open` would
+  refuse them, so the button is not offered.
+
+### Changed
+
+- `POST /__open` is loopback-only, unconditionally: requests from a non-loopback
+  peer, for a non-loopback `Host`, or carrying proxy/tunnel forwarding headers are
+  refused (ADR-0022). Previously it relied on the server binding loopback, which a
+  tunnel would invalidate.
+
 ## [0.1.0] — 2026-07-25
 
 > **Update (2026-07-26):** `COLLAB_HOSTED` and `@collab/core` below refer to what

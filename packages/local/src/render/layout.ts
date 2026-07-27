@@ -16,8 +16,10 @@ export interface LayoutOptions {
   showNav: boolean;
   /** Project identity for the topbar — the served root's directory name. */
   rootName: string;
-  /** From the once-at-startup editor probe (ADR-0017) — hides the button when false. */
+  /** From the once-at-startup editor probe (ADR-0017) — "Copy path" replaces the button when false. */
   editorAvailable: boolean;
+  /** Absolute filesystem path of this Page's source file — the payload for "Copy path". */
+  filePath: string;
   /** Raw source text for the "Copy markdown" button, embedded to avoid a fetch round-trip. */
   sourceMarkdown: string;
   /** Null for non-doc / error pages that have no meaningful Colophon. */
@@ -83,15 +85,18 @@ function renderBreadcrumb(currentPath: string): string {
   )}</nav>`;
 }
 
-function renderPageActions(editorAvailable: boolean, relPath: string): string {
-  // No editor resolved at startup: the button is never rendered, rather than
-  // rendered and failing on click (ADR-0017).
-  const openButton = editorAvailable
+function renderPageActions(opts: LayoutOptions, relPath: string): string {
+  // No editor resolved at startup: "Copy path" takes the slot rather than a
+  // button that fails on click (ADR-0017). The affordance degrades; it never
+  // breaks, and the user is never told why — detection is deliberately silent.
+  const primary = opts.editorAvailable
     ? `<button id="scholia-open-editor" class="btn" type="button" data-path="${escapeHtml(
         relPath,
       )}">Open in editor</button>`
-    : "";
-  return `<div class="page-actions">${openButton}<button id="scholia-copy-md" class="btn" type="button">Copy markdown</button></div>`;
+    : `<button id="scholia-copy-path" class="btn" type="button" data-path="${escapeHtml(
+        opts.filePath,
+      )}">Copy path</button>`;
+  return `<div class="page-actions">${primary}<button id="scholia-copy-md" class="btn" type="button">Copy markdown</button></div>`;
 }
 
 // CONTEXT "Colophon": path, mtime, Provenance — a provenance record, not
@@ -171,7 +176,7 @@ ${navPane}
 <div class="page-header">
   ${renderBreadcrumb(opts.currentPath)}
   <h1 class="page-title">${escapeHtml(opts.title)}</h1>
-  ${renderPageActions(opts.editorAvailable, relPath)}
+  ${renderPageActions(opts, relPath)}
 </div>
 <article class="markdown-body">
 ${opts.contentHtml}
