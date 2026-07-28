@@ -42,6 +42,12 @@ jobs:
           # `publishConfig.provenance: true` in `packages/cli/package.json`.
           registry-url: https://registry.npmjs.org
 
+      # Node 22 bundles npm 10.9.x, which predates npm's OIDC trusted-publishing
+      # support (needs npm >= 11.5.1). Without this, `npm publish` silently
+      # falls back to an unauthenticated request, which the registry answers
+      # with a 404 (not 401) — that's the failure mode this fixes.
+      - run: npm install -g npm@latest
+
       - run: pnpm install --frozen-lockfile
 
       - uses: changesets/action@v1
