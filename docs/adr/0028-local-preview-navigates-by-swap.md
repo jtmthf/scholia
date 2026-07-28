@@ -19,7 +19,7 @@ regress the only thing currently shipping."
 that swap and live-reload are wrapped in `document.startViewTransition()`.**
 
 This looks like the thing #25 rules out. It is not, and the distinction is the whole decision.
-What #25 rejects is client-*rendered*: a shell that boots, fetches JSON and renders the page in
+What #25 rejects is client-_rendered_: a shell that boots, fetches JSON and renders the page in
 the browser, showing a blank frame first. What this does is fetch a **fully server-rendered HTML
 document** and move elements from it into the live one. Every page is still rendered by the
 server, in full, before it is sent. First paint is unchanged — a cold load is exactly the
