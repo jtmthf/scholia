@@ -30,6 +30,37 @@ are internal and unpublished; changes to them appear here only where they affect
   refused (ADR-0022). Previously it relied on the server binding loopback, which a
   tunnel would invalidate.
 
+## [0.1.1] — 2026-07-26
+
+### Added
+
+- "Open in editor" button — opens the current file in your configured editor (`$EDITOR`
+  or `$VISUAL`).
+- Colophon showing file provenance and site metadata.
+- Page header with breadcrumb, page title, and action buttons.
+- "Copy markdown" button for copying the raw source of any page.
+
+### Changed
+
+- Complete visual rebuild of the Local Preview chrome with design tokens, type scale, and
+  vendored variable fonts.
+- Nav sidebar labels are derived from each page's H1 heading instead of bare filenames;
+  pages are sorted by filename within directories.
+- Code blocks use the Rosé Pine syntax highlighting theme and inherit the sheet surface
+  background color.
+
+### Fixed
+
+- Blank navigation sidebar on mobile viewports.
+- Unstyled search input in the Local Preview chrome.
+
+### Internal
+
+- Workspace renamed from `@collab/*` to `@scholia/*` (env vars `COLLAB_*` →
+  `SCHOLIA_*`, config directory `~/.collab/` → `~/.scholia/`). Existing ADRs get
+  a short dated addendum rather than historical rewrites.
+- `provenance.ts` relocated from `packages/cli/src` to `@scholia/core`.
+
 ## [0.1.0] — 2026-07-25
 
 > **Update (2026-07-26):** `COLLAB_HOSTED` and `@collab/core` below refer to what
@@ -71,5 +102,6 @@ accounts, and the agent API exist in the repository but are gated behind
 - The CLI is bundled with tsup; workspace packages are inlined rather than shipped as
   runtime dependencies. Runtime dependencies are `cac` and `open` only.
 
-[unreleased]: https://github.com/jtmthf/scholia/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/jtmthf/scholia/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jtmthf/scholia/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/jtmthf/scholia/releases/tag/v0.1.0
