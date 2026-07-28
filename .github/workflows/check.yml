@@ -128,9 +128,12 @@ jobs:
 
   # Enforces that PRs with user-facing CLI changes carry a changeset. Private
   # `@scholia/*` packages are opted out of versioning in `.changeset/config.json`,
-  # so a PR touching only internal packages passes without one.
+  # so a PR touching only internal packages passes without one. Skipped on the
+  # bot's own version PR (`changeset-release/main`): it consumes pending
+  # changesets and bumps package.json without adding a new one by design, so
+  # this gate would otherwise always fail it.
   changeset:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
