@@ -160,6 +160,15 @@ a:hover {
   padding: 0 1px;
 }
 
+/* Mobile-only tap-to-close overlay for .nav-pane — hidden by default so it
+ * never becomes an implicit item in the .layout grid below (a stray
+ * always-visible div would otherwise consume the content column, since it
+ * sits between .nav-pane and .content in the markup). Only shown, positioned
+ * out of flow, under the narrow-viewport media query further down. */
+.nav-backdrop {
+  display: none;
+}
+
 /* ---- Layout: "sheet on desk" ----
  * Nav / content / Outline three-column grid. Nav and Outline sit unfilled on
  * the --color-surface backdrop (this file's body background); only the
@@ -250,6 +259,22 @@ body.has-nav .layout {
   font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+.nav-label {
+  display: block;
+}
+.nav-subtitle {
+  display: block;
+  color: var(--color-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  margin-top: 1px;
+}
+.nav a.active .nav-subtitle {
+  color: inherit;
+  opacity: 0.8;
 }
 
 .content {

@@ -30,6 +30,10 @@ export interface LayoutOptions {
 // avoid a flash of the wrong color scheme.
 const THEME_BOOT = `(function(){try{var t=localStorage.getItem('scholia-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
+function renderNavSubtitle(subtitle: string | undefined): string {
+  return subtitle ? `<span class="nav-subtitle">${escapeHtml(subtitle)}</span>` : "";
+}
+
 function renderNav(nodes: NavNode[], currentPath: string): string {
   if (nodes.length === 0) return "";
   const items = nodes
@@ -37,12 +41,15 @@ function renderNav(nodes: NavNode[], currentPath: string): string {
       if (node.type === "dir") {
         return `<li class="nav-dir"><span class="nav-dir-label">${escapeHtml(
           node.title,
-        )}</span>${renderNav(node.children ?? [], currentPath)}</li>`;
+        )}${renderNavSubtitle(node.subtitle)}</span>${renderNav(
+          node.children ?? [],
+          currentPath,
+        )}</li>`;
       }
       const active = node.urlPath === currentPath ? ' class="active"' : "";
-      return `<li><a href="${escapeHtml(node.urlPath)}"${active}>${escapeHtml(
+      return `<li><a href="${escapeHtml(node.urlPath)}"${active}><span class="nav-label">${escapeHtml(
         node.title,
-      )}</a></li>`;
+      )}</span>${renderNavSubtitle(node.subtitle)}</a></li>`;
     })
     .join("");
   return `<ul>${items}</ul>`;
