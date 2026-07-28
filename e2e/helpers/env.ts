@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 // The suite is environment-agnostic: it points at whatever API + viewer URLs you
 // give it and never assumes a particular host. Defaults target a local stack;
 // override to run against staging (SCHOLIA_API_URL=https://api.staging... etc).
-function stripSlash(url: string): string {
+export function stripSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
