@@ -673,7 +673,10 @@ function NavDir({
     <li class="nav-dir">
       <button class="nav-dir-toggle" onClick={() => setOpen((o) => !o)}>
         <span class="nav-dir-arrow">{open ? "▾" : "▸"}</span>
-        {node.title}
+        <span class="nav-dir-text">
+          <span class="nav-label">{node.title}</span>
+          {node.subtitle && <span class="nav-subtitle">{node.subtitle}</span>}
+        </span>
       </button>
       {open && node.children && (
         <NavTree
@@ -709,7 +712,8 @@ function NavFile({
           onNavigate(node.urlPath);
         }}
       >
-        {node.title}
+        <span class="nav-label">{node.title}</span>
+        {node.subtitle && <span class="nav-subtitle">{node.subtitle}</span>}
       </a>
     </li>
   );

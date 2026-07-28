@@ -9,6 +9,8 @@ export const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8787"
 export interface NavNode {
   type: "file" | "dir";
   title: string;
+  /** Set only when a sibling shares this node's title, so Nav can tell them apart. */
+  subtitle?: string;
   urlPath: string;
   fsPath: string;
   order: number;

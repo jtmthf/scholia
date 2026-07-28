@@ -69,6 +69,34 @@ test("collects DocRecords with extracted headings", async ({ tmp }) => {
   expect(home?.headings.map((h) => h.text)).toEqual(["Home", "Details"]);
 });
 
+test("sets a subtitle on sibling files that share an identical title, using their filename", async ({
+  tmp,
+}) => {
+  // Several root docs legitimately open with the same generic H1 — Nav needs
+  // a way to tell them apart since it labels Pages by that H1.
+  await tmp.write("README.md", "# Scholia\n");
+  await tmp.write("AGENTS.md", "# Scholia\n");
+  await tmp.write("CHANGELOG.md", "# Changelog\n");
+
+  const { tree } = await scanTree(tmp.root);
+  const byPath = Object.fromEntries(tree.map((n) => [n.urlPath, n.subtitle]));
+  expect(byPath["/README.md"]).toBe("README.md");
+  expect(byPath["/AGENTS.md"]).toBe("AGENTS.md");
+  expect(byPath["/CHANGELOG.md"]).toBeUndefined();
+});
+
+test("only disambiguates within the same directory, not across sibling directories", async ({
+  tmp,
+}) => {
+  await tmp.write("a/doc.md", "# Same Title\n");
+  await tmp.write("b/doc.md", "# Same Title\n");
+
+  const { tree } = await scanTree(tmp.root);
+  for (const dir of tree) {
+    expect(dir.children?.[0]?.subtitle).toBeUndefined();
+  }
+});
+
 test("sorts numbered files by filename, not by their prose h1 label (ADR-style numbering)", async ({
   tmp,
 }) => {

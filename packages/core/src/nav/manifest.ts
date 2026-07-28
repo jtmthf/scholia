@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import { humanize } from "../util/text.js";
+import { disambiguateSiblings } from "./disambiguate.js";
 import type { NavNode } from "../types.js";
 
 // A flat manifest entry as the server holds it (path + title + kind), the input
@@ -72,6 +73,7 @@ export function buildNav(entries: ManifestEntry[]): NavNode[] {
   }
 
   sortTree(root);
+  disambiguateSiblings(root);
   return root;
 }
 

@@ -99,7 +99,7 @@ body {
 
 .nav-dir-toggle {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   width: 100%;
   padding: 5px 12px;
@@ -124,6 +124,16 @@ body {
   flex: 0 0 auto;
 }
 
+.nav-dir-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nav-dir-text .nav-subtitle {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .nav-dir > .nav-list {
   padding-left: 10px;
 }
@@ -133,16 +143,15 @@ body {
 }
 
 .nav-link {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   padding: 5px 12px;
   color: var(--fg);
   font-size: 13.5px;
   text-decoration: none;
   border-radius: 4px;
   margin: 1px 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .nav-link:hover {
   background: var(--nav-hover);
@@ -154,6 +163,24 @@ body {
 }
 .nav-link--active:hover {
   background: var(--nav-active-bg);
+}
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-subtitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.nav-link--active .nav-subtitle {
+  color: inherit;
+  opacity: 0.75;
 }
 
 .content {

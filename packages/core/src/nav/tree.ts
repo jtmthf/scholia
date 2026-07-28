@@ -4,6 +4,7 @@ import { parseFrontmatter } from "../util/frontmatter.js";
 import { extractHeadings } from "../util/headings.js";
 import { isDoc, toUrlPath } from "../util/paths.js";
 import { humanize } from "../util/text.js";
+import { disambiguateSiblings } from "./disambiguate.js";
 import type { NavNode, DocRecord } from "../types.js";
 
 export interface ScanResult {
@@ -95,6 +96,7 @@ export async function scanTree(root: string): Promise<ScanResult> {
   }
 
   const tree = await walk(root);
+  disambiguateSiblings(tree);
   return { tree, docs };
 }
 
