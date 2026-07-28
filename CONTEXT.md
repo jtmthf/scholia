@@ -18,11 +18,11 @@ A non-Page file in a Site (image, CSS, JS, font, or any non-`.md`/`.html` file).
 _Avoid_: resource, attachment
 
 **Entry Page**:
-The Page a directory path resolves to — at the Site root (the Share URL itself) or at any folder within it. Chosen by precedence with no config: `index.html` → `index.md` → `README.md` → otherwise the first Page directly inside that directory by filename (Owner-overridable later). The root is the degenerate case where the directory is the Site itself, so one precedence rule serves both.
+The Page a directory path resolves to — at the Site root (the Share URL itself) or at any folder within it. Chosen by precedence with no config: `index.html` → `index.md` → `README.md` → otherwise the first Page in that directory **in Nav order**, descending into subdirectories when the directory holds no Pages directly (Owner-overridable later). Nav order is the only ordering: whatever Nav lists first is what the directory opens, so the tree never points somewhere the link doesn't go. The root is the degenerate case where the directory is the Site itself, so one precedence rule serves both.
 _Avoid_: home, root page, landing, directory index
 
 **Nav**:
-The auto-generated navigation tree for a multi-Page Site, derived from Page paths (folder structure → collapsible tree), each Page labeled by its first `<h1>`/title falling back to filename. Siblings are ordered Entry Page first, then any explicit order, then by **filename** — never by label, so numbered conventions like `0001-…` stay in sequence even though the reader sees the prose title. Relative links between Pages are rewritten to navigate within the Site and keep the comment chrome. No manual nav config.
+The auto-generated navigation tree for a multi-Page Site, derived from Page paths (folder structure → collapsible tree), each Page labeled by its first `<h1>`/title falling back to filename. Siblings are ordered Entry Page first, then any explicit order, then by **filename** — never by label, so numbered conventions like `0001-…` stay in sequence even though the reader sees the prose title. A directory row both collapses its branch and links to its own Entry Page. Flattened depth-first, Nav is also the Site's reading sequence — the order Previous/Next move through, crossing directory boundaries so the whole Site reads start to finish. Relative links between Pages are rewritten to navigate within the Site and keep the comment chrome. No manual nav config.
 _Avoid_: sidebar, menu, toc
 
 **Outline**:
@@ -33,11 +33,23 @@ _Avoid_: toc, table of contents, on this page, minimap
 The block at the foot of a Page recording where it came from: its path, when it last changed, and its Provenance. Named for the publication note at the end of a manuscript, and placed there for the same reason — it is a provenance record, not part of the reading path, so it sits after the text rather than above it.
 _Avoid_: footer, metadata, page info
 
+**Focus**:
+A reading state in which Nav and Outline are both collapsed, leaving the Page and its Conversations. Nav and Outline are each independently dismissible; Focus is the single command that clears both and remembers what was open, so leaving it restores the reader's own layout rather than a default. It is addressable, so a link can open straight into an uncluttered read.
+_Avoid_: zen, distraction-free, reader mode, fullscreen
+
+**Standalone**:
+A Page rendered with no Scholia chrome at all — no Nav, no Outline, no comment surface — served from the content origin as the bytes themselves. Distinct from Focus, which hides furniture but keeps the reader inside Scholia: Standalone leaves it, and is how a Page is seen exactly as it renders on its own.
+_Avoid_: raw, bare, embed, preview
+
 **Markdown Page**:
 A Page whose canonical source is markdown. It is rendered to an HTML page for reading, but comments anchor to ranges in the original markdown _source_ (via a Source Map), not to the rendered DOM.
 
 **HTML Page**:
 A Page whose canonical source is HTML. It is served as a rendered page and comments anchor directly to the DOM.
+
+**Source**:
+The canonical bytes a Page is authored in — markdown for a Markdown Page, HTML for an HTML Page. Scholia holds it for both kinds, which is what lets an Anchor carry a source range and what a reader or agent gets when it asks for the Page's Source rather than its rendering. It is the authored artifact, not a reconstruction: a Page flattened from MDX at share time (ADR-0012) has HTML as its Source, because the `.mdx` never left the authoring machine. A markdown rendition derived from an HTML Page is a convenience representation, not a Source, and carries no valid source ranges.
+_Avoid_: raw, original, plaintext, body
 
 **Source Map**:
 The mapping between a selection in a rendered Markdown Page and the corresponding character/line range in the original markdown source, produced at render time on the server. Lets a reviewer highlight rendered text and have the comment resolve to a source location. Both Page kinds render inside the sandboxed content iframe (see ADR-0003); the Source Map is the Markdown flavor of the shared anchor-resolution bridge.
@@ -82,6 +94,10 @@ _Avoid_: closed, done
 Best-effort git facts about the directory the content came from: repo remote URL, commit SHA, branch, and a dirty-working-tree flag. In Local Preview they are read live from the working directory, so they track edits as they happen; on upload they are frozen onto the Version, since a Version is immutable and its Provenance must not drift. Surfaced to agents (so a reviewer's agent can fetch/checkout the matching commit and detect drift before grounding answers in code) and shown to humans in the Colophon as a trust signal ("generated from `main` @ `a1b2c3d`, uncommitted changes"). Scholia never accesses the repo itself — Provenance is metadata only (see ADR-0007).
 _Avoid_: source ref, git info
 
+**Content source**:
+Where a set of Pages' bytes come from: a **local path** (file/folder/zip), a **git ref** (branch, tag, or commit), or a **PR** (the changed md/html files at the PR's head commit). It governs both paths, not just the hosted one — a Version's bytes and a Local Preview's bytes are each drawn from a Content source, and which one it is decides what the content affords. A local path is the writable case: live files, an editable working tree, a Sidecar to persist Conversations into. A git ref is read-only, because the reader does not own the repository the bytes came from — there is nowhere the Sidecar could honestly write, and nothing an editor could usefully open. A pinned ref or PR yields clean Provenance; a local working tree may be dirty. Orthogonal to the comment backend — only the PR source enables GitHub comment persistence.
+_Avoid_: input type, upload mode
+
 **Version**:
 An immutable snapshot of an entire hosted Site created by an upload — a named, ordered set of content hashes. A Site is an ordered series of Versions; re-uploading creates a new Version rather than overwriting. Versions are a **hosted-only** concept: Local Preview has none, because the files on disk are live rather than snapshotted. Every upload is full-Site (no partial/single-Page update); the wire transfer is content-hash-negotiated so only missing blobs are sent. A Version's bytes come from a **Content source** (local path / git ref / PR). For a **PR-backed Site**, advancing the PR head commit (when it touches an in-scope Page) produces a new Version automatically, alongside manual re-upload.
 
@@ -112,7 +128,7 @@ _Avoid_: status, mode, locked
 The credential generated on first upload that authenticates write actions (upload Versions, owner/destructive actions, identity-attributed Comments) for a Site. For the installed path it is stored transparently in a local credentials file (`~/.scholia/credentials`) and read silently. Agent-authored Comments are attributed to a named identity tied to the Token. Losing the Token means losing Owner control of the Site in v1.
 
 **Local Preview**:
-Rendering a local file or folder in the browser straight from the CLI (`scholia <path>`) with no account, token, or network — the default, zero-friction entry point. It uses the same render / Nav / Entry Page engine as a hosted Site and carries the same comment surface: Conversations anchor to the **live files on disk** and persist to the Sidecar. It produces no Version and no Share URL, and nothing leaves the machine unless a Tunnel is opened. Hosting is a separate, explicit promotion (`scholia share`) that uploads the same content as the first Version of a Site.
+Rendering a file or folder in the browser straight from the CLI (`scholia <path>`) with no account and no token — the default, zero-friction entry point. It uses the same render / Nav / Entry Page engine as a hosted Site and carries the same comment surface: Conversations anchor to the **live files on disk** and persist to the Sidecar. Over a local-path Content source it touches no network at all; over a git ref the CLI fetches once, up front, and the Preview itself then runs offline against the fetched copy — read-only, since those files are not the reader's to keep. It produces no Version and no Share URL, and nothing leaves the machine unless a Tunnel is opened. Hosting is a separate, explicit promotion (`scholia share`) that uploads the same content as the first Version of a Site.
 _Avoid_: serve, dev server, local mode (as the noun)
 
 **Sidecar**:
@@ -149,10 +165,6 @@ _Future_: public/private Sites, roles, teams, real login are anticipated but out
 
 ### GitHub integration
 
-**Content source**:
-Where a Version's bytes come from: a **local path** (file/folder/zip), a **git ref** (branch, tag, or commit) fetched via the GitHub API, or a **PR** (the changed md/html files at the PR's head commit). Orthogonal to the comment backend — only the PR source enables GitHub comment persistence. A pinned ref or PR yields clean Provenance; a local working tree may be dirty.
-_Avoid_: input type, upload mode
-
 **PR-backed Site**:
 A Site whose Content source is a GitHub PR. Its Pages are the PR's changed md/html files rendered at the PR head commit (Pages outside the PR are excluded); its **Public Threads** mirror to and from the PR's native GitHub comments while **Private Chats** stay Scholia-only. The comment backend is chosen by **visibility, not configuration**: private = DB, public = DB + GitHub. Each comment is owned by its **origin** (the side it was authored on) and is read-only on the other side.
 _Avoid_: GitHub site, linked site, synced site
@@ -163,4 +175,4 @@ _Avoid_: sync (alone), replicate, copy
 
 _Future direction_: Scholia may grow from a read-and-comment tool (the source of truth stays in the repo; Scholia carries the feedback loop and edits are incorporated by the author or their agent) into a live WYSIWYG collaborative editor with presence and in-place edits (Proof-style). The architecture should not preclude this, but Scholia is read-and-comment only for now. Presence ("who's viewing now") is deferred to this future work.
 
-A second future direction is a `scholia build` command (inherited from mdttp's roadmap): an _export_ path that compiles a Site to a deployable Preact app for hosting elsewhere. It shares a compile front-end with `scholia share` but diverges at the output — the share/hosting path always flattens to static HTML, because hosted Pages must stay non-executing and stably anchorable (ADR-0012). Build/export is now on the roadmap rather than hypothetical: it is how Scholia's own documentation ships (ADR-0023), and it is a publishing path only — a static export has no backend, so Conversations do not work on it.
+A second future direction is a `scholia build` command (inherited from mdttp's roadmap): an _export_ path that compiles a Site to static HTML for hosting elsewhere. It shares both its compile front-end and its output shape with `scholia share`, diverging only in destination — every Page Scholia emits is static HTML, because hosted Pages must stay non-executing and stably anchorable (ADR-0012) and an export gains nothing by being otherwise (ADR-0027). Build/export is now on the roadmap rather than hypothetical: it is how Scholia's own documentation ships (ADR-0023). An export has no backend, so Conversations on it are **read-only**: the Sidecar's Conversations are baked in at build time and can be read, followed and cited, but not added to.
