@@ -225,7 +225,16 @@ importers:
       mermaid:
         specifier: ^11.15.0
         version: 11.15.0
+      preact:
+        specifier: ^10.29.2
+        version: 10.29.2
+      preact-render-to-string:
+        specifier: ^6.7.0
+        version: 6.7.0(preact@10.29.2)
     devDependencies:
+      parse5:
+        specifier: ^7.2.1
+        version: 7.3.0
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(postcss@8.5.15)(tsx@4.22.4)(typescript@7.0.2)(yaml@2.9.0)

@@ -36,6 +36,7 @@ pnpm format                             # oxfmt (Prettier-compatible)
 pnpm test                               # vitest — but see the Postgres note below
 pnpm --filter @scholia/server typecheck  # one package
 pnpm e2e                                # Playwright (needs the stack running)
+pnpm e2e:local                          # Playwright, Local Preview only — no stack, no DB
 pnpm dev:server                         # REST API + content origin on :8787
 pnpm dev:web                            # viewer SPA on :5173
 pnpm scholia <path>                      # Local Preview
@@ -70,6 +71,11 @@ wrong is the most common failure in this repo.
 
 `pnpm scholia <path>` needs the browser bundle built first (once): `pnpm --filter
 @scholia/local build`. Local Preview touches no network, DB, or token.
+
+Its chrome lives in `packages/local/src/render/layout.tsx` (Preact SSR on the Hono route
+— ADR-0011). `packages/local/test/__snapshots__/*.txt` pin the rendered DOM, so altering
+the chrome means updating them deliberately; `pnpm e2e:local` covers it in a real browser,
+including with JavaScript disabled.
 
 ## Agent skills
 
