@@ -67,8 +67,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
       # Default reporter for humans; JSON reporter writes the file the
-      # no-skipped check reads. `--` lets pnpm forward args to vitest.
-      - run: pnpm test:ci -- --reporter=default --reporter=json --outputFile=results.json
+      # no-skipped check reads. No `--` here: pnpm already forwards trailing
+      # args to the `vitest run` script — an extra `--` makes vitest treat
+      # these flags as positional test-file filters instead, so no JSON file
+      # is ever written and the next step fails on a missing results.json.
+      - run: pnpm test:ci --reporter=default --reporter=json --outputFile=results.json
       - name: Fail if any test was skipped
         if: always()
         run: node ./scripts/check-no-skipped-tests.mjs results.json

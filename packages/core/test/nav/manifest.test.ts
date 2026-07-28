@@ -40,7 +40,11 @@ describe("buildNav", () => {
   });
 
   test("sets a subtitle on sibling Pages that share an identical title, using their filename", () => {
-    const tree = buildNav([md("README.md", "Scholia"), md("AGENTS.md", "Scholia"), md("guide.md", "Guide")]);
+    const tree = buildNav([
+      md("README.md", "Scholia"),
+      md("AGENTS.md", "Scholia"),
+      md("guide.md", "Guide"),
+    ]);
     const byPath = Object.fromEntries(tree.map((n) => [n.urlPath, n.subtitle]));
     expect(byPath["README.md"]).toBe("README.md");
     expect(byPath["AGENTS.md"]).toBe("AGENTS.md");
