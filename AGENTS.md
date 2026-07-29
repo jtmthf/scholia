@@ -22,7 +22,8 @@ duplicate them here:
 | `core`                              | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. **No HTTP/db** — keep it that way. |
 | `db`                                | Drizzle schema + client + repositories (Postgres).                                                              |
 | `server`                            | Hono REST API + content origin.                                                                                 |
-| `web`                               | Preact + Vite viewer SPA (sandboxed content iframe).                                                            |
+| `ui`                                | Shared comment layer (rail, Conversations, Composer). **Preact only** — no bundler/server dep (ADR-0030).       |
+| `web`                               | Preact + Vite viewer, SSR'd by its own Hono route (ADR-0011).                                                   |
 | `local`                             | Local Preview server (Hono), ex-mdttp.                                                                          |
 | `cli`                               | The `scholia` command (`scholia <path>` previews, `scholia share` publishes).                                   |
 | `client`, `mcp`, `github`, `bridge` | Thin clients / integrations over the above.                                                                     |
@@ -38,7 +39,7 @@ pnpm --filter @scholia/server typecheck  # one package
 pnpm e2e                                # Playwright (needs the stack running)
 pnpm e2e:local                          # Playwright, Local Preview only — no stack, no DB
 pnpm dev:server                         # REST API + content origin on :8787
-pnpm dev:web                            # viewer SPA on :5173
+pnpm dev:web                            # viewer (Vite + the Hono SSR route) on :5173
 pnpm scholia <path>                      # Local Preview
 ```
 
@@ -67,6 +68,18 @@ Postgres is on host port **5544, not 5432** (avoids clashing with a host-managed
 Postgres), and use **`127.0.0.1`, not `localhost`** (sidesteps IPv6 `::1`). Getting this
 wrong is the most common failure in this repo.
 
+`pnpm e2e` needs the same stack plus two things CI sets for you (`check.yml`, job
+`e2e`) and a local shell doesn't:
+
+```sh
+cp .env.example .env                  # the API server reads it; gitignored
+SCHOLIA_HOSTED=1 pnpm e2e             # registers `scholia share`, which the seed drives
+```
+
+Without `SCHOLIA_HOSTED=1` every hosted spec fails at `runShare` with
+``CACError: Unknown option `--server` `` — the hosted commands aren't registered, so
+cac never matches `share`. It reads like a CLI bug and isn't.
+
 ## Local Preview
 
 `pnpm scholia <path>` needs the browser bundle built first (once): `pnpm --filter
@@ -76,6 +89,23 @@ Its chrome lives in `packages/local/src/render/layout.tsx` (Preact SSR on the Ho
 — ADR-0011). `packages/local/test/__snapshots__/*.txt` pin the rendered DOM, so altering
 the chrome means updating them deliberately; `pnpm e2e:local` covers it in a real browser,
 including with JavaScript disabled.
+
+## The hosted viewer
+
+`@scholia/web` is SSR'd by its own Hono route, not a static SPA (ADR-0011). Two
+consequences when editing it:
+
+- **Nothing outside `entry-client.tsx` may import CSS**, and nothing may touch
+  `localStorage`/`window`/`matchMedia` at render time — the shell renders in Node.
+  Viewer identity and the Owner token go through the hooks in `src/data/identity.ts`,
+  which return null until mounted on purpose.
+- **`pnpm --filter @scholia/web build` builds both halves** (client, then `--ssr`).
+  `packages/web/test/ssr.test.ts` covers the rendered document against a stubbed API;
+  `pnpm e2e` covers the browser.
+
+The comment layer itself is `@scholia/ui` — shared with Local Preview, so it takes
+data as props and behaviour as a `CommentsPort` and knows nothing about Sites, tokens
+or Versions (ADR-0030).
 
 ## Agent skills
 

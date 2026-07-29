@@ -5,9 +5,7 @@ import {
   rotateShare,
   setSiteState,
   type SiteState,
-} from "../api";
-import "../agent/agent.css";
-import "./owner-panel.css";
+} from "../api.js";
 
 // The owner moderation & ops panel (M9). Owner-only — gated by the presence of an
 // owner token in the caller. Exposes Site state, Share URL rotation, owner token

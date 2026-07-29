@@ -1,26 +1,18 @@
 import { useState } from "preact/hooks";
-import { promote, type ConversationDTO } from "../api";
+import { useComments } from "./port.js";
+import type { ConversationDTO } from "./types.js";
 
 interface PromoteDialogProps {
-  slug: string;
   conversation: ConversationDTO;
-  onNeedViewer: () => Promise<{ viewerId: string; displayName: string }>;
-  /** Refetch after a successful promotion (the Chat returns as a public Thread). */
-  onPromoted: () => void;
   onClose: () => void;
 }
 
-// Promotion UI (CONTEXT "Promotion"): the owning Viewer picks which Chat Comments
+// Promotion UI (CONTEXT "Promotion"): the owning reader picks which Chat Comments
 // become public and optionally writes a summary, rather than dumping the raw
-// transcript. Confirming flips the Chat to a public Thread in place; on reload it
-// moves out of the private section into the public one.
-export function PromoteDialog({
-  slug,
-  conversation,
-  onNeedViewer,
-  onPromoted,
-  onClose,
-}: PromoteDialogProps) {
+// transcript. Confirming flips the Chat to a public Thread in place; on the next
+// refresh it moves out of the private section into the public one.
+export function PromoteDialog({ conversation, onClose }: PromoteDialogProps) {
+  const port = useComments();
   // Tombstones can't be promoted; offer only live Comments (all checked by default).
   const selectable = conversation.comments.filter((c) => !c.deleted);
   const [checked, setChecked] = useState<Set<string>>(() => new Set(selectable.map((c) => c.id)));
@@ -45,13 +37,10 @@ export function PromoteDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const { viewerId } = await onNeedViewer();
-      await promote(slug, conversation.id, {
+      await port.promote(conversation.id, {
         commentIds: [...checked],
         ...(summary.trim() ? { summary: summary.trim() } : {}),
-        viewerId,
       });
-      onPromoted();
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Promote failed.");
@@ -64,7 +53,7 @@ export function PromoteDialog({
       <div class="promote-dialog" onClick={(e) => e.stopPropagation()}>
         <div class="promote-header">
           <span class="promote-title">Promote to a public Thread</span>
-          <button class="agent-panel-close" onClick={onClose} aria-label="Close">
+          <button class="promote-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>

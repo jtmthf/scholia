@@ -45,6 +45,13 @@ export type IframeMessage =
 export type ParentMessage =
   // Apply the chrome's current color scheme inside the content document.
   | { type: "set-theme"; theme: Theme }
+  // "Are you already there?" — answered with `ready`. The iframe announces `ready`
+  // once, when its script runs, so a parent that starts listening *after* that
+  // (the chrome is server-rendered, so the iframe can begin loading before the
+  // chrome hydrates) would otherwise never learn it, and would queue every
+  // resolve-anchor request forever. Sent unqueued on connect; harmless if the
+  // content isn't up yet, because then its own `ready` still arrives.
+  | { type: "ping" }
   // Resolve a stored anchor's text-quote against the DOM and highlight it.
   | { type: "resolve-anchor"; id: string; quote: TextQuote }
   // Remove all anchor highlights (e.g. on page navigation).

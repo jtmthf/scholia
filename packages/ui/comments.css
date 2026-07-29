@@ -1,6 +1,13 @@
 /* ============================================================
-   Comment rail + affordances — M5 comment layer
-   Uses CSS variables defined in styles.css.
+   Comment rail + affordances — the @scholia/ui comment layer
+
+   Palette contract: the consumer supplies these variables, because the palette
+   belongs to the surrounding surface, not to the comment layer (the hosted viewer
+   and Local Preview do not share one). Every rule below resolves colour through
+   them or through the aliases declared in the :root block that follows:
+
+     --bg  --fg  --muted  --border  --chrome-bg
+     --nav-hover  --nav-active-bg  --nav-active-fg
    ============================================================ */
 
 /* Additional variables for the comment layer */
@@ -744,4 +751,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* The dialog's close affordance. Same rules the hosted viewer's own panels use
+   for theirs, restated here so the dialog is dressed by this stylesheet alone. */
+.promote-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+.promote-close:hover {
+  color: var(--fg);
 }

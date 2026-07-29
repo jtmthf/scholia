@@ -1,6 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { API_BASE } from "../api";
-import "./agent.css";
+import { API_BASE } from "../api.js";
 
 interface AgentPanelProps {
   slug: string;

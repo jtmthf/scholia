@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { fetchChangedPages, fetchPageDiff, type ChangedPage, type LineDiff } from "../api";
+import { fetchChangedPages, fetchPageDiff, type ChangedPage, type LineDiff } from "../api.js";
 
 interface DiffPanelProps {
   slug: string;

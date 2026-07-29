@@ -36,8 +36,10 @@ export default defineConfig({
           timeout: 120_000,
         },
         {
+          // The viewer SSRs its shell now (ADR-0011), so every other path is either
+          // a Site URL or an honest 404 — `/health` is what returns a 200 to wait on.
           command: "pnpm --filter @scholia/web dev",
-          url: WEB_URL,
+          url: `${WEB_URL}/health`,
           cwd: REPO_ROOT,
           reuseExistingServer: true,
           timeout: 120_000,

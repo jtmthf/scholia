@@ -64,7 +64,7 @@ export function connectBridge(
   const pending: ParentMessage[] = [];
 
   function post(msg: ParentMessage): void {
-    if (!ready && msg.type !== "set-theme") {
+    if (!ready && msg.type !== "set-theme" && msg.type !== "ping") {
       pending.push(msg);
       return;
     }
@@ -106,6 +106,11 @@ export function connectBridge(
   }
 
   window.addEventListener("message", onMessage);
+  // Cover the case where the content beat us to it: if it is already loaded, its
+  // one-shot `ready` came and went before the listener above existed, so ask for it
+  // again. If it isn't loaded yet, this lands nowhere and its own `ready` arrives
+  // as usual — either way the handshake completes exactly once.
+  post({ type: "ping" });
 
   return {
     setTheme(next: Theme) {

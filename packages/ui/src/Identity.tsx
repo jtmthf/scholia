@@ -1,7 +1,7 @@
-import type { Identity as IdentityDTO } from "../api";
+import type { Identity } from "./types.js";
 
 interface IdentityProps {
-  identity: IdentityDTO;
+  identity: Identity;
 }
 
 export function IdentityDisplay({ identity }: IdentityProps) {
