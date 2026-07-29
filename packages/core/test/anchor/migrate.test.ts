@@ -40,5 +40,50 @@ describe("migrateAnchor", () => {
     const text = "first value there, second value here";
     const result = migrateAnchor(anchor, text);
     expect(result.status).toBe("live");
+    expect(result.matched).toBe("context");
+  });
+
+  // The exact-only fallback. Every wrongly-Outdated case in the
+  // migration-accuracy spike had this shape: quoted text intact and unique, only
+  // the surroundings rewritten (docs/research/anchor-migration-accuracy.md).
+  describe("exact-only fallback", () => {
+    test("rescues an anchor whose text survived but whose surroundings were rewritten", () => {
+      const text = "Completely different lead-in the quick brown fox and a new tail.";
+      const result = migrateAnchor(base, text);
+      expect(result.status).toBe("live");
+      expect(result.matched).toBe("exact");
+      // Still the authoritative quote, context and all — the fallback relaxes what
+      // must MATCH, never what is stored.
+      expect(result.anchor.textQuote).toEqual(base.textQuote);
+      expect(result.anchor.sourceRange).toBeUndefined();
+    });
+
+    test("does not resurrect an anchor whose text is genuinely gone", () => {
+      const result = migrateAnchor(base, "This paragraph was rewritten entirely.");
+      expect(result.status).toBe("outdated");
+      expect(result.matched).toBeNull();
+    });
+
+    test("the uniqueness gate still holds when context breaks and decoys exist", () => {
+      // `exact` survives twice over, so dropping context cannot pick a winner.
+      // This is the class ADR-0002 exists to refuse: anchoring wrong is worse
+      // than an honest "this moved".
+      const text = "the quick brown fox here, and the quick brown fox there";
+      const result = migrateAnchor(base, text);
+      expect(result.status).toBe("outdated");
+      expect(result.matched).toBeNull();
+    });
+
+    test("an anchor with no stored context never takes the fallback path", () => {
+      const anchor: Anchor = { textQuote: { exact: "TODO" } };
+      const result = migrateAnchor(anchor, "TODO one and TODO two");
+      expect(result.status).toBe("outdated");
+      expect(result.matched).toBeNull();
+    });
+
+    test("reports `context` when the full quote still matches, so the two are distinguishable", () => {
+      const result = migrateAnchor(base, "About the quick brown fox jumps over the lazy dog.");
+      expect(result.matched).toBe("context");
+    });
   });
 });

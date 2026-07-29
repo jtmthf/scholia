@@ -3,4 +3,9 @@ export type { TextQuote, SourceRange, Anchor, SelectionCandidate } from "./types
 export { searchQuote } from "./quote.js";
 export { mapSmIdsToSourceRange } from "./source-range.js";
 // Cross-Version migration (M6): re-resolve a text-quote against a new Version.
-export { migrateAnchor, type AnchorStatus, type MigrationResult } from "./migrate.js";
+export {
+  migrateAnchor,
+  type AnchorStatus,
+  type MatchKind,
+  type MigrationResult,
+} from "./migrate.js";

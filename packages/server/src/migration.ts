@@ -14,6 +14,14 @@ export interface MigrationReport {
   migrated: number;
   /** Conversations marked Outdated (quote no longer unique, or page removed). */
   outdated: number;
+  /**
+   * Of `migrated`, how many landed only via the exact-only fallback — the quoted
+   * text survived but its surroundings were rewritten. Deliberately reported here
+   * rather than shown to readers: the fallback fires often enough (roughly a
+   * third of edits, per the migration-accuracy spike) that a per-Anchor marker
+   * would be noise, but a rate that moves is worth an Owner's attention.
+   */
+  fallback: number;
 }
 
 // Re-resolve every Conversation's anchor against the newly-uploaded Latest Version
@@ -48,6 +56,7 @@ export async function migrateConversationsToLatest(
   const candidates = await listConversationsForMigration(db, siteId);
   let migrated = 0;
   let outdated = 0;
+  let fallback = 0;
 
   for (const c of candidates) {
     let status: "live" | "outdated";
@@ -67,6 +76,7 @@ export async function migrateConversationsToLatest(
         const result = migrateAnchor(c.anchor, txt);
         status = result.status;
         anchor = result.anchor;
+        if (result.matched === "exact") fallback++;
       }
     }
 
@@ -79,5 +89,5 @@ export async function migrateConversationsToLatest(
     }
   }
 
-  return { migrated, outdated };
+  return { migrated, outdated, fallback };
 }
