@@ -1,0 +1,368 @@
+{
+  "chains": [
+    {
+      "slug": "context",
+      "path": "CONTEXT.md",
+      "revisions": [
+        {
+          "v": 1,
+          "commit": "76b33071",
+          "date": "2026-06-24",
+          "subject": "Initial commit: collab monorepo through M2 (share → host → view)",
+          "file": "v1.md",
+          "bytes": 16338
+        },
+        {
+          "v": 2,
+          "commit": "82e32edc",
+          "date": "2026-07-22",
+          "subject": "Add AGENTS.md agent-instruction file (CLAUDE.md symlink)",
+          "file": "v2.md",
+          "bytes": 16461
+        },
+        {
+          "v": 3,
+          "commit": "908ebcb7",
+          "date": "2026-07-25",
+          "subject": "Record the editorial visual identity decision and Local Preview's editor-open design",
+          "file": "v3.md",
+          "bytes": 17743
+        },
+        {
+          "v": 4,
+          "commit": "1a3a206e",
+          "date": "2026-07-25",
+          "subject": "Pivot to local-first: record the decisions and the roadmap",
+          "file": "v4.md",
+          "bytes": 20589
+        },
+        {
+          "v": 5,
+          "commit": "d8681b32",
+          "date": "2026-07-26",
+          "subject": "Adopt oxlint + oxfmt as linter and formatter (closes #16)",
+          "file": "v5.md",
+          "bytes": 20589
+        },
+        {
+          "v": 6,
+          "commit": "6b7d085c",
+          "date": "2026-07-28",
+          "subject": "Model the reading experience: Focus, Standalone, Source, and two ADRs",
+          "file": "v6.md",
+          "bytes": 23309
+        }
+      ]
+    },
+    {
+      "slug": "agents",
+      "path": "AGENTS.md",
+      "revisions": [
+        {
+          "v": 1,
+          "commit": "82e32edc",
+          "date": "2026-07-22",
+          "subject": "Add AGENTS.md agent-instruction file (CLAUDE.md symlink)",
+          "file": "v1.md",
+          "bytes": 3059
+        },
+        {
+          "v": 2,
+          "commit": "6db03c8b",
+          "date": "2026-07-25",
+          "subject": "Configure agent skills: GitHub issue tracker, single-context domain docs",
+          "file": "v2.md",
+          "bytes": 3284
+        },
+        {
+          "v": 3,
+          "commit": "96711c27",
+          "date": "2026-07-25",
+          "subject": "Commit the installed mattpocock/skills and triage label mapping",
+          "file": "v3.md",
+          "bytes": 3446
+        },
+        {
+          "v": 4,
+          "commit": "1d032721",
+          "date": "2026-07-26",
+          "subject": "Rename the workspace from Collab to Scholia (#15)",
+          "file": "v4.md",
+          "bytes": 3377
+        },
+        {
+          "v": 5,
+          "commit": "d8681b32",
+          "date": "2026-07-26",
+          "subject": "Adopt oxlint + oxfmt as linter and formatter (closes #16)",
+          "file": "v5.md",
+          "bytes": 4373
+        },
+        {
+          "v": 6,
+          "commit": "b7fd1c25",
+          "date": "2026-07-26",
+          "subject": "Document the changeset rule in AGENTS.md",
+          "file": "v6.md",
+          "bytes": 4900
+        },
+        {
+          "v": 7,
+          "commit": "b8d55ed2",
+          "date": "2026-07-26",
+          "subject": "Show the changeset file format in AGENTS.md",
+          "file": "v7.md",
+          "bytes": 5454
+        },
+        {
+          "v": 8,
+          "commit": "a3e5f79c",
+          "date": "2026-07-26",
+          "subject": "Trim AGENTS.md Changesets section to a signpost",
+          "file": "v8.md",
+          "bytes": 4833
+        },
+        {
+          "v": 9,
+          "commit": "bdb9aa60",
+          "date": "2026-07-26",
+          "subject": "Trim AGENTS.md Changesets section to one line",
+          "file": "v9.md",
+          "bytes": 4592
+        },
+        {
+          "v": 10,
+          "commit": "d734dc5a",
+          "date": "2026-07-28",
+          "subject": "Render Local Preview's chrome with Preact SSR",
+          "file": "v10.md",
+          "bytes": 4989
+        }
+      ]
+    },
+    {
+      "slug": "readme",
+      "path": "README.md",
+      "revisions": [
+        {
+          "v": 1,
+          "commit": "76b33071",
+          "date": "2026-06-24",
+          "subject": "Initial commit: collab monorepo through M2 (share → host → view)",
+          "file": "v1.md",
+          "bytes": 2619
+        },
+        {
+          "v": 2,
+          "commit": "d7d42c3a",
+          "date": "2026-07-07",
+          "subject": "M6: Versioning UX — re-upload, migration, Outdated, permalinks, Diff",
+          "file": "v2.md",
+          "bytes": 3109
+        },
+        {
+          "v": 3,
+          "commit": "d5710483",
+          "date": "2026-07-08",
+          "subject": "M8: Private Chats + reviewer agents — visibility, viewer tokens, three-tier auth, Promotion",
+          "file": "v3.md",
+          "bytes": 3530
+        },
+        {
+          "v": 4,
+          "commit": "5dbde613",
+          "date": "2026-07-24",
+          "subject": "v0.1 launch prep: rebrand to scholia, gate hosted commands, LICENSE + CHANGELOG",
+          "file": "v4.md",
+          "bytes": 4312
+        },
+        {
+          "v": 5,
+          "commit": "f4e90e9f",
+          "date": "2026-07-24",
+          "subject": "Add issue templates and CONTRIBUTING (§7) (#2)",
+          "file": "v5.md",
+          "bytes": 4433
+        },
+        {
+          "v": 6,
+          "commit": "1d032721",
+          "date": "2026-07-26",
+          "subject": "Rename the workspace from Collab to Scholia (#15)",
+          "file": "v6.md",
+          "bytes": 4397
+        },
+        {
+          "v": 7,
+          "commit": "d8681b32",
+          "date": "2026-07-26",
+          "subject": "Adopt oxlint + oxfmt as linter and formatter (closes #16)",
+          "file": "v7.md",
+          "bytes": 4697
+        },
+        {
+          "v": 8,
+          "commit": "df40af5b",
+          "date": "2026-07-26",
+          "subject": "Run the full test suite in CI against Postgres (#19)",
+          "file": "v8.md",
+          "bytes": 4896
+        }
+      ]
+    },
+    {
+      "slug": "contributing",
+      "path": "CONTRIBUTING.md",
+      "revisions": [
+        {
+          "v": 1,
+          "commit": "f4e90e9f",
+          "date": "2026-07-24",
+          "subject": "Add issue templates and CONTRIBUTING (§7) (#2)",
+          "file": "v1.md",
+          "bytes": 3728
+        },
+        {
+          "v": 2,
+          "commit": "1d032721",
+          "date": "2026-07-26",
+          "subject": "Rename the workspace from Collab to Scholia (#15)",
+          "file": "v2.md",
+          "bytes": 3684
+        },
+        {
+          "v": 3,
+          "commit": "d8681b32",
+          "date": "2026-07-26",
+          "subject": "Adopt oxlint + oxfmt as linter and formatter (closes #16)",
+          "file": "v3.md",
+          "bytes": 3799
+        },
+        {
+          "v": 4,
+          "commit": "df40af5b",
+          "date": "2026-07-26",
+          "subject": "Run the full test suite in CI against Postgres (#19)",
+          "file": "v4.md",
+          "bytes": 4349
+        },
+        {
+          "v": 5,
+          "commit": "09d1b7a8",
+          "date": "2026-07-26",
+          "subject": "Automate releases with Changesets and trusted publishing",
+          "file": "v5.md",
+          "bytes": 4622
+        },
+        {
+          "v": 6,
+          "commit": "6acd3060",
+          "date": "2026-07-26",
+          "subject": "Merge branch 'origin/main' into ci/postgres-test-suite, resolve conflicts in check.yml",
+          "file": "v6.md",
+          "bytes": 5172
+        }
+      ]
+    },
+    {
+      "slug": "plan",
+      "path": "PLAN.md",
+      "revisions": [
+        {
+          "v": 1,
+          "commit": "76b33071",
+          "date": "2026-06-24",
+          "subject": "Initial commit: collab monorepo through M2 (share → host → view)",
+          "file": "v1.md",
+          "bytes": 15935
+        },
+        {
+          "v": 2,
+          "commit": "d9361feb",
+          "date": "2026-07-09",
+          "subject": "M9: Moderation & ops — owner delete, rotation, Site state, rate limits, quotas",
+          "file": "v2.md",
+          "bytes": 17111
+        },
+        {
+          "v": 3,
+          "commit": "82e32edc",
+          "date": "2026-07-22",
+          "subject": "Add AGENTS.md agent-instruction file (CLAUDE.md symlink)",
+          "file": "v3.md",
+          "bytes": 19243
+        },
+        {
+          "v": 4,
+          "commit": "1a3a206e",
+          "date": "2026-07-25",
+          "subject": "Pivot to local-first: record the decisions and the roadmap",
+          "file": "v4.md",
+          "bytes": 23565
+        }
+      ]
+    },
+    {
+      "slug": "launch",
+      "path": "LAUNCH.md",
+      "revisions": [
+        {
+          "v": 1,
+          "commit": "43f8653e",
+          "date": "2026-07-22",
+          "subject": "CLI: publish build step, rename to @jtmthf/collab, drop gray-matter",
+          "file": "v1.md",
+          "bytes": 8464
+        },
+        {
+          "v": 2,
+          "commit": "5dbde613",
+          "date": "2026-07-24",
+          "subject": "v0.1 launch prep: rebrand to scholia, gate hosted commands, LICENSE + CHANGELOG",
+          "file": "v2.md",
+          "bytes": 22875
+        },
+        {
+          "v": 3,
+          "commit": "0b14f535",
+          "date": "2026-07-24",
+          "subject": "LAUNCH: record §6 progress — repo created, CI verified green",
+          "file": "v3.md",
+          "bytes": 25227
+        },
+        {
+          "v": 4,
+          "commit": "08770883",
+          "date": "2026-07-24",
+          "subject": "LAUNCH: record §6 — repo public, branch protection, npm publish access (#1)",
+          "file": "v4.md",
+          "bytes": 26743
+        },
+        {
+          "v": 5,
+          "commit": "f4e90e9f",
+          "date": "2026-07-24",
+          "subject": "Add issue templates and CONTRIBUTING (§7) (#2)",
+          "file": "v5.md",
+          "bytes": 28439
+        },
+        {
+          "v": 6,
+          "commit": "95afe83e",
+          "date": "2026-07-24",
+          "subject": "Bind both loopback addresses when host is the default localhost (#3)",
+          "file": "v6.md",
+          "bytes": 30064
+        },
+        {
+          "v": 7,
+          "commit": "57a418c5",
+          "date": "2026-07-24",
+          "subject": "Date the 0.1.0 CHANGELOG entry and close out the launch checklist (#4)",
+          "file": "v7.md",
+          "bytes": 30760
+        }
+      ]
+    }
+  ]
+}

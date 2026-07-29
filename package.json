@@ -22,7 +22,11 @@
     "e2e:local": "SCHOLIA_E2E_NO_WEBSERVER=1 pnpm --filter @scholia/e2e test local-preview.spec.ts",
     "e2e:install": "pnpm --filter @scholia/e2e install:browsers",
     "changeset": "changeset",
-    "release": "pnpm --filter scholia build && pnpm changeset publish"
+    "release": "pnpm --filter scholia build && pnpm changeset publish",
+    "prototype:anchors": "tsx packages/core/prototype-anchor-migration/tui.ts",
+    "prototype:anchors:report": "tsx packages/core/prototype-anchor-migration/report.ts",
+    "prototype:anchors:extract": "tsx packages/core/prototype-anchor-migration/extract-corpus.ts",
+    "prototype:anchors:verify": "tsx packages/core/prototype-anchor-migration/verify-corpus.ts"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.0",

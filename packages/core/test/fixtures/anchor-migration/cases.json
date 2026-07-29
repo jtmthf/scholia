@@ -1,0 +1,549 @@
+{
+  "cases": [
+    {
+      "id": "ctx-moved-avoid-line",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "moved-paragraph",
+      "selection": "_Avoid_: input type, upload mode",
+      "renderedSelection": "Avoid: input type, upload mode",
+      "expect": "follow",
+      "note": "The whole **Content source** entry moved out of '### GitHub integration' up into the main glossary. This line moved verbatim; a human would say it moved, not that it changed."
+    },
+    {
+      "id": "ctx-moved-orthogonal",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "moved-paragraph",
+      "selection": "Orthogonal to the comment backend — only the PR source enables GitHub comment persistence.",
+      "expect": "follow",
+      "note": "Survives verbatim inside the moved-and-rewritten Content source entry, but ends up at the far end of a much longer paragraph."
+    },
+    {
+      "id": "ctx-html-page-def",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "split-or-merged-sections",
+      "selection": "A Page whose canonical source is HTML. It is served as a rendered page and comments anchor directly to the DOM.",
+      "expect": "follow",
+      "note": "Byte-identical in v6. A new **Source** entry was inserted directly after it."
+    },
+    {
+      "id": "ctx-colophon-def",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "split-or-merged-sections",
+      "selection": "The block at the foot of a Page recording where it came from: its path, when it last changed, and its Provenance.",
+      "expect": "follow",
+      "note": "Unchanged. Two new entries (**Focus**, **Standalone**) inserted after its paragraph."
+    },
+    {
+      "id": "ctx-github-api-deleted",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "fetched via the GitHub API",
+      "expect": "outdated",
+      "note": "Genuinely deleted when Content source was rewritten. An honest Outdated."
+    },
+    {
+      "id": "ctx-local-preview-reworded",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "Rendering a local file or folder in the browser straight from the CLI",
+      "expect": "outdated",
+      "note": "'local ' dropped in v6 — the sentence genuinely changed meaning (git refs are now a Content source). Honest Outdated."
+    },
+    {
+      "id": "ctx-precedence-clause",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "Chosen by precedence with no config:",
+      "expect": "follow",
+      "note": "Unchanged clause at the head of an Entry Page definition whose tail was heavily reworded."
+    },
+    {
+      "id": "ctx-nav-head",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "The auto-generated navigation tree for a multi-Page Site, derived from Page paths",
+      "expect": "follow",
+      "note": "Unchanged opening of the Nav entry; two sentences were inserted later in the same paragraph."
+    },
+    {
+      "id": "ctx-nav-avoid",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "_Avoid_: sidebar, menu, toc",
+      "renderedSelection": "Avoid: sidebar, menu, toc",
+      "expect": "follow",
+      "note": "Unchanged line immediately after the heavily reworded Nav paragraph — its prefix context is destroyed, its own text is not."
+    },
+    {
+      "id": "ctx-export-preact",
+      "chain": "context",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "an _export_ path that compiles a Site to a deployable Preact app for hosting elsewhere",
+      "renderedSelection": "an export path that compiles a Site to a deployable Preact app for hosting elsewhere",
+      "expect": "outdated",
+      "note": "Rewritten to 'to static HTML' after ADR-0027. The claim the comment was about is gone. Honest Outdated."
+    },
+
+    {
+      "id": "fmt-markdown-page-source",
+      "chain": "context",
+      "from": 4,
+      "to": 5,
+      "category": "reworded-sentence",
+      "selection": "comments anchor to ranges in the original markdown *source* (via a Source Map)",
+      "renderedSelection": "comments anchor to ranges in the original markdown source (via a Source Map)",
+      "expect": "follow",
+      "expectSource": "outdated",
+      "note": "v4->v5 is an oxfmt run: *x* -> _x_ and nothing else. The rendered text is byte-identical, so at the rendered layer this must follow; at the source layer the bytes really did change."
+    },
+    {
+      "id": "fmt-outdated-used",
+      "chain": "context",
+      "from": 4,
+      "to": 5,
+      "category": "reworded-sentence",
+      "selection": "so an Outdated Comment can show what the passage *used* to say",
+      "renderedSelection": "so an Outdated Comment can show what the passage used to say",
+      "expect": "follow",
+      "expectSource": "outdated",
+      "note": "Same formatter-only change. Source bytes moved; rendering did not."
+    },
+    {
+      "id": "fmt-retention-and",
+      "chain": "context",
+      "from": 4,
+      "to": 5,
+      "category": "reworded-sentence",
+      "selection": "on self-host *and* hosted, constrained only if it becomes a problem",
+      "renderedSelection": "on self-host and hosted, constrained only if it becomes a problem",
+      "expect": "follow",
+      "expectSource": "outdated",
+      "note": "Same formatter-only change."
+    },
+    {
+      "id": "fmt-control-untouched",
+      "chain": "context",
+      "from": 4,
+      "to": 5,
+      "category": "reworded-sentence",
+      "selection": "A Comment whose Anchor no longer matches the text it was written against.",
+      "expect": "follow",
+      "note": "Control for the formatter run: this sentence and its immediate context are untouched in both layers."
+    },
+
+    {
+      "id": "rename-hosted-env-sentence",
+      "chain": "contributing",
+      "from": 1,
+      "to": 2,
+      "category": "reworded-sentence",
+      "selection": "and its commands are hidden behind",
+      "expect": "follow",
+      "note": "The clause is unchanged; the env var right after it was renamed COLLAB_HOSTED -> SCHOLIA_HOSTED. A human would say this sentence still says what it said."
+    },
+    {
+      "id": "rename-near-miss-control",
+      "chain": "contributing",
+      "from": 1,
+      "to": 2,
+      "category": "reworded-sentence",
+      "selection": "comment threads, versioning, the agent API) is built in this repo but ships in",
+      "expect": "follow",
+      "note": "Unchanged line one line above the rename — close enough to be interesting, far enough that 32 chars of context should still clear it."
+    },
+    {
+      "id": "rename-build-command",
+      "chain": "contributing",
+      "from": 1,
+      "to": 2,
+      "category": "reworded-sentence",
+      "selection": "pnpm --filter @collab/local build   # build the browser bundle once",
+      "expect": "outdated",
+      "note": "The command genuinely changed. Honest Outdated."
+    },
+    {
+      "id": "rename-postgres-port",
+      "chain": "contributing",
+      "from": 1,
+      "to": 2,
+      "category": "reworded-sentence",
+      "selection": "Postgres is on port **5544**, not 5432, so it doesn't collide with a",
+      "renderedSelection": "Postgres is on port 5544, not 5432, so it doesn't collide with a",
+      "expect": "follow",
+      "note": "Unchanged, two lines below a changed DATABASE_URL line."
+    },
+
+    {
+      "id": "oxfmt-typecheck-line",
+      "chain": "contributing",
+      "from": 2,
+      "to": 3,
+      "category": "split-or-merged-sections",
+      "selection": "pnpm typecheck     # tsc across the workspace",
+      "expect": "follow",
+      "note": "Still present verbatim in v3; two new lines (pnpm lint / pnpm format) were inserted right after it inside the same code fence."
+    },
+    {
+      "id": "oxfmt-no-eslint",
+      "chain": "contributing",
+      "from": 2,
+      "to": 3,
+      "category": "reworded-sentence",
+      "selection": "There's no ESLint, Prettier, or Biome.",
+      "expect": "outdated",
+      "note": "Deleted when oxlint/oxfmt were adopted. Honest Outdated."
+    },
+    {
+      "id": "oxfmt-emphasis-not",
+      "chain": "contributing",
+      "from": 2,
+      "to": 3,
+      "category": "reworded-sentence",
+      "selection": "list of words *not* to use for it. Please match that vocabulary in code,",
+      "renderedSelection": "list of words not to use for it. Please match that vocabulary in code,",
+      "expect": "follow",
+      "expectSource": "outdated",
+      "note": "Formatter emphasis change ridden along with a content commit — rendered text identical, source bytes not."
+    },
+    {
+      "id": "oxfmt-js-extension",
+      "chain": "contributing",
+      "from": 2,
+      "to": 3,
+      "category": "reworded-sentence",
+      "selection": "**Relative imports use the `.js` extension**, even from `.ts` files",
+      "renderedSelection": "Relative imports use the .js extension, even from .ts files",
+      "expect": "follow",
+      "note": "Untouched sentence in a revision that edited the paragraph above it."
+    },
+
+    {
+      "id": "trim-version-bump",
+      "chain": "agents",
+      "from": 7,
+      "to": 8,
+      "category": "split-or-merged-sections",
+      "selection": "The version bump is `patch` (bug fix), `minor` (feature), or `major` (breaking).",
+      "renderedSelection": "The version bump is patch (bug fix), minor (feature), or major (breaking).",
+      "expect": "outdated",
+      "note": "Deleted outright when the Changesets section was trimmed. Honest Outdated."
+    },
+    {
+      "id": "trim-pr-changeset-rule",
+      "chain": "agents",
+      "from": 7,
+      "to": 8,
+      "category": "split-or-merged-sections",
+      "selection": "A PR that changes the published CLI (`packages/cli`, package name `scholia`) must",
+      "renderedSelection": "A PR that changes the published CLI (packages/cli, package name scholia) must",
+      "expect": "outdated",
+      "note": "Rewritten wholesale. Honest Outdated."
+    },
+    {
+      "id": "trim-next-heading",
+      "chain": "agents",
+      "from": 7,
+      "to": 8,
+      "category": "split-or-merged-sections",
+      "selection": "## Running the hosted-path tests (the trap)",
+      "renderedSelection": "Running the hosted-path tests (the trap)",
+      "expect": "follow",
+      "note": "The heading is untouched. Everything in the 18 lines above it was deleted, so its prefix context is gone."
+    },
+    {
+      "id": "trim-db-url-sentence",
+      "chain": "agents",
+      "from": 7,
+      "to": 8,
+      "category": "split-or-merged-sections",
+      "selection": "Server/db integration tests **silently skip when `DATABASE_URL` is unset**",
+      "renderedSelection": "Server/db integration tests silently skip when DATABASE_URL is unset",
+      "expect": "follow",
+      "note": "Untouched, and sits under an untouched heading — control for the case above."
+    },
+    {
+      "id": "collapse-changeset-para",
+      "chain": "agents",
+      "from": 8,
+      "to": 9,
+      "category": "split-or-merged-sections",
+      "selection": "changeset — CI fails without one. `@scholia/*` internal packages don't.",
+      "renderedSelection": "changeset — CI fails without one. @scholia/* internal packages don't.",
+      "expect": "outdated",
+      "note": "Six lines collapsed into one; this phrasing is gone. Honest Outdated."
+    },
+
+    {
+      "id": "rewrite-readme-h1",
+      "chain": "readme",
+      "from": 3,
+      "to": 4,
+      "category": "renamed-heading",
+      "selection": "# Collab",
+      "expect": "outdated",
+      "note": "The H1 was renamed to '# Scholia'. Honest Outdated — the title genuinely changed."
+    },
+    {
+      "id": "rewrite-readme-tagline",
+      "chain": "readme",
+      "from": 3,
+      "to": 4,
+      "category": "wholesale-rewrite",
+      "selection": "A zero-config service for hosting markdown and HTML documents and letting humans",
+      "expect": "outdated",
+      "note": "Replaced entirely in the v0.1 rebrand. Honest Outdated."
+    },
+    {
+      "id": "rewrite-readme-quickstart",
+      "chain": "readme",
+      "from": 3,
+      "to": 4,
+      "category": "wholesale-rewrite",
+      "selection": "## Quick start",
+      "renderedSelection": "Quick start",
+      "expect": "follow",
+      "note": "The section heading survives the rewrite untouched; everything around it is new."
+    },
+    {
+      "id": "rewrite-readme-subheading-gone",
+      "chain": "readme",
+      "from": 3,
+      "to": 4,
+      "category": "renamed-heading",
+      "selection": "### Local Preview (no account, token, or network)",
+      "renderedSelection": "Local Preview (no account, token, or network)",
+      "expect": "outdated",
+      "note": "Subheading removed in the rewrite. Honest Outdated."
+    },
+    {
+      "id": "rename-readme-scope-line",
+      "chain": "readme",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "scope is an internal pnpm workspace namespace — those packages are not published,",
+      "expect": "follow",
+      "note": "Unchanged line whose preceding line had @collab/* renamed to @scholia/*."
+    },
+    {
+      "id": "rename-readme-roadmap-line",
+      "chain": "readme",
+      "from": 5,
+      "to": 6,
+      "category": "reworded-sentence",
+      "selection": "item, not a feature you can use.",
+      "expect": "follow",
+      "note": "Unchanged tail of a paragraph whose earlier line had the env var renamed."
+    },
+    {
+      "id": "ci-testci-comment",
+      "chain": "readme",
+      "from": 7,
+      "to": 8,
+      "category": "reworded-sentence",
+      "selection": "pnpm test:ci       # vitest, scoped to the shipping + pure packages",
+      "expect": "outdated",
+      "note": "The comment genuinely changed when CI started running the hosted path. Honest Outdated."
+    },
+    {
+      "id": "ci-skip-sentence",
+      "chain": "readme",
+      "from": 7,
+      "to": 8,
+      "category": "reworded-sentence",
+      "selection": "Server and db tests silently skip unless `DATABASE_URL` is set — see",
+      "renderedSelection": "Server and db tests silently skip unless DATABASE_URL is set — see",
+      "expect": "follow",
+      "note": "Unchanged sentence; three lines were appended to the same paragraph after it."
+    },
+
+    {
+      "id": "rewrite-readme-share-heading",
+      "chain": "readme",
+      "from": 3,
+      "to": 4,
+      "category": "renamed-heading",
+      "selection": "### Share a Page (hosted)",
+      "renderedSelection": "Share a Page (hosted)",
+      "expect": "outdated",
+      "note": "Subheading deleted in the rewrite. Honest Outdated."
+    },
+    {
+      "id": "rename-agents-packages-heading",
+      "chain": "agents",
+      "from": 3,
+      "to": 4,
+      "category": "renamed-heading",
+      "selection": "## Packages (`packages/*`, all `@collab/*`)",
+      "renderedSelection": "Packages (packages/*, all @collab/*)",
+      "expect": "outdated",
+      "note": "The heading itself was renamed to @scholia/* at the rebrand. Honest Outdated."
+    },
+    {
+      "id": "rename-agents-heading-neighbour",
+      "chain": "agents",
+      "from": 3,
+      "to": 4,
+      "category": "renamed-heading",
+      "selection": "Drizzle schema + client + repositories (Postgres).",
+      "expect": "follow",
+      "note": "A table row three lines under the renamed heading, itself untouched by the rebrand."
+    },
+    {
+      "id": "launch-section-7",
+      "chain": "launch",
+      "from": 1,
+      "to": 2,
+      "category": "renamed-heading",
+      "selection": "## 7. Post-launch",
+      "renderedSelection": "7. Post-launch",
+      "expect": "follow",
+      "note": "Final heading, untouched, after 14k bytes of insertions above it."
+    },
+    {
+      "id": "launch-h1",
+      "chain": "launch",
+      "from": 1,
+      "to": 2,
+      "category": "wholesale-rewrite",
+      "selection": "# Launch checklist — Local Preview CLI (v0.1)",
+      "renderedSelection": "Launch checklist — Local Preview CLI (v0.1)",
+      "expect": "follow",
+      "note": "Document tripled in size; the H1 is untouched."
+    },
+    {
+      "id": "launch-section-1",
+      "chain": "launch",
+      "from": 1,
+      "to": 2,
+      "category": "wholesale-rewrite",
+      "selection": "## 1. Trim the surface",
+      "renderedSelection": "1. Trim the surface",
+      "expect": "follow",
+      "note": "Section heading survives a rewrite that replaced almost all of its body."
+    },
+    {
+      "id": "launch-section-6",
+      "chain": "launch",
+      "from": 1,
+      "to": 2,
+      "category": "wholesale-rewrite",
+      "selection": "## 6. Release mechanics",
+      "renderedSelection": "6. Release mechanics",
+      "expect": "follow",
+      "note": "Same, far down the document where everything above it grew by 14k bytes."
+    }
+  ],
+
+  "chainCases": [
+    {
+      "id": "chain-ctx-nav-avoid",
+      "chain": "context",
+      "selection": "_Avoid_: sidebar, menu, toc",
+      "renderedSelection": "Avoid: sidebar, menu, toc",
+      "expectAtEnd": "follow",
+      "note": "Present verbatim in v1 and v6. Six revisions including a rebrand, a local-first pivot and a formatter run."
+    },
+    {
+      "id": "chain-ctx-outdated-avoid",
+      "chain": "context",
+      "selection": "_Avoid_: orphaned, stale, broken",
+      "renderedSelection": "Avoid: orphaned, stale, broken",
+      "expectAtEnd": "follow",
+      "note": "Present verbatim in v1 and v6."
+    },
+    {
+      "id": "chain-ctx-page-avoid",
+      "chain": "context",
+      "selection": "_Avoid_: document, file",
+      "renderedSelection": "Avoid: document, file",
+      "expectAtEnd": "follow",
+      "note": "Present verbatim in v1 and v6."
+    },
+    {
+      "id": "chain-ctx-entry-avoid",
+      "chain": "context",
+      "selection": "_Avoid_: home, root page, landing",
+      "renderedSelection": "Avoid: home, root page, landing",
+      "expectAtEnd": "follow",
+      "note": "The line was later extended to '..., directory index'. The original selection is still a substring, and a comment on it should follow."
+    },
+    {
+      "id": "chain-ctx-h1",
+      "chain": "context",
+      "selection": "# Collab",
+      "expectAtEnd": "outdated",
+      "note": "Renamed to '# Scholia' at the rebrand. Honest Outdated."
+    },
+    {
+      "id": "chain-ctx-site-def",
+      "chain": "context",
+      "selection": "The unit of upload and sharing: a collection of one or more Pages hosted under a single shareable URL.",
+      "expectAtEnd": "follow",
+      "note": "Definition opening that survives the whole history unchanged."
+    },
+    {
+      "id": "chain-agents-tagline",
+      "chain": "agents",
+      "selection": "Zero-config service for hosting markdown/HTML docs and letting humans + AI agents",
+      "expectAtEnd": "follow",
+      "note": "Still the opening line of AGENTS.md today, ten revisions later."
+    },
+    {
+      "id": "chain-agents-plan-bullet",
+      "chain": "agents",
+      "selection": "the milestone build sequence (tracer-bullet vertical slices).",
+      "expectAtEnd": "outdated",
+      "note": "The PLAN.md bullet was deleted when the doc dropped to 'Two docs carry the design'. Honest Outdated."
+    },
+    {
+      "id": "chain-agents-three-docs",
+      "chain": "agents",
+      "selection": "Three docs carry the design — read the relevant one before non-trivial work; don't",
+      "expectAtEnd": "outdated",
+      "note": "Became 'Two docs carry the design'. Honest Outdated."
+    },
+    {
+      "id": "chain-agents-core-rule",
+      "chain": "agents",
+      "selection": "Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs.",
+      "expectAtEnd": "follow",
+      "note": "The core package's one-line role, unchanged across the whole chain (it sits in a table whose column widths were reflowed)."
+    },
+    {
+      "id": "chain-contributing-trip",
+      "chain": "contributing",
+      "selection": "## Things that will trip you up",
+      "renderedSelection": "Things that will trip you up",
+      "expectAtEnd": "follow",
+      "note": "Heading survives all six revisions."
+    },
+    {
+      "id": "chain-readme-h1",
+      "chain": "readme",
+      "selection": "# Collab",
+      "expectAtEnd": "outdated",
+      "note": "Renamed at the rebrand. Honest Outdated."
+    }
+  ]
+}
