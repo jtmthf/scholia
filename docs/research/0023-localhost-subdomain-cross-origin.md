@@ -23,38 +23,38 @@ does no such short-circuit and falls through to the macOS system resolver, which
 `*.localhost` in **macOS 26 Tahoe** — before that, `http://foo.localhost:8000` fails outright
 with "Safari can't find the server" unless the user has hand-edited `/etc/hosts` or their
 upstream DNS happens to answer. That is a hard failure, not a degradation, and it lands
-squarely on the `npx scholia ./docs` promise. Separately, cookies are *not* origin-scoped —
+squarely on the `npx scholia ./docs` promise. Separately, cookies are _not_ origin-scoped —
 but both Chromium and Gecko reject a `Domain=localhost` cookie set from `content.localhost`
 because the Public Suffix List algorithm makes `localhost` a public suffix by default, so the
 boundary holds there too, provided Scholia never puts anything load-bearing in a cookie.
 
 ## What RFC 6761 actually requires
 
-RFC 6761 §6.3 opens: *"The domain `localhost.` and any names falling within `.localhost.` are
-special in the following ways"* — so subdomains are in scope by the letter of the RFC
+RFC 6761 §6.3 opens: _"The domain `localhost.` and any names falling within `.localhost.` are
+special in the following ways"_ — so subdomains are in scope by the letter of the RFC
 ([RFC 6761 §6.3](https://www.rfc-editor.org/rfc/rfc6761.txt)).
 
 But the seven "Domain Name Reservation Considerations" are almost entirely **SHOULD**, not
 MUST:
 
-| Actor | Requirement level (verbatim) |
-| --- | --- |
-| Users | *"Users may assume that IPv4 and IPv6 address queries for localhost names will always resolve to the respective IP loopback address."* |
-| Application software | *"**MAY** recognize localhost names as special, or **MAY** pass them to name resolution APIs as they would for other domain names."* |
-| Name resolution APIs and libraries | *"**SHOULD** recognize localhost names as special and **SHOULD** always return the IP loopback address…"* |
-| Caching DNS servers | *"**SHOULD** recognize localhost names as special and **SHOULD NOT** attempt to look up NS records for them…"* |
-| Authoritative DNS servers | *"**SHOULD** recognize localhost names as special…"* |
-| DNS server operators | *"**SHOULD** be aware that the effective RDATA for localhost names is defined by protocol specification…"* |
-| DNS Registries/Registrars | *"**MUST NOT** grant requests to register localhost names in the normal way…"* |
+| Actor                              | Requirement level (verbatim)                                                                                                           |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Users                              | _"Users may assume that IPv4 and IPv6 address queries for localhost names will always resolve to the respective IP loopback address."_ |
+| Application software               | _"**MAY** recognize localhost names as special, or **MAY** pass them to name resolution APIs as they would for other domain names."_   |
+| Name resolution APIs and libraries | _"**SHOULD** recognize localhost names as special and **SHOULD** always return the IP loopback address…"_                              |
+| Caching DNS servers                | _"**SHOULD** recognize localhost names as special and **SHOULD NOT** attempt to look up NS records for them…"_                         |
+| Authoritative DNS servers          | _"**SHOULD** recognize localhost names as special…"_                                                                                   |
+| DNS server operators               | _"**SHOULD** be aware that the effective RDATA for localhost names is defined by protocol specification…"_                             |
+| DNS Registries/Registrars          | _"**MUST NOT** grant requests to register localhost names in the normal way…"_                                                         |
 
 The only MUST binds registrars. **Nothing in RFC 6761 obliges a resolver or a browser to map
 `content.localhost` to loopback.** The user-facing "may assume" in point 1 is an expectation,
 not a conformance requirement on anyone.
 
-The document that *does* state it as a requirement — `draft-ietf-dnsop-let-localhost-be-localhost`,
+The document that _does_ state it as a requirement — `draft-ietf-dnsop-let-localhost-be-localhost`,
 which Chromium's source cites by name and which W3C Secure Contexts references normatively —
 **expired without ever becoming an RFC**. Latest revision 02, 2017-12-18; datatracker status:
-*"This Internet-Draft is no longer active."*
+_"This Internet-Draft is no longer active."_
 ([datatracker](https://datatracker.ietf.org/doc/draft-ietf-dnsop-let-localhost-be-localhost/)).
 
 So `*.localhost` works because three browser vendors independently decided to implement an
@@ -65,13 +65,13 @@ expired draft. It is de-facto behaviour with excellent coverage, not a standard 
 Does an arbitrary label like `content.localhost` resolve to loopback with **no** `/etc/hosts`
 entry and **no** configuration?
 
-| | macOS | Windows | Linux |
-| --- | --- | --- | --- |
-| **Chrome** | ✅ In-browser, OS never consulted [1] | ✅ same code [1] | ✅ same code [1] |
-| **Edge** | ✅ same Chromium code [1] | ✅ same Chromium code [1] | ✅ same Chromium code [1] |
-| **Firefox** | ✅ In-browser since **84** [2] | ✅ since **84** [2] | ✅ since **84** [2] |
-| **Safari** | ⚠️ **Only macOS 26 Tahoe and later** [3] | n/a | n/a (WebKitGTK ✅ [4]) |
-| *OS resolver alone* | ❌ ≤ macOS 15; ✅ macOS 26 [5] | ❓ unsourced for subdomains [6] | ✅ on systemd distros [7] |
+|                     | macOS                                    | Windows                         | Linux                     |
+| ------------------- | ---------------------------------------- | ------------------------------- | ------------------------- |
+| **Chrome**          | ✅ In-browser, OS never consulted [1]    | ✅ same code [1]                | ✅ same code [1]          |
+| **Edge**            | ✅ same Chromium code [1]                | ✅ same Chromium code [1]       | ✅ same Chromium code [1] |
+| **Firefox**         | ✅ In-browser since **84** [2]           | ✅ since **84** [2]             | ✅ since **84** [2]       |
+| **Safari**          | ⚠️ **Only macOS 26 Tahoe and later** [3] | n/a                             | n/a (WebKitGTK ✅ [4])    |
+| _OS resolver alone_ | ❌ ≤ macOS 15; ✅ macOS 26 [5]           | ❓ unsourced for subdomains [6] | ✅ on systemd distros [7] |
 
 **[1] Chrome / Edge — in-browser, resolved before anything else.** `net::IsLocalHostname()`
 strips a trailing dot and returns true for `localhost` or anything ending `.localhost`,
@@ -90,7 +90,7 @@ bool IsLocalHostname(std::string_view host) {
 ```
 
 `ResolveLocalHostname()` then synthesizes `::1` **then** `127.0.0.1`, and
-`HostResolverManager` calls `ServeLocalhost()` *before* the cache lookups and before any
+`HostResolverManager` calls `ServeLocalhost()` _before_ the cache lookups and before any
 HOSTS-file or system-resolver task
 ([`net/dns/host_resolver_manager.cc`](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/dns/host_resolver_manager.cc)):
 
@@ -104,12 +104,12 @@ if (resolved) return resolved.value();
 
 That ordering means Chrome **ignores `/etc/hosts` for `.localhost` names entirely** — they
 never reach the OS. The behaviour was announced in Mike West's Intent to Implement and Ship
-on blink-dev, 2017-08-21: *"I intend to treat `localhost.` and everything falling within
-`.localhost.` as secure (after ensuring that they resolve to loopback)"*, and *"we'll also be
-ensuring that `localhost` does not use any searchlist that might be configured"*
+on blink-dev, 2017-08-21: _"I intend to treat `localhost.` and everything falling within
+`.localhost.` as secure (after ensuring that they resolve to loopback)"_, and _"we'll also be
+ensuring that `localhost` does not use any searchlist that might be configured"_
 ([blink-dev](https://groups.google.com/a/chromium.org/g/blink-dev/c/RC9dSw-O3fE/m/E3_0XaT0BAAJ),
 [Chrome Platform Status 6269417340010496](https://chromestatus.com/feature/6269417340010496)).
-*Could not source an exact Chrome milestone number* — the Intent names none, the platform-status
+_Could not source an exact Chrome milestone number_ — the Intent names none, the platform-status
 entry carries no milestone, and the original crbug (510124) did not survive the migration to
 `issues.chromium.org`. "Since 2017" is the honest statement.
 
@@ -127,22 +127,22 @@ if (IS_ADDR_TYPE(type) && IsLoopbackHostname(host)) {
 
 `InitLoopbackRecord` emits `127.0.0.1` **then** `::1` (reversed by `network.dns.preferIPv6`).
 Shipped via [Bugzilla 1220810](https://bugzilla.mozilla.org/show_bug.cgi?id=1220810),
-*"Consider hardcoding localhost names to the loopback address"*, **RESOLVED FIXED, Target
+_"Consider hardcoding localhost names to the loopback address"_, **RESOLVED FIXED, Target
 Milestone: Firefox 84 Branch**, landed October 2020 after ~4 years.
-[Bugzilla 1433933](https://bugzilla.mozilla.org/show_bug.cgi?id=1433933), *"Firefox doesn't
-handle `*.localhost` domains (loopback)"*, is RESOLVED DUPLICATE of it.
+[Bugzilla 1433933](https://bugzilla.mozilla.org/show_bug.cgi?id=1433933), _"Firefox doesn't
+handle `*.localhost` domains (loopback)"_, is RESOLVED DUPLICATE of it.
 
 **`network.dns.localDomains` is a different thing and must not be confused with the above.**
-It is an *exact-match* comma-separated allowlist read into a hash set, tested by
+It is an _exact-match_ comma-separated allowlist read into a hash set, tested by
 `nsDNSService::IsLocalDomain` with `mLocalDomains.Contains(aHostname)`
 ([`netwerk/dns/nsDNSService2.cpp`](https://github.com/mozilla-firefox/firefox/blob/main/netwerk/dns/nsDNSService2.cpp)).
 No wildcards, no suffix matching, empty by default. It is a manual override, not the
-`.localhost` mechanism. A third pref, `network.proxy.allow_hijacking_localhost`, *disables*
+`.localhost` mechanism. A third pref, `network.proxy.allow_hijacking_localhost`, _disables_
 the loopback-trustworthiness treatment for proxy-testing scenarios.
 
 **[3] Safari — the crux.** WebKit has no resolver of its own and does not special-case
 `.localhost`. [WebKit bug 160504](https://bugs.webkit.org/show_bug.cgi?id=160504),
-*"Localhost subdomains don't work"*, filed **2016-08-03**, sat open for nine years. Apple's
+_"Localhost subdomains don't work"_, filed **2016-08-03**, sat open for nine years. Apple's
 Alexey Proskuryakov, comment #5 (2022-08-20):
 
 > This is mostly something to fix in underlying networking libraries. As long as
@@ -150,8 +150,8 @@ Alexey Proskuryakov, comment #5 (2022-08-20):
 > differently.
 
 Comment #16 (2024-01-01) documents the actual fallthrough path — `/etc/hosts` (which has no
-wildcards), then whatever DNS server the network interface hands you, *"dependent on the good
-graces of your ISP or router hardware… that seems to be hit-and-miss"*. Comment #12 records
+wildcards), then whatever DNS server the network interface hands you, _"dependent on the good
+graces of your ISP or router hardware… that seems to be hit-and-miss"_. Comment #12 records
 the workaround people actually use: a literal `127.0.0.1 sub.localhost` line in
 `/private/etc/hosts`.
 
@@ -160,7 +160,7 @@ The bug was closed **RESOLVED / MOVED on 2025-09-19**. Comment #19:
 > This seems to be fixed in macOS 26 Tahoe ✅ … In macOS 15.7: It fails with "Safari can't
 > find the server "foo.bar.localhost"". In macOS 26.0: It works 🎉
 
-Comment #20, ap@webkit.org: *"Indeed, this was implemented in OS frameworks below WebKit."*
+Comment #20, ap@webkit.org: _"Indeed, this was implemented in OS frameworks below WebKit."_
 
 **[5] Corroborated in Apple's own published source.** `mDNS_StartQuery_internal` in
 mDNSResponder now rewrites any subdomain of `localhost` to `localhost` before the query goes
@@ -175,8 +175,8 @@ if (IsSubdomain(&question->qname, &localhostdomain))
 ```
 
 …and `AnswerNewQuestion` refuses to escalate a `localhost` question to DNS, citing RFC 6761
-§6.3 directly: *"return a negative result since we never send a localhost query to DNS
-resolvers"*. That rewrite is present in
+§6.3 directly: _"return a negative result since we never send a localhost query to DNS
+resolvers"_. That rewrite is present in
 [`mDNSResponder-2881.0.25`](https://github.com/apple-oss-distributions/mDNSResponder/blob/mDNSResponder-2881.0.25/mDNSCore/mDNS.c)
 and later, and **absent** from `mDNSResponder-2600.140.3` and `mDNSResponder-2559.80.8` (the
 macOS 15 and macOS 14 vintages) — verified by grepping the file at each tag. Consistent with
@@ -189,37 +189,37 @@ mDNSResponder is shared Darwin code and iOS 26 shipped from the same tree, so it
 likely fixed there too, but no primary source confirms it and no test was run. Treat iOS as
 unknown.
 
-Also open: [WebKit bug 171934](https://bugs.webkit.org/show_bug.cgi?id=171934), *"Don't treat
-loopback addresses (127.0.0.0/8, ::1/128, localhost, .localhost) as mixed content"*, status
-**NEW** as of its last comment. That bug is about *potentially-trustworthy* / secure-context
+Also open: [WebKit bug 171934](https://bugs.webkit.org/show_bug.cgi?id=171934), _"Don't treat
+loopback addresses (127.0.0.0/8, ::1/128, localhost, .localhost) as mixed content"_, status
+**NEW** as of its last comment. That bug is about _potentially-trustworthy_ / secure-context
 treatment, a separate axis from resolution. Practical consequence: even where
 `content.localhost` resolves in Safari, **do not assume `http://content.localhost` is a secure
 context there** — anything gated on secure context (Service Workers, `crypto.subtle`) may be
 unavailable in the content Origin under Safari. W3C Secure Contexts makes this conditional
-explicitly: the localhost carve-out applies only *"If the user agent conforms to the name
-resolution rules in [let-localhost-be-localhost]"*
+explicitly: the localhost carve-out applies only _"If the user agent conforms to the name
+resolution rules in [let-localhost-be-localhost]"_
 ([Secure Contexts §is-origin-trustworthy](https://w3c.github.io/webappsec-secure-contexts/#is-origin-trustworthy)).
 
 **[4] WebKitGTK** is unaffected — WebKit bug 160504 comments #4 and #7 report the test case
 working there, which follows from [7].
 
-**[6] Windows.** Microsoft's documented special case covers `localhost` *itself*, not
+**[6] Windows.** Microsoft's documented special case covers `localhost` _itself_, not
 subdomains: the default `hosts` file ships with `127.0.0.1 localhost` and `::1 localhost`
-**commented out**, annotated *"localhost name resolution is handled within DNS itself"*
+**commented out**, annotated _"localhost name resolution is handled within DNS itself"_
 ([Microsoft Support](https://support.microsoft.com/en-us/topic/how-to-reset-the-hosts-file-back-to-the-default-c2a43f9d-e176-c6f3-e4ef-3500277a6dae)).
 **No primary Microsoft source was found stating that the Windows DNS Client extends this to
 `*.localhost`**, and the `hosts` file matches exact names only. Assume it does not.
 
 This is **moot for browsers on Windows**: Chrome, Edge, and Firefox all resolve `.localhost`
 in-process before the OS resolver is reached ([1], [2]), and Safari does not exist on Windows.
-It is *not* moot for non-browser clients on Windows — `curl`, Node's `dns.lookup`, a Go
+It is _not_ moot for non-browser clients on Windows — `curl`, Node's `dns.lookup`, a Go
 HTTP client — which go through `getaddrinfo` and will likely fail. Relevant if Scholia ever
 has a CLI or MCP path that fetches its own content Origin by name.
 
 **[7] Linux.** glibc does not special-case `.localhost`. systemd does:
 `is_localhost()` in `src/basic/hostname-util.c` matches `localhost`, `localhost.`,
 `localhost.localdomain`, and the `.localhost` / `.localhost.` / `.localhost.localdomain`
-suffixes, *"described in RFC6761 plus the redhatism of localdomain"*
+suffixes, _"described in RFC6761 plus the redhatism of localdomain"_
 ([systemd source](https://github.com/systemd/systemd/blob/main/src/basic/hostname-util.c)).
 So on a systemd distro the OS resolver handles it too, which is the likely explanation for
 WebKitGTK working. On a non-systemd distro, browsers still work via [1]/[2].
@@ -228,33 +228,33 @@ WebKitGTK working. On a non-systemd distro, browsers still work via [1]/[2].
 
 Four isolation surfaces. `http://content.localhost:3000` vs `http://localhost:3000`:
 
-**1. DOM access / same-origin policy — separated.** An origin is *"A tuple consisting of: A
+**1. DOM access / same-origin policy — separated.** An origin is _"A tuple consisting of: A
 scheme (an ASCII string). A host (a host). A port (null or a 16-bit unsigned integer). A
-domain (null or a domain)."* Two origins are same origin iff *"both are tuple origins with
-identical schemes, hosts, and ports."* The hosts differ, so they are not same origin, and the
+domain (null or a domain)."_ Two origins are same origin iff _"both are tuple origins with
+identical schemes, hosts, and ports."_ The hosts differ, so they are not same origin, and the
 parent cannot reach into `contentWindow.document` nor the frame into `parent.document`. The
-spec is blunt about what that means: *"Origins are the fundamental currency of the web's
+spec is blunt about what that means: _"Origins are the fundamental currency of the web's
 security model. Two actors… that share an origin are assumed to trust each other… Actors with
-differing origins are considered potentially hostile versus each other."*
+differing origins are considered potentially hostile versus each other."_
 ([HTML §7.5 Origin](https://html.spec.whatwg.org/multipage/browsers.html#concept-origin))
 
 Note `same origin-domain` — the `document.domain` relaxation — cannot bridge these two either:
-it requires *"domains are identical and non-null"*, and `document.domain = "localhost"` from
+it requires _"domains are identical and non-null"_, and `document.domain = "localhost"` from
 `content.localhost` would be setting a domain that is not a registrable-domain suffix (see the
 cookie section; the same public-suffix arithmetic applies).
 
-**2. `postMessage` — separated and directional.** *"If the targetOrigin argument is not a
+**2. `postMessage` — separated and directional.** _"If the targetOrigin argument is not a
 single literal U+002A ASTERISK character (`*`) and targetWindow's associated Document's origin
-is not same origin with targetOrigin, then return"* — a mismatched target silently drops the
-message. On receipt, *"Let origin be incumbentSettings's origin"*, i.e. `event.origin` is the
-*sender's* serialized origin, so the anchoring bridge on each side can pin the other exactly.
-The spec's own advice matches what ADR-0003's bridge needs: *"Authors should not use the
+is not same origin with targetOrigin, then return"_ — a mismatched target silently drops the
+message. On receipt, _"Let origin be incumbentSettings's origin"_, i.e. `event.origin` is the
+_sender's_ serialized origin, so the anchoring bridge on each side can pin the other exactly.
+The spec's own advice matches what ADR-0003's bridge needs: _"Authors should not use the
 wildcard keyword (`*`) in the targetOrigin argument in messages that contain any confidential
-information"*, and authors must *"check the origin attribute to ensure that messages are only
-accepted from domains that they expect to receive messages from"*
+information"_, and authors must _"check the origin attribute to ensure that messages are only
+accepted from domains that they expect to receive messages from"_
 ([HTML §9.4 Web messaging](https://html.spec.whatwg.org/multipage/web-messaging.html)).
 
-**3. Storage — separated.** *"A storage key is a tuple consisting of an origin."* The
+**3. Storage — separated.** _"A storage key is a tuple consisting of an origin."_ The
 registered storage endpoints keyed by it are `localStorage`, `sessionStorage`, `indexedDB`,
 `caches`, and `serviceWorkerRegistrations`
 ([Storage §4.1–4.2](https://storage.spec.whatwg.org/#storage-keys)). Distinct origins ⇒
@@ -262,22 +262,22 @@ distinct storage keys ⇒ distinct buckets. This is what protects the **Viewer**
 ADR-0018 / `CONTEXT.md` place in `localStorage` (id + secret) on the app Origin: untrusted Page
 content on the content Origin cannot read it.
 
-**4. Cookies — *not* separated by origin.** See below. This is the one surface where "distinct
+**4. Cookies — _not_ separated by origin.** See below. This is the one surface where "distinct
 origin" is not the right mental model.
 
 ## The cookie caveat
 
 Cookies predate origins and are keyed by host and domain, ignoring both scheme and port.
-RFC 6265 §8.5 says so directly: *"Cookies do not provide isolation by port. If a cookie is
+RFC 6265 §8.5 says so directly: _"Cookies do not provide isolation by port. If a cookie is
 readable by a service running on one port, the cookie is also readable by a service running on
-another port of the same server."* Scheme isolation is likewise absent
+another port of the same server."_ Scheme isolation is likewise absent
 ([RFC 6265 §8.5](https://www.rfc-editor.org/rfc/rfc6265.html)).
 
 The question that matters: **can `content.localhost` set a `Domain=.localhost` cookie that
 `localhost` then reads?** By the bare `domain-match` algorithm (§5.1.3 — identical strings, or
 the domain is a dot-preceded suffix of the string) it would match. The guard is §4.1.2.3:
-*"For security reasons, many user agents are configured to reject Domain attributes that
-correspond to 'public suffixes'."*
+_"For security reasons, many user agents are configured to reject Domain attributes that
+correspond to 'public suffixes'."_
 
 **Is `localhost` a public suffix?** Not by listing — the Public Suffix List contains **no**
 entry for `localhost`, `*.localhost`, `!localhost`, `local`, `localdomain`, or `test`; verified
@@ -288,18 +288,18 @@ The PSL matching rules are explicit
 
 > 1. Match domain against all rules and take note of the matching ones.
 > 2. **If no rules match, the prevailing rule is `*`.**
-> …
-> 7. The registered or registrable domain is the public suffix plus one additional label.
+>    …
+> 3. The registered or registrable domain is the public suffix plus one additional label.
 
 No rule matches `content.localhost`, so the prevailing rule is `*`, the public suffix is
 `localhost`, and the registrable domain is `content.localhost`. Both engines implement it:
 
 - **Chromium.** `GetDomainAndRegistry` is documented to treat an unknown TLD as the registry —
-  *"http://foo.bar/file.html -> "foo.bar" (no rule; assume bar)"* and *"http://bar/file.html ->
-  "" (no subcomponents)"*
+  _"http://foo.bar/file.html -> "foo.bar" (no rule; assume bar)"_ and _"http://bar/file.html ->
+  "" (no subcomponents)"_
   ([`registry_controlled_domain.h`](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/base/registry_controlled_domains/registry_controlled_domain.h)).
   `GetCookieDomainWithString` requires the URL's domain+registry and the cookie domain's
-  domain+registry to be equal, *"Can't set a cookie on a different domain + registry"*, and
+  domain+registry to be equal, _"Can't set a cookie on a different domain + registry"_, and
   otherwise records `EXCLUDE_DOMAIN_MISMATCH`
   ([`net/cookies/cookie_util.cc`](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/cookies/cookie_util.cc)).
   `content.localhost` → `content.localhost`; `.localhost` → `""`. Mismatch. **Rejected.**
@@ -307,26 +307,26 @@ No rule matches `content.localhost`, so the prevailing rule is `*`, the public s
   `IsSubdomainOf(cookieHost, aBaseDomain) && IsSubdomainOf(hostFromURI, cookieHost)`
   ([`netwerk/cookie/CookieParser.cpp`](https://github.com/mozilla-firefox/firefox/blob/main/netwerk/cookie/CookieParser.cpp)).
   The base domain of `content.localhost` is `content.localhost` (same `*`-rule arithmetic), and
-  `localhost` is not a subdomain of it, so the first test fails and the comment notes *"the
-  Validator will reject the cookie with the correct reason."* **Rejected.**
+  `localhost` is not a subdomain of it, so the first test fails and the comment notes _"the
+  Validator will reject the cookie with the correct reason."_ **Rejected.**
 
 The reverse direction is closed by default: a cookie set by `localhost` with no `Domain`
 attribute is a host-only cookie and is sent only when the request host equals it exactly, so it
 never reaches `content.localhost`.
 
-**Practical consequence for Scholia.** The cookie surface is *adequate* but not *load-bearing*,
+**Practical consequence for Scholia.** The cookie surface is _adequate_ but not _load-bearing_,
 and three residual holes decide the design:
 
 1. **Port and scheme are ignored.** Two Scholia processes on different ports — or a user's
    unrelated dev server on `localhost:5173` — share the `localhost` cookie jar. A second
    Local Preview is not isolated from the first by port.
 2. **A sibling naming scheme would leak.** `a.content.localhost` and `b.content.localhost` share
-   the registrable domain `content.localhost` and *can* set cookies for each other. If per-Page
+   the registrable domain `content.localhost` and _can_ set cookies for each other. If per-Page
    or per-Site origin isolation is ever wanted (the IPFS subdomain-gateway shape), the isolating
    label must be attached such that each isolated unit is its own registrable domain — i.e.
    `<hash>.localhost`, not `<hash>.content.localhost`.
 3. **Safari/CFNetwork was not verified.** The two engines above were read at source; WebKit's
-   cookie store is CFNetwork's and is not open source. *No primary source found.* Assume nothing.
+   cookie store is CFNetwork's and is not open source. _No primary source found._ Assume nothing.
 
 Therefore: **Local Preview must not authenticate or identify anything via cookies.** The Viewer
 secret stays in `localStorage` (origin-keyed, surface 3), the Sidecar write path is authorized
@@ -339,9 +339,9 @@ with an explicit `targetOrigin`. Under those rules the cookie caveat costs nothi
 [portless](https://portless.sh) ([vercel-labs/portless](https://github.com/vercel-labs/portless))
 maps named `.localhost` URLs to dev servers. Read from its README and `packages/portless/src`.
 
-**How it works.** A reverse proxy on **port 443** by default, HTTPS with HTTP/2: *"On first
+**How it works.** A reverse proxy on **port 443** by default, HTTPS with HTTP/2: _"On first
 run, portless generates a local CA, trusts it, and binds port 443 (auto-elevates with sudo on
-macOS/Linux)"*. The child app is spawned with `PORT` set to a random port in **4000–4999**,
+macOS/Linux)"_. The child app is spawned with `PORT` set to a random port in **4000–4999**,
 plus `HOST`, `PORTLESS_URL` (the public URL), and `NODE_EXTRA_CA_CERTS` pointing at the local
 CA. Outside `--lan` the proxy binds only `127.0.0.1` and `::1`. Subdomain routing is **strict by
 default** — only explicitly registered names route; `--wildcard` is needed for
@@ -356,9 +356,9 @@ for its route hostnames, and its own `--help` says why:
 
 **What the app sees.** `proxy.ts` copies the incoming headers wholesale
 (`{ ...req.headers }`), so the **original `Host` survives**; for HTTP/2 it restores `Host` from
-`:authority` after stripping pseudo-headers, with the comment *"so Host-dependent backends
+`:authority` after stripping pseudo-headers, with the comment _"so Host-dependent backends
 (multi-tenant vhosts, framework host allow-lists) see the original hostname instead of
-127.0.0.1."* On top of that it sets `x-forwarded-for`, `x-forwarded-proto`, `x-forwarded-host`,
+127.0.0.1."_ On top of that it sets `x-forwarded-for`, `x-forwarded-proto`, `x-forwarded-host`,
 `x-forwarded-port` (existing values are appended to / preserved), and `x-portless-hops` for
 loop detection.
 
@@ -374,7 +374,7 @@ good hygiene regardless:
 3. **Never assume `http:`.** Under portless the Preview is `https:` by default. Anything that
    hardcodes `http://localhost:${port}` breaks, and any `SameSite`/`Secure` reasoning has to be
    computed, not literal.
-4. **Derive the content Origin as a label prepended to the *observed* host**, not to a literal
+4. **Derive the content Origin as a label prepended to the _observed_ host**, not to a literal
    `localhost` — `content.` + observed host. Under portless that yields
    `content.myapp.localhost`, which is a route portless does **not** know about; it needs either
    a second registered route or `--wildcard`. Worth documenting in the compatibility note; it is
@@ -386,13 +386,13 @@ good hygiene regardless:
 a CA injected into the system keychain, port 443, and writes to `/etc/hosts` are — individually
 — each fatal to `npx scholia ./docs`, which promises no account, no token, no network, and no
 setup (ADR-0010, `CONTEXT.md` "Local Preview"). Together they are a different product. portless
-is a *nice thing a user may already have*; the boundary Scholia relies on must exist without it.
+is a _nice thing a user may already have_; the boundary Scholia relies on must exist without it.
 
 ## Open questions / what could not be sourced
 
 - **The exact Chrome milestone.** The 2017 blink-dev Intent names none, the Chrome Platform
   Status entry has no milestone, and crbug 510124 did not survive the issue-tracker migration
-  (`issues.chromium.org` returns *"Issue 510124 does not exist"*; the modern tracker requires
+  (`issues.chromium.org` returns _"Issue 510124 does not exist"_; the modern tracker requires
   sign-in for history). "Chrome has done this since 2017, and the code is in `main` today" is
   what can be defended.
 - **iOS / iPadOS.** No primary source that iOS 26 carries the mDNSResponder change, and no
@@ -419,29 +419,29 @@ issue #23): one Hono listener on port 4123, routed by `Host`, serving a viewer o
 configuration. Probes ran against a **plain, unsandboxed** iframe so that the hostname boundary
 was the only variable, and were then repeated under `sandbox="allow-scripts"`.
 
-| Probe | Chrome 150 (macOS 26) | Firefox 152 (macOS 26) |
-|---|---|---|
-| `content.localhost` resolves | ✅ | ✅ |
-| Viewer reads frame `document` / `location` | ❌ `SecurityError` | ❌ `SecurityError` |
-| Frame reads parent `document` / `top.location` | ❌ `SecurityError` | ❌ `SecurityError` |
-| `event.origin` at the viewer | `http://content.localhost:4123` | `http://content.localhost:4123` |
-| Message with wrong `targetOrigin` | dropped | dropped |
-| localStorage / sessionStorage / IndexedDB cross-read | `null` — partitioned | `null` — partitioned |
-| `Domain=localhost` / `Domain=.localhost` cookies | **all four rejected** | **all four rejected** |
-| Cookies reaching the viewer host | none | none |
-| `document.domain` relaxation from content | ❌ threw | ❌ threw |
-| DOM access after both sides relaxed | ❌ still blocked | ❌ still blocked |
-| `isSecureContext` on **both** hosts, over plain HTTP | ✅ `true` | ✅ `true` |
-| Under `sandbox="allow-scripts"`: `event.origin` | `"null"` | `"null"` |
-| Under sandbox: storage + `document.cookie` | ❌ `SecurityError` | ❌ `SecurityError` |
+| Probe                                                | Chrome 150 (macOS 26)           | Firefox 152 (macOS 26)          |
+| ---------------------------------------------------- | ------------------------------- | ------------------------------- |
+| `content.localhost` resolves                         | ✅                              | ✅                              |
+| Viewer reads frame `document` / `location`           | ❌ `SecurityError`              | ❌ `SecurityError`              |
+| Frame reads parent `document` / `top.location`       | ❌ `SecurityError`              | ❌ `SecurityError`              |
+| `event.origin` at the viewer                         | `http://content.localhost:4123` | `http://content.localhost:4123` |
+| Message with wrong `targetOrigin`                    | dropped                         | dropped                         |
+| localStorage / sessionStorage / IndexedDB cross-read | `null` — partitioned            | `null` — partitioned            |
+| `Domain=localhost` / `Domain=.localhost` cookies     | **all four rejected**           | **all four rejected**           |
+| Cookies reaching the viewer host                     | none                            | none                            |
+| `document.domain` relaxation from content            | ❌ threw                        | ❌ threw                        |
+| DOM access after both sides relaxed                  | ❌ still blocked                | ❌ still blocked                |
+| `isSecureContext` on **both** hosts, over plain HTTP | ✅ `true`                       | ✅ `true`                       |
+| Under `sandbox="allow-scripts"`: `event.origin`      | `"null"`                        | `"null"`                        |
+| Under sandbox: storage + `document.cookie`           | ❌ `SecurityError`              | ❌ `SecurityError`              |
 
 Four results are worth carrying into the ADR:
 
 1. **Chrome states the public-suffix reasoning in its own error text.** Relaxing `document.domain`
-   from the content Origin failed with *"Failed to set the 'domain' property on 'Document':
-   'localhost' is a top-level domain."* That is the engine independently confirming the PSL
+   from the content Origin failed with _"Failed to set the 'domain' property on 'Document':
+   'localhost' is a top-level domain."_ That is the engine independently confirming the PSL
    default-`*`-rule arithmetic derived above — the same rule that rejects the `Domain=` cookies.
-   Firefox refuses the same operation as *"The operation is insecure."*
+   Firefox refuses the same operation as _"The operation is insecure."_
 2. **The cookie caveat is closed, but for a reason worth stating.** No `Domain=`-widened cookie was
    accepted by either engine, so the content Origin cannot plant a cookie the viewer host will
    read. Only host-only cookies survived, and they stayed on `content.localhost`.
@@ -478,21 +478,21 @@ The reasoning, in order:
    iframe + a single anchoring bridge beats maintaining two content paths. If Local Preview went
    same-origin, Scholia would have two security models, two bridge behaviours, and a class of bug
    that only appears hosted — precisely when it is least recoverable. ADR-0020's shared application
-   layer and ADR-0022's "the local server already *is* the application" both push the same way.
+   layer and ADR-0022's "the local server already _is_ the application" both push the same way.
 
 3. **The `sandbox` attribute is the load-bearing guarantee; the distinct host is the second
    layer.** An `<iframe sandbox="allow-scripts">` without `allow-same-origin` already forces an
-   **opaque origin** — *"the content is treated as being from a unique opaque origin"* — with no
+   **opaque origin** — _"the content is treated as being from a unique opaque origin"_ — with no
    DNS involvement in any browser on any OS
    ([HTML §4.8.5](https://html.spec.whatwg.org/multipage/iframe-embed-object.html)). Note the
    spec's warning that `allow-scripts` + `allow-same-origin` on same-origin content lets the frame
-   *"simply remove the sandbox attribute and then reload itself"* — which is exactly why a naive
+   _"simply remove the sandbox attribute and then reload itself"_ — which is exactly why a naive
    same-origin Local Preview would be worse than it looks. So the fallback is not "no isolation";
    it is "isolation without a distinct host", which is weaker (no Standalone, no defence in depth
    if a sandbox flag is ever mis-set) but not nothing.
 
 4. **But the distinct host is genuinely load-bearing for Standalone.** `CONTEXT.md` defines
-   **Standalone** as a Page *"served from the content origin as the bytes themselves"* with no
+   **Standalone** as a Page _"served from the content origin as the bytes themselves"_ with no
    Scholia chrome — a **top-level** document. A parent cannot sandbox a top-level navigation; only
    a `Content-Security-Policy: sandbox` header could, and that would break the Page's own
    sub-resources and defeat the point. Standalone is therefore only safe if the content Origin is
@@ -521,29 +521,33 @@ would not.
 ## Sources
 
 **RFCs and drafts**
-- RFC 6761, *Special-Use Domain Names*, §6.3 — https://www.rfc-editor.org/rfc/rfc6761.txt
-- RFC 6265, *HTTP State Management Mechanism*, §4.1.2.3, §5.1.3, §8.5 — https://www.rfc-editor.org/rfc/rfc6265.html
+
+- RFC 6761, _Special-Use Domain Names_, §6.3 — https://www.rfc-editor.org/rfc/rfc6761.txt
+- RFC 6265, _HTTP State Management Mechanism_, §4.1.2.3, §5.1.3, §8.5 — https://www.rfc-editor.org/rfc/rfc6265.html
 - `draft-ietf-dnsop-let-localhost-be-localhost` (expired, rev 02, 2017-12-18) — https://datatracker.ietf.org/doc/draft-ietf-dnsop-let-localhost-be-localhost/
 
 **Specifications**
+
 - HTML Standard, §7.5 Origin — https://html.spec.whatwg.org/multipage/browsers.html#concept-origin
 - HTML Standard, §9.4 Web messaging (`postMessage`, `MessageEvent.origin`) — https://html.spec.whatwg.org/multipage/web-messaging.html
 - HTML Standard, §4.8.5 The `iframe` element (`sandbox`, `allow-same-origin`) — https://html.spec.whatwg.org/multipage/iframe-embed-object.html
 - URL Standard (special schemes, default ports) — https://url.spec.whatwg.org/
 - Storage Standard, §4.1 Storage endpoints, §4.2 Storage keys — https://storage.spec.whatwg.org/#storage-keys
-- W3C Secure Contexts, *Is origin potentially trustworthy?* — https://w3c.github.io/webappsec-secure-contexts/#is-origin-trustworthy
+- W3C Secure Contexts, _Is origin potentially trustworthy?_ — https://w3c.github.io/webappsec-secure-contexts/#is-origin-trustworthy
 
 **Chromium**
+
 - `net/base/url_util.cc` (`IsLocalHostname`, `IsNormalizedLocalhostTLD`) — https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/base/url_util.cc
 - `net/dns/host_resolver_manager.cc` (`ResolveLocalHostname`, `ServeLocalhost`) — https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/dns/host_resolver_manager.cc
 - `net/cookies/cookie_util.cc` (`GetCookieDomainWithString`, `GetEffectiveDomain`) — https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/cookies/cookie_util.cc
 - `net/base/registry_controlled_domains/registry_controlled_domain.h` — https://chromium.googlesource.com/chromium/src/+/refs/heads/main/net/base/registry_controlled_domains/registry_controlled_domain.h
-- blink-dev, *Intent to Implement and Ship: Treat `http://localhost` as a secure context*, Mike West, 2017-08-21 — https://groups.google.com/a/chromium.org/g/blink-dev/c/RC9dSw-O3fE/m/E3_0XaT0BAAJ
+- blink-dev, _Intent to Implement and Ship: Treat `http://localhost` as a secure context_, Mike West, 2017-08-21 — https://groups.google.com/a/chromium.org/g/blink-dev/c/RC9dSw-O3fE/m/E3_0XaT0BAAJ
 - Chrome Platform Status, feature 6269417340010496 — https://chromestatus.com/feature/6269417340010496
 
 **Mozilla**
-- Bugzilla 1220810, *Consider hardcoding localhost names to the loopback address* (FIXED, Firefox 84) — https://bugzilla.mozilla.org/show_bug.cgi?id=1220810
-- Bugzilla 1433933, *Firefox doesn't handle `*.localhost` domains (loopback)* (DUPLICATE of 1220810) — https://bugzilla.mozilla.org/show_bug.cgi?id=1433933
+
+- Bugzilla 1220810, _Consider hardcoding localhost names to the loopback address_ (FIXED, Firefox 84) — https://bugzilla.mozilla.org/show_bug.cgi?id=1220810
+- Bugzilla 1433933, _Firefox doesn't handle `*.localhost` domains (loopback)_ (DUPLICATE of 1220810) — https://bugzilla.mozilla.org/show_bug.cgi?id=1433933
 - `netwerk/dns/DNS.cpp` (`IsLoopbackHostname`) — https://github.com/mozilla-firefox/firefox/blob/main/netwerk/dns/DNS.cpp
 - `netwerk/dns/nsHostResolver.cpp` (`InitLoopbackRecord`, fast path) — https://github.com/mozilla-firefox/firefox/blob/main/netwerk/dns/nsHostResolver.cpp
 - `netwerk/dns/nsDNSService2.cpp` (`network.dns.localDomains`, `IsLocalDomain`) — https://github.com/mozilla-firefox/firefox/blob/main/netwerk/dns/nsDNSService2.cpp
@@ -551,23 +555,28 @@ would not.
 - `netwerk/cookie/CookieCommons.cpp` (`GetBaseDomain`) — https://github.com/mozilla-firefox/firefox/blob/main/netwerk/cookie/CookieCommons.cpp
 
 **WebKit / Apple**
-- WebKit bug 160504, *Localhost subdomains don't work* (2016-08-03 → RESOLVED MOVED 2025-09-19) — https://bugs.webkit.org/show_bug.cgi?id=160504
-- WebKit bug 171934, *Don't treat loopback addresses… as mixed content* (NEW) — https://bugs.webkit.org/show_bug.cgi?id=171934
+
+- WebKit bug 160504, _Localhost subdomains don't work_ (2016-08-03 → RESOLVED MOVED 2025-09-19) — https://bugs.webkit.org/show_bug.cgi?id=160504
+- WebKit bug 171934, _Don't treat loopback addresses… as mixed content_ (NEW) — https://bugs.webkit.org/show_bug.cgi?id=171934
 - `mDNSResponder-2881.0.25`, `mDNSCore/mDNS.c` (localhost subdomain rewrite; RFC 6761 negative response) — https://github.com/apple-oss-distributions/mDNSResponder/blob/mDNSResponder-2881.0.25/mDNSCore/mDNS.c
 - `mDNSResponder-2600.140.3`, `mDNSCore/mDNS.c` (rewrite absent) — https://github.com/apple-oss-distributions/mDNSResponder/blob/mDNSResponder-2600.140.3/mDNSCore/mDNS.c
 - `Libinfo-600`, `lookup.subproj/si_getaddrinfo.c` — https://github.com/apple-oss-distributions/Libinfo
 
 **Microsoft**
-- *How to reset the Hosts file back to the default* (default hosts file; "localhost name resolution is handled within DNS itself") — https://support.microsoft.com/en-us/topic/how-to-reset-the-hosts-file-back-to-the-default-c2a43f9d-e176-c6f3-e4ef-3500277a6dae
+
+- _How to reset the Hosts file back to the default_ (default hosts file; "localhost name resolution is handled within DNS itself") — https://support.microsoft.com/en-us/topic/how-to-reset-the-hosts-file-back-to-the-default-c2a43f9d-e176-c6f3-e4ef-3500277a6dae
 
 **Public Suffix List**
+
 - Raw list (checked at `VERSION: 2026-07-25_14-20-03_UTC`, commit `e1b8015c`) — https://publicsuffix.org/list/public_suffix_list.dat
-- Format and algorithm (rule 2: *"If no rules match, the prevailing rule is `*`"*) — https://github.com/publicsuffix/list/wiki/Format
+- Format and algorithm (rule 2: _"If no rules match, the prevailing rule is `*`"_) — https://github.com/publicsuffix/list/wiki/Format
 - List overview — https://publicsuffix.org/list/
 
 **systemd**
+
 - `src/basic/hostname-util.c` (`is_localhost`) — https://github.com/systemd/systemd/blob/main/src/basic/hostname-util.c
 
 **portless**
+
 - Site — https://portless.sh
 - Repository (README, `packages/portless/src/proxy.ts`, `cli.ts`, `hosts.ts`) — https://github.com/vercel-labs/portless

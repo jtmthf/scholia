@@ -23,7 +23,7 @@ Chrome 150 and Firefox 152 block DOM access in both directions, report
 partition localStorage/sessionStorage/IndexedDB, and — the result that mattered most — **reject
 every `Domain=localhost` and `Domain=.localhost` cookie**, because the Public Suffix List's default
 `*` rule makes `localhost` a public suffix. Chrome says so in its own words when the content Origin
-tries to relax `document.domain`: *"'localhost' is a top-level domain."* Both hosts are also
+tries to relax `document.domain`: _"'localhost' is a top-level domain."_ Both hosts are also
 `isSecureContext: true` over plain HTTP, so the content origin gets `crypto.subtle` and service
 workers for free.
 
@@ -37,7 +37,7 @@ just a line of code:
 **The distinct host is load-bearing for Standalone, not for the iframe.** An
 `<iframe sandbox="allow-scripts">` without `allow-same-origin` already gets an opaque origin in
 every browser with no DNS involved, so the framed case would survive a same-origin fallback. But
-**Standalone** (CONTEXT.md) is a *top-level* document — a Page served from the content origin as the
+**Standalone** (CONTEXT.md) is a _top-level_ document — a Page served from the content origin as the
 bytes themselves. A parent cannot sandbox a top-level navigation. Standalone is only safe if the
 content origin is genuinely a different host. That, not the iframe, is what `*.localhost` buys.
 
@@ -46,8 +46,8 @@ all SHOULD; the draft that says MUST (`draft-ietf-dnsop-let-localhost-be-localho
 and never became an RFC, yet W3C Secure Contexts cites it normatively. Chrome/Edge (since 2017) and
 Firefox (since 84) each ship a resolver short-circuit that never touches the OS. **WebKit ships
 none** — Safari falls through to the macOS system resolver, which only learned `*.localhost` in
-**macOS 26**. On macOS ≤ 15 the failure is total and product-shaped: *"Safari can't find the
-server"*, a blank Page in the default browser of someone who just typed `npx scholia ./docs`. Note
+**macOS 26**. On macOS ≤ 15 the failure is total and product-shaped: _"Safari can't find the
+server"_, a blank Page in the default browser of someone who just typed `npx scholia ./docs`. Note
 this is an **OS-version boundary, not a Safari-version one** — updating Safari does not help.
 
 So the decision is deliberately not a hard dependency. **The viewer probes the content origin at
@@ -68,7 +68,7 @@ fatal to zero-config.
 
 - **Stay compatible with portless, never depend on it.** Honour `PORT`/`HOST`; derive absolute URLs
   from `X-Forwarded-Host` falling back to `Host`; never assume `http:`; prefix the `content.` label
-  onto the *observed* host; trust no `X-Forwarded-*` header for authorization. All things a
+  onto the _observed_ host; trust no `X-Forwarded-*` header for authorization. All things a
   well-behaved server does anyway. Under portless's strict mode, `content.myapp.localhost` needs
   `--wildcard` or a second registered route.
 - **The probe and its fallback are a real, testable code path**, not a comment. It is the only thing
