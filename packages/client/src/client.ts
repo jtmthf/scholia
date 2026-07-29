@@ -22,7 +22,7 @@ export interface VersionAddedResult {
   shareUrl: string;
   version: number;
   entryPath: string;
-  migration: { migrated: number; outdated: number };
+  migration: { migrated: number; outdated: number; fallback: number };
 }
 
 export interface Provenance {

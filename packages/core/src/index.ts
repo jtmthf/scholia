@@ -41,6 +41,7 @@ export {
   type Anchor,
   type SelectionCandidate,
   type AnchorStatus,
+  type MatchKind,
   type MigrationResult,
 } from "./anchor/index.js";
 

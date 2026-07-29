@@ -294,7 +294,7 @@ export function sitesRoutes(getDeps: () => AppDeps) {
             shareUrl: `${deps.viewerUrl}/s/${slug}`,
             version: latest?.ordinal ?? 0,
             entryPath: pickEntryPath(latestManifest.pages),
-            migration: { migrated: 0, outdated: 0 },
+            migration: { migrated: 0, outdated: 0, fallback: 0 },
             deduped: true,
           },
           200,
