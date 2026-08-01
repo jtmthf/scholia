@@ -24,7 +24,11 @@ describe("ConversationCard", () => {
 
   it("labels a Page-level Conversation instead of quoting it", () => {
     const html = render(
-      <ConversationCard conversation={conversation({ anchor: null })} active={false} onActivate={() => {}} />,
+      <ConversationCard
+        conversation={conversation({ anchor: null })}
+        active={false}
+        onActivate={() => {}}
+      />,
     );
 
     expect(html).toContain(">Page comment<");
@@ -57,7 +61,9 @@ describe("ConversationCard", () => {
     });
 
     it("collapses to a comment count, hiding the bodies", () => {
-      const html = render(<ConversationCard conversation={resolved} active={false} onActivate={() => {}} />);
+      const html = render(
+        <ConversationCard conversation={resolved} active={false} onActivate={() => {}} />,
+      );
 
       expect(html).toContain("thread-card--resolved");
       expect(html).toContain("Resolved");
