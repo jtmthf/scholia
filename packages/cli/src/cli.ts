@@ -14,7 +14,15 @@ import {
 } from "@scholia/client";
 import { share } from "./share.js";
 import { resolveEditorPreference } from "./editor-preference.js";
-import { commentCreate, commentList } from "./comment-cli.js";
+import {
+  commentCreate,
+  commentDelete,
+  commentEdit,
+  commentList,
+  commentReact,
+  conversationDelete,
+  conversationResolve,
+} from "./comment-cli.js";
 
 const cli = cac("scholia");
 
@@ -79,6 +87,22 @@ interface CommentsOptions {
   page?: string;
   root?: string;
   json?: boolean;
+}
+
+interface ConversationOptions {
+  conversation?: string;
+  root?: string;
+}
+
+interface ReactCliOptions extends ConversationOptions {
+  comment?: string;
+  emoji?: string;
+  remove?: boolean;
+}
+
+interface CommentTargetOptions extends ConversationOptions {
+  comment?: string;
+  body?: string;
 }
 
 // Resolve the owner credential for an ops command the same way `share`/`chats` do:
@@ -324,6 +348,118 @@ cli
       process.exit(1);
     }
   });
+
+// The rest of the Conversation verb set (ADR-0032), at parity with what the
+// browser can do (ADR-0021) — this is how an agent resolves, reacts, edits and
+// deletes. Every one is an event appended to the Sidecar; nothing rewrites or
+// removes a document, including the deletes, which leave tombstones.
+//
+// Each names both ids because the Sidecar is keyed by Conversation, one file per
+// aggregate. `scholia comments --json` prints both.
+function registerConversationCommands(cli: CAC): void {
+  // One shape for every command below: report what happened, or fail with the
+  // reason `core` gave — which is written to be read by whoever ran it.
+  const run = async (action: () => Promise<void>) => {
+    try {
+      await action();
+    } catch (err) {
+      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  };
+
+  const required = (value: string | undefined, flag: string): string => {
+    if (!value) throw new Error(`${flag} is required`);
+    return value;
+  };
+
+  for (const [name, resolved] of [
+    ["resolve", true],
+    ["reopen", false],
+  ] as const) {
+    cli
+      .command(name, `Mark a local conversation as ${resolved ? "resolved" : "reopened"}`)
+      .option("--conversation <id>", "Conversation id")
+      .option("--root <dir>", "Project root directory (default: cwd)")
+      .action((options: ConversationOptions) =>
+        run(() =>
+          conversationResolve(
+            {
+              conversation: required(options.conversation, "--conversation"),
+              root: options.root,
+            },
+            resolved,
+          ),
+        ),
+      );
+  }
+
+  cli
+    .command("react", "Add or remove a reaction on a local comment")
+    .option("--conversation <id>", "Conversation id")
+    .option("--comment <id>", "Comment id")
+    .option("--emoji <emoji>", "One of 👍 👎 ✅ 👀 🎉 ❤️")
+    .option("--remove", "Take the reaction back instead of adding it")
+    .option("--root <dir>", "Project root directory (default: cwd)")
+    .action((options: ReactCliOptions) =>
+      run(() =>
+        commentReact({
+          conversation: required(options.conversation, "--conversation"),
+          comment: required(options.comment, "--comment"),
+          emoji: required(options.emoji, "--emoji"),
+          remove: options.remove ?? false,
+          root: options.root,
+        }),
+      ),
+    );
+
+  cli
+    .command("edit-comment", "Rewrite your own comment (the original stays in the stream)")
+    .option("--conversation <id>", "Conversation id")
+    .option("--comment <id>", "Comment id")
+    .option("--body <text>", "The new comment body")
+    .option("--root <dir>", "Project root directory (default: cwd)")
+    .action((options: CommentTargetOptions) =>
+      run(() =>
+        commentEdit({
+          conversation: required(options.conversation, "--conversation"),
+          comment: required(options.comment, "--comment"),
+          body: required(options.body, "--body"),
+          root: options.root,
+        }),
+      ),
+    );
+
+  cli
+    .command("delete-comment", "Leave a tombstone over a comment")
+    .option("--conversation <id>", "Conversation id")
+    .option("--comment <id>", "Comment id")
+    .option("--root <dir>", "Project root directory (default: cwd)")
+    .action((options: CommentTargetOptions) =>
+      run(() =>
+        commentDelete({
+          conversation: required(options.conversation, "--conversation"),
+          comment: required(options.comment, "--comment"),
+          root: options.root,
+        }),
+      ),
+    );
+
+  cli
+    .command("delete-conversation", "Leave a tombstone over a whole conversation")
+    .option("--conversation <id>", "Conversation id")
+    .option("--root <dir>", "Project root directory (default: cwd)")
+    .action((options: ConversationOptions) =>
+      run(() =>
+        conversationDelete({
+          conversation: required(options.conversation, "--conversation"),
+          root: options.root,
+        }),
+      ),
+    );
+}
+
+registerConversationCommands(cli);
 
 // Local Preview (ADR-0010): `scholia <path>` renders a local file or folder in
 // the browser — no account, no token, no network. The default entry point.

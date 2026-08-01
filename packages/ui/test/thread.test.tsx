@@ -98,8 +98,8 @@ describe("Thread", () => {
   });
 
   // ADR-0030: an absent port method is a surface the consumer doesn't have. The
-  // control is not rendered, rather than rendered and failing on click — Local
-  // Preview's Sidecar has only `comment` events so far (ADR-0019, issue #32).
+  // control is not rendered, rather than rendered and failing on click — the
+  // server render supplies none of them, because nothing has been clicked yet.
   describe("capabilities the consumer doesn't have", () => {
     it("drops Resolve when the port cannot record one", () => {
       const html = render(
@@ -179,6 +179,40 @@ describe("Comment", () => {
     );
 
     expect(html).not.toContain("comment-actions");
+  });
+
+  // CONTEXT "Owner": moderation is removing someone's words, never rewriting
+  // them — so the Owner gets Delete on a Comment that is not theirs, and no Edit.
+  it("offers the Owner delete on someone else's Comment, but never edit", () => {
+    const html = render(
+      <Comment comment={comment({ mine: false })} />,
+      stubPort({ canModerate: true }),
+    );
+
+    expect(html).toContain("comment-actions");
+    expect(html).toContain(">Delete<");
+    expect(html).not.toContain(">Edit<");
+    // Labelled as moderation, so a reader can tell which of the two they are doing.
+    expect(html).toContain("Owner moderation");
+  });
+
+  it("gives the Owner no moderation delete when the port cannot delete a Comment", () => {
+    const html = render(
+      <Comment comment={comment({ mine: false })} />,
+      stubPort({ canModerate: true, deleteComment: undefined }),
+    );
+
+    expect(html).not.toContain("comment-actions");
+  });
+
+  it("leaves the Owner's own Comment with the plain author affordances", () => {
+    const html = render(
+      <Comment comment={comment({ mine: true })} />,
+      stubPort({ canModerate: true }),
+    );
+
+    expect(html).toContain(">Edit<");
+    expect(html).not.toContain("Owner moderation");
   });
 });
 

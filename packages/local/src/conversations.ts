@@ -68,11 +68,10 @@ function identityFor(author: string): Identity {
 /**
  * Map a stored Conversation onto what the comment layer renders.
  *
- * Three fields are pinned rather than derived, and each is another ticket:
+ * Two fields are still pinned rather than derived, and each is another ticket:
  * `anchorStatus` is always "live" because continuous re-resolution and Outdated
- * are issue #30; `resolved` is always false because resolve is an event the
- * Sidecar cannot write yet (issue #32); `visibility` is always public because
- * Chats live in a separate directory that does not exist yet (issue #31).
+ * are issue #30; `visibility` is always public because Chats live in a separate
+ * directory that does not exist yet (issue #31).
  */
 export function toConversationDTO(conversation: Conversation, reader: string): ConversationDTO {
   return {
@@ -80,18 +79,24 @@ export function toConversationDTO(conversation: Conversation, reader: string): C
     pagePath: conversation.header.page,
     anchor: conversation.header.anchor,
     anchorStatus: "live",
-    resolved: false,
-    resolvedBy: null,
+    resolved: conversation.resolved,
+    resolvedBy: conversation.resolvedBy,
     visibility: "public",
     comments: conversation.comments.map((comment) => ({
       id: comment.id,
       author: identityFor(comment.author),
       body: comment.body,
       createdAt: comment.timestamp,
-      editedAt: null,
-      deleted: false,
+      editedAt: comment.editedAt,
+      deleted: comment.deleted,
       mine: comment.author === reader,
-      reactions: [],
+      // The rail counts reactions and asks whether the reader is among them;
+      // who else reacted is in the Sidecar for anyone reading the file.
+      reactions: comment.reactions.map((reaction) => ({
+        emoji: reaction.emoji,
+        count: reaction.authors.length,
+        mine: reaction.authors.includes(reader),
+      })),
     })),
   };
 }

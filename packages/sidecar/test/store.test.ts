@@ -10,7 +10,7 @@ import { mkdtemp, rm, readFile, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SidecarStore } from "../src/store.js";
-import type { Anchor } from "@scholia/core";
+import type { Anchor, ConversationEvent } from "@scholia/core";
 
 describe("SidecarStore", () => {
   let rootDir: string;
@@ -380,7 +380,7 @@ describe("SidecarStore", () => {
     expect(raw).not.toContain("provenance");
   });
 
-  // ---- appendComment ----
+  // ---- appendEvent ----
 
   async function seedConversation(id: string, commentId: string): Promise<void> {
     await store.createConversation({
@@ -401,14 +401,14 @@ describe("SidecarStore", () => {
     });
   }
 
-  test("appendComment adds a document without rewriting the ones before it", async () => {
+  test("appendEvent adds a document without rewriting the ones before it", async () => {
     const id = "00000000-0000-7000-8000-000000000020";
     await seedConversation(id, "00000000-0000-7000-8000-000000000021");
 
     const filePath = join(rootDir, ".scholia", "conversations", `${id}.yaml`);
     const before = await readFile(filePath, "utf8");
 
-    await store.appendComment(id, {
+    await store.appendEvent(id, {
       id: "00000000-0000-7000-8000-000000000022",
       type: "comment",
       timestamp: "2025-01-15T12:05:00.000Z",
@@ -429,7 +429,7 @@ describe("SidecarStore", () => {
     await seedConversation(id, "00000000-0000-7000-8000-000000000024");
 
     const body = "Look at this:\n---\nid: not-an-event\ntype: comment\n";
-    await store.appendComment(id, {
+    await store.appendEvent(id, {
       id: "00000000-0000-7000-8000-000000000025",
       type: "comment",
       timestamp: "2025-01-15T12:05:00.000Z",
@@ -442,9 +442,9 @@ describe("SidecarStore", () => {
     expect(conversation!.comments[1]!.body).toBe(body);
   });
 
-  test("appendComment rejects for a Conversation that does not exist", async () => {
+  test("appendEvent rejects for a Conversation that does not exist", async () => {
     await expect(
-      store.appendComment("00000000-0000-7000-8000-000000000026", {
+      store.appendEvent("00000000-0000-7000-8000-000000000026", {
         id: "00000000-0000-7000-8000-000000000027",
         type: "comment",
         timestamp: "2025-01-15T12:05:00.000Z",
@@ -456,9 +456,9 @@ describe("SidecarStore", () => {
 
   // The id is also the filename, so a caller-supplied id has to be refused
   // before it reaches `join` rather than escaping the store's directory.
-  test("appendComment refuses an id that is not a UUID", async () => {
+  test("appendEvent refuses an id that is not a UUID", async () => {
     await expect(
-      store.appendComment("../../escape", {
+      store.appendEvent("../../escape", {
         id: "00000000-0000-7000-8000-000000000028",
         type: "comment",
         timestamp: "2025-01-15T12:05:00.000Z",
@@ -532,5 +532,229 @@ describe("SidecarStore", () => {
 
     const results = await store.listConversations("readme.md");
     expect(results).toHaveLength(1);
+  });
+
+  // ---- The rest of the event set (ADR-0032) ----
+  //
+  // The store's claim about these is narrow and it is the whole point of the
+  // adapter: each one is a document appended to the end, serialized so it folds
+  // back to exactly what was written. What the events *mean* is core's fold,
+  // tested there.
+
+  test("every event kind is an append — the bytes before it never change", async () => {
+    const id = "00000000-0000-7000-8000-000000000030";
+    const commentId = "00000000-0000-7000-8000-000000000031";
+    await seedConversation(id, commentId);
+
+    const filePath = join(rootDir, ".scholia", "conversations", `${id}.yaml`);
+    let before = await readFile(filePath, "utf8");
+
+    const events: ConversationEvent[] = [
+      {
+        id: "00000000-0000-7000-8000-000000000032",
+        type: "edited",
+        timestamp: "2025-01-15T12:01:00.000Z",
+        author: "mallory",
+        target: commentId,
+        body: "edited body",
+      },
+      {
+        id: "00000000-0000-7000-8000-000000000033",
+        type: "reacted",
+        timestamp: "2025-01-15T12:02:00.000Z",
+        author: "trent",
+        target: commentId,
+        emoji: "👍",
+      },
+      {
+        id: "00000000-0000-7000-8000-000000000034",
+        type: "unreacted",
+        timestamp: "2025-01-15T12:03:00.000Z",
+        author: "trent",
+        target: commentId,
+        emoji: "👍",
+      },
+      {
+        id: "00000000-0000-7000-8000-000000000035",
+        type: "resolved",
+        timestamp: "2025-01-15T12:04:00.000Z",
+        author: "trent",
+      },
+      {
+        id: "00000000-0000-7000-8000-000000000036",
+        type: "reopened",
+        timestamp: "2025-01-15T12:05:00.000Z",
+        author: "mallory",
+      },
+      {
+        id: "00000000-0000-7000-8000-000000000037",
+        type: "deleted",
+        timestamp: "2025-01-15T12:06:00.000Z",
+        author: "mallory",
+        target: commentId,
+      },
+    ];
+
+    for (const event of events) {
+      await store.appendEvent(id, event);
+      const after = await readFile(filePath, "utf8");
+      expect(after.startsWith(before)).toBe(true);
+      before = after;
+    }
+
+    const conversation = (await store.getConversation(id))!;
+    expect(conversation.resolved).toBe(false);
+    expect(conversation.comments[0]!.deleted).toBe(true);
+  });
+
+  test("an `edited` event round-trips into the folded body", async () => {
+    const id = "00000000-0000-7000-8000-000000000038";
+    const commentId = "00000000-0000-7000-8000-000000000039";
+    await seedConversation(id, commentId);
+
+    // A body carrying the document separator and YAML syntax, because an edit
+    // has to escape exactly as well as the `comment` event it supersedes.
+    const body = "Rewritten:\n---\ntype: comment\n";
+    await store.appendEvent(id, {
+      id: "00000000-0000-7000-8000-00000000003a",
+      type: "edited",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "mallory",
+      target: commentId,
+      body,
+    });
+
+    const conversation = (await store.getConversation(id))!;
+    expect(conversation.comments[0]!.body).toBe(body);
+    expect(conversation.comments[0]!.editedAt).toBe("2025-01-15T12:05:00.000Z");
+  });
+
+  test("a reaction round-trips its emoji, and carries no body field", async () => {
+    const id = "00000000-0000-7000-8000-00000000003b";
+    const commentId = "00000000-0000-7000-8000-00000000003c";
+    await seedConversation(id, commentId);
+
+    await store.appendEvent(id, {
+      id: "00000000-0000-7000-8000-00000000003d",
+      type: "reacted",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "trent",
+      target: commentId,
+      emoji: "🎉",
+    });
+
+    const raw = await readFile(join(rootDir, ".scholia", "conversations", `${id}.yaml`), "utf8");
+    const last = raw.split("---\n").at(-1)!;
+    expect(last).toContain("emoji: 🎉");
+    expect(last).not.toContain("body:");
+
+    const conversation = (await store.getConversation(id))!;
+    expect(conversation.comments[0]!.reactions).toEqual([{ emoji: "🎉", authors: ["trent"] }]);
+  });
+
+  test("an author whose name contains spaces keeps their own reaction", async () => {
+    const id = "00000000-0000-7000-8000-00000000003e";
+    const commentId = "00000000-0000-7000-8000-00000000003f";
+    await seedConversation(id, commentId);
+
+    await store.appendEvent(id, {
+      id: "00000000-0000-7000-8000-000000000040",
+      type: "reacted",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "Ada Lovelace",
+      target: commentId,
+      emoji: "👍",
+    });
+    await store.appendEvent(id, {
+      id: "00000000-0000-7000-8000-000000000041",
+      type: "reacted",
+      timestamp: "2025-01-15T12:06:00.000Z",
+      author: "Grace Hopper",
+      target: commentId,
+      emoji: "👍",
+    });
+
+    const conversation = (await store.getConversation(id))!;
+    expect(conversation.comments[0]!.reactions).toEqual([
+      { emoji: "👍", authors: ["Ada Lovelace", "Grace Hopper"] },
+    ]);
+  });
+
+  // A committed Sidecar can be read by an older Scholia than the one that wrote
+  // it. An event kind this version has no opinion about must not cost the reader
+  // the whole Conversation.
+  test("an unrecognised event kind is skipped, not fatal", async () => {
+    const convDir = join(rootDir, ".scholia", "conversations");
+    await mkdir(convDir, { recursive: true });
+
+    const raw = [
+      "---",
+      "id: 00000000-0000-7000-8000-000000000042",
+      "page: readme.md",
+      "anchor: null",
+      "author: peggy",
+      "timestamp: '2025-01-15T12:00:00.000Z'",
+      "---",
+      "id: 00000000-0000-7000-8000-000000000043",
+      "type: comment",
+      "timestamp: '2025-01-15T12:00:00.000Z'",
+      "author: peggy",
+      "body: |",
+      "  still readable",
+      "---",
+      "id: 00000000-0000-7000-8000-000000000044",
+      "type: reanchored",
+      "timestamp: '2025-01-15T12:01:00.000Z'",
+      "author: peggy",
+      "anchor: null",
+      "",
+    ].join("\n");
+    await writeFile(join(convDir, "future.yaml"), raw);
+
+    const [conversation] = await store.listConversations("readme.md");
+    expect(conversation!.comments.map((c) => c.body)).toEqual(["still readable\n"]);
+  });
+
+  // ---- getConversation ----
+
+  test("getConversation folds one stream by id", async () => {
+    const id = "00000000-0000-7000-8000-000000000045";
+    await seedConversation(id, "00000000-0000-7000-8000-000000000046");
+
+    const conversation = await store.getConversation(id);
+    expect(conversation!.header.id).toBe(id);
+    expect(conversation!.comments[0]!.body).toBe("first");
+  });
+
+  // "Already gone" and "never existed" are different answers, and a command that
+  // has to authorize needs to tell them apart.
+  test("getConversation still returns a deleted Conversation, marked deleted", async () => {
+    const id = "00000000-0000-7000-8000-000000000047";
+    await seedConversation(id, "00000000-0000-7000-8000-000000000048");
+    await store.appendEvent(id, {
+      id: "00000000-0000-7000-8000-000000000049",
+      type: "deleted",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "mallory",
+      target: id,
+    });
+
+    const conversation = await store.getConversation(id);
+    expect(conversation!.deleted).toBe(true);
+    // The file is still there, with every document it ever had.
+    const raw = await readFile(join(rootDir, ".scholia", "conversations", `${id}.yaml`), "utf8");
+    expect(raw).toContain("first");
+
+    // The store reports it; dropping it from a Page is core's rule, not the
+    // adapter's (ADR-0032).
+    expect(await store.listConversations("readme.md")).toHaveLength(1);
+  });
+
+  test("getConversation is null for an id nothing carries", async () => {
+    expect(await store.getConversation("00000000-0000-7000-8000-00000000004a")).toBeNull();
+  });
+
+  test("getConversation refuses an id that is not a UUID", async () => {
+    await expect(store.getConversation("../../escape")).rejects.toThrow(/not a Conversation id/);
   });
 });

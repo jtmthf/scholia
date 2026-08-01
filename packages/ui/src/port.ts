@@ -22,8 +22,8 @@ import { useContext } from "preact/hooks";
  * - **An optional method is a surface the consumer doesn't have.** The same
  *   pattern as `Rail`'s optional `onBringAgent`: where a method is absent, the
  *   affordance that would call it isn't rendered at all, rather than rendered and
- *   failing. Local Preview supplies only what the Sidecar can honestly do today
- *   (ADR-0019: state changes are events, and only `comment` events exist so far).
+ *   failing. The server render supplies none of them, because nothing has been
+ *   clicked yet; Local Preview supplies everything the Sidecar can write.
  *
  * Methods reject with an `Error` whose message is fit to show a reader; the
  * component that initiated the call renders it inline.

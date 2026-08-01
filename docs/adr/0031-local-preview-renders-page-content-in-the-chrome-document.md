@@ -71,11 +71,11 @@ Two consequences fall out and are load-bearing:
 ### What Local Preview does not offer
 
 `@scholia/ui` gained optional port methods for this: a method the consumer does not supply
-is an affordance that is not rendered, rather than one that fails when clicked. Local
-Preview supplies `addComment` and nothing else, because the Sidecar can only write `comment`
-events so far (ADR-0019). Resolve, reopen, react, edit and delete are issue #32; Chats are
-issue #31; Outdated is issue #30. Until then those controls are absent from the local rail
-and unchanged in the hosted viewer, which supplies them all.
+is an affordance that is not rendered, rather than one that fails when clicked. When this
+ADR was written Local Preview supplied `addComment` and nothing else, because the Sidecar
+could only write `comment` events. Resolve, reopen, react, edit and delete arrived with
+ADR-0032 and are supplied now; Chats (`promote`) are issue #31 and Outdated is issue #30, so
+those remain absent from the local rail and unchanged in the hosted viewer.
 
 ## Considered Options
 

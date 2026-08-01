@@ -22,8 +22,14 @@ import {
   readHtmlMeta,
   renderedText,
   appendComment,
+  conversationErrorStatus,
   createConversation,
+  deleteComment,
+  deleteConversation,
+  editComment,
   listConversations,
+  setReaction,
+  setResolved,
   type NavNode,
   type DocRecord,
   type ManifestEntry,
@@ -359,27 +365,41 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return c.json({ conversations: toConversationDTOs(conversations, author) });
   }
 
-  interface CommentWrite {
+  interface PageWrite {
     pagePath: string;
+    input: Record<string, unknown>;
+  }
+
+  interface CommentWrite extends PageWrite {
     body: string;
     /** Present only when the caller sent a well-formed content hash. */
     contentHash: string | null;
     selection: SelectionInput | null;
   }
 
-  // Both write routes take the same shape and reject on the same grounds, so the
-  // guard, the parse and the validation live here rather than twice.
-  async function readCommentWrite(c: Context): Promise<CommentWrite | Response> {
+  // Every write route is guarded, parsed and scoped to a Page the same way, so
+  // that part lives here rather than once per verb.
+  async function readPageWrite(c: Context): Promise<PageWrite | Response> {
     const rejection = checkWriteRequest({
       method: c.req.method,
       header: (name) => c.req.header(name),
     });
     if (rejection) return c.json({ error: rejection.error }, rejection.status);
 
-    const input = await c.req.json().catch(() => null);
-    const pagePath = toPagePath(typeof input?.page === "string" ? input.page : "");
-    const body = typeof input?.body === "string" ? input.body.trim() : "";
+    const input = ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
+    const pagePath = toPagePath(typeof input.page === "string" ? input.page : "");
     if (!pagePath) return c.json({ error: "missing page" }, 400);
+
+    return { pagePath, input };
+  }
+
+  // The two routes that carry a Comment body add its validation and binding.
+  async function readCommentWrite(c: Context): Promise<CommentWrite | Response> {
+    const write = await readPageWrite(c);
+    if (write instanceof Response) return write;
+
+    const { input } = write;
+    const body = typeof input.body === "string" ? input.body.trim() : "";
     if (!body) return c.json({ error: "a comment needs a body" }, 400);
 
     // The hash is the Comment's binding, so anything that isn't one is dropped
@@ -388,7 +408,27 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     const claimed: unknown = input.contentHash;
     const contentHash = typeof claimed === "string" && isValidHash(claimed) ? claimed : null;
 
-    return { pagePath, body, contentHash, selection: (input.selection ?? null) as SelectionInput };
+    return {
+      ...write,
+      body,
+      contentHash,
+      selection: (input.selection ?? null) as SelectionInput,
+    };
+  }
+
+  // Whether this reader is the Owner — the person at this machine (CONTEXT
+  // "Owner"). The same test that decides whether "Open in editor" is offered
+  // (ADR-0017): a Tunnel guest may comment, because that is what a Tunnel is
+  // for, but moderating other people's Conversations stays with the host.
+  function isOwner(c: Context): boolean {
+    return isLocalView((name) => c.req.header(name));
+  }
+
+  // A refused command is the reader's answer, not a stack trace: `core` says why
+  // in words fit to show, and the code says which status that deserves.
+  function refused(c: Context, err: unknown) {
+    const message = err instanceof Error ? err.message : "that did not work";
+    return c.json({ error: message }, conversationErrorStatus(err));
   }
 
   app.get("/__conversations", async (c) => {
@@ -437,7 +477,105 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
         author,
       });
     } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : "append failed" }, 404);
+      return refused(c, err);
+    }
+
+    return respondWithConversations(c, write.pagePath);
+  });
+
+  // The rest of the verb set (ADR-0032). Each one is POST with an action in the
+  // path rather than a DELETE or a PATCH, because `checkWriteRequest` is a
+  // single same-origin POST guard and a second shape would be a second thing to
+  // get right. None of them touches an existing document: every one appends.
+
+  app.all("/__conversations/:id/resolve", async (c) => {
+    const write = await readPageWrite(c);
+    if (write instanceof Response) return write;
+
+    try {
+      await setResolved(sidecar, {
+        conversationId: c.req.param("id"),
+        resolved: write.input.resolved !== false,
+        author,
+      });
+    } catch (err) {
+      return refused(c, err);
+    }
+
+    return respondWithConversations(c, write.pagePath);
+  });
+
+  app.all("/__conversations/:id/comments/:commentId/edit", async (c) => {
+    const write = await readCommentWrite(c);
+    if (write instanceof Response) return write;
+
+    try {
+      await editComment(sidecar, {
+        conversationId: c.req.param("id"),
+        commentId: c.req.param("commentId"),
+        body: write.body,
+        author,
+      });
+    } catch (err) {
+      return refused(c, err);
+    }
+
+    return respondWithConversations(c, write.pagePath);
+  });
+
+  app.all("/__conversations/:id/comments/:commentId/delete", async (c) => {
+    const write = await readPageWrite(c);
+    if (write instanceof Response) return write;
+
+    try {
+      await deleteComment(sidecar, {
+        conversationId: c.req.param("id"),
+        commentId: c.req.param("commentId"),
+        author,
+        isOwner: isOwner(c),
+      });
+    } catch (err) {
+      return refused(c, err);
+    }
+
+    return respondWithConversations(c, write.pagePath);
+  });
+
+  app.all("/__conversations/:id/comments/:commentId/reactions", async (c) => {
+    const write = await readPageWrite(c);
+    if (write instanceof Response) return write;
+
+    const emoji = typeof write.input.emoji === "string" ? write.input.emoji : "";
+
+    try {
+      await setReaction(sidecar, {
+        conversationId: c.req.param("id"),
+        commentId: c.req.param("commentId"),
+        emoji,
+        author,
+        // Absent means toggle, which is what a click on a chip means. A caller
+        // that knows the state it wants says so.
+        ...(typeof write.input.on === "boolean" ? { on: write.input.on } : {}),
+      });
+    } catch (err) {
+      return refused(c, err);
+    }
+
+    return respondWithConversations(c, write.pagePath);
+  });
+
+  app.all("/__conversations/:id/delete", async (c) => {
+    const write = await readPageWrite(c);
+    if (write instanceof Response) return write;
+
+    try {
+      await deleteConversation(sidecar, {
+        conversationId: c.req.param("id"),
+        author,
+        isOwner: isOwner(c),
+      });
+    } catch (err) {
+      return refused(c, err);
     }
 
     return respondWithConversations(c, write.pagePath);
@@ -533,6 +671,10 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
             // "Comment"). A render error has no Page to bind to, so no rail.
             contentHash: page.contentHash,
             displayName: author,
+            // The same test as the editor button above, for the same reason: a
+            // moderation control a tunnelled guest would only ever get a 403
+            // from is a broken button (ADR-0017, ADR-0022).
+            canModerate: isOwner(c),
             conversations,
           }
         : null,

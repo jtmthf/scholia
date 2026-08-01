@@ -31,6 +31,11 @@ const SEED = {
   "gone.md": "# Gone\n\nThis Page says nothing the seeded Anchor quotes.\n",
   "server-rendered.md": "# Server Rendered\n\nReadable with JavaScript off.\n",
   "capabilities.md": "# Capabilities\n\nOnly what the Sidecar can do.\n",
+  "resolve.md": "# Resolve\n\nSomething to settle.\n",
+  "react.md": "# React\n\nSomething to react to.\n",
+  "edit.md": "# Edit\n\nSomething to rewrite.\n",
+  "delete.md": "# Delete\n\nSomething to take back.\n",
+  "moderate.md": "# Moderate\n\nSomething the Owner can remove.\n",
   // An HTML Page, to prove the comment layer is not a Markdown-only feature.
   "hand.html": [
     "<!doctype html>",
@@ -297,18 +302,134 @@ test("a reply lands in the Conversation it answers", async ({ page }) => {
   await expect(page.locator(".thread-card")).toContainText("Second word.");
 });
 
-// Local Preview's Sidecar can only write `comment` events so far (ADR-0019,
-// issue #32), and @scholia/ui renders an absent port method as an affordance
-// this surface doesn't have — not one that fails when clicked (ADR-0030).
+// @scholia/ui renders an absent port method as an affordance this surface
+// doesn't have — not one that fails when clicked (ADR-0030). Local Preview now
+// supplies every method the Sidecar can honour (ADR-0032); what it still cannot
+// do is Promote, because there are no Chats to promote from (issue #31).
 test("offers only what the Sidecar can actually do", async ({ page, request }) => {
   await seedComment(request, "capabilities.md", "Something to act on.");
   await page.goto(`${preview.url}/capabilities.md`);
 
   const card = page.locator(".thread-card").first();
   await expect(card.locator(".thread-action-btn", { hasText: "Reply" })).toBeVisible();
-  await expect(card.locator(".thread-action-btn--resolve")).toHaveCount(0);
-  await expect(card.locator(".thread-action-btn--delete")).toHaveCount(0);
-  await expect(card.locator(".reaction-chip")).toHaveCount(0);
+  await expect(card.locator(".thread-action-btn--resolve")).toBeVisible();
+  await expect(card.locator(".thread-action-btn--delete")).toBeVisible();
+  await expect(card.locator(".reaction-chip")).toHaveCount(6);
+  await expect(card.locator(".thread-action-btn--promote")).toHaveCount(0);
   // No tokens to hand out locally, so no "Bring your agent".
   await expect(page.locator(".bring-agent-btn")).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
+// The rest of the verb set (issue #32) in a real browser.
+//
+// The claim each of these makes is the same: the click produced an *event* on
+// disk, so the state survives a reload. Nothing here asserts an in-memory rail.
+// ---------------------------------------------------------------------------
+
+test("resolving collapses the Conversation, and reopening brings it back", async ({
+  page,
+  request,
+}) => {
+  await seedComment(request, "resolve.md", "Is this settled?");
+  await page.goto(`${preview.url}/resolve.md`);
+
+  const card = page.locator(".thread-card").first();
+  await card.locator(".thread-action-btn--resolve").click();
+
+  await expect(page.locator(".thread-card--resolved")).toHaveCount(1);
+  await expect(page.locator(".thread-resolved-badge")).toBeVisible();
+  // Collapsed to a summary — the Conversation is settled, not deleted.
+  await expect(page.locator(".thread-collapsed-summary")).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(".thread-card--resolved")).toHaveCount(1);
+  await expect(page.locator(".thread-collapsed-summary")).toBeVisible();
+
+  // Expanding names who settled it, and offers the way back.
+  await page.locator(".thread-collapsed-summary").click();
+  await expect(page.locator(".resolved-by")).toBeVisible();
+  await page.locator(".thread-action-btn--resolve").click();
+
+  await expect(page.locator(".thread-card--resolved")).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator(".thread-card--resolved")).toHaveCount(0);
+});
+
+test("a reaction can be added and taken back from the fixed palette", async ({ page, request }) => {
+  await seedComment(request, "react.md", "Worth a look.");
+  await page.goto(`${preview.url}/react.md`);
+
+  // No tallies yet, so the whole palette is offered — six and no picker.
+  const chips = page.locator(".thread-card .reaction-chip");
+  await expect(chips).toHaveCount(6);
+
+  await chips.filter({ hasText: "👍" }).click();
+
+  const tally = page.locator(".thread-card .reaction-chip--mine");
+  await expect(tally).toHaveCount(1);
+  await expect(tally).toContainText("1");
+
+  await page.reload();
+  await expect(page.locator(".thread-card .reaction-chip--mine")).toContainText("1");
+
+  // Clicking the chip again takes it back, and the palette returns.
+  await page.locator(".thread-card .reaction-chip--mine").click();
+  await expect(page.locator(".thread-card .reaction-chip")).toHaveCount(6);
+
+  await page.reload();
+  await expect(page.locator(".thread-card .reaction-chip--mine")).toHaveCount(0);
+});
+
+test("an author edits their own Comment, and it says so", async ({ page }) => {
+  await page.goto(`${preview.url}/edit.md`);
+
+  await commentOnSelection(page, "Something to rewrite", "Frist draft.");
+
+  await page.locator(".comment-action-btn", { hasText: "Edit" }).click();
+  await page.locator(".comment-edit-form textarea").fill("First draft.");
+  await page.locator(".comment-edit-form button[type=submit]").click();
+
+  await expect(page.locator(".comment-body")).toHaveText("First draft.");
+  await expect(page.locator(".comment-edited")).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(".comment-body")).toHaveText("First draft.");
+  await expect(page.locator(".comment-edited")).toBeVisible();
+});
+
+test("deleting a Comment leaves a tombstone in place", async ({ page }) => {
+  await page.goto(`${preview.url}/delete.md`);
+
+  await commentOnSelection(page, "Something to take back", "Said in haste.");
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.locator(".comment-action-btn", { hasText: "Delete" }).click();
+
+  await expect(page.locator(".comment-tombstone")).toBeVisible();
+  await expect(page.locator(".comment-rail")).not.toContainText("Said in haste.");
+
+  await page.reload();
+  await expect(page.locator(".comment-tombstone")).toBeVisible();
+});
+
+// CONTEXT "Owner": the reader at this machine may remove a whole Conversation.
+// The delete takes two clicks on purpose — it holds other people's words.
+test("the Owner deletes a whole Conversation, and it leaves the Page", async ({
+  page,
+  request,
+}) => {
+  await seedComment(request, "moderate.md", "Off topic entirely.");
+  await page.goto(`${preview.url}/moderate.md`);
+
+  await page.locator(".thread-action-btn--delete").click();
+  await page.locator(".thread-action-btn--delete", { hasText: "Confirm delete" }).click();
+
+  await expect(page.locator(".thread-card")).toHaveCount(0);
+  await expect(page.locator(".rail-empty")).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(".thread-card")).toHaveCount(0);
+  // The Sidecar still holds the file; what changed is what the fold shows.
+  expect(await stored(request, "moderate.md")).toEqual([]);
 });
