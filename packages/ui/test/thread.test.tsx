@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Comment, Composer, IdentityDisplay, Reactions, Thread } from "../src/index.js";
+import { Comment, Composer, ConversationCard, IdentityDisplay, Reactions } from "../src/index.js";
 import {
   comment,
   conversation,
@@ -9,10 +9,10 @@ import {
   stubPort,
 } from "./helpers/fixtures.js";
 
-describe("Thread", () => {
+describe("ConversationCard", () => {
   it("renders the anchor quote for an anchored Conversation", () => {
     const html = render(
-      <Thread
+      <ConversationCard
         conversation={conversation({ anchor: { textQuote: { exact: "a claim" } } })}
         active={false}
         onActivate={() => {}}
@@ -24,7 +24,7 @@ describe("Thread", () => {
 
   it("labels a Page-level Conversation instead of quoting it", () => {
     const html = render(
-      <Thread conversation={conversation({ anchor: null })} active={false} onActivate={() => {}} />,
+      <ConversationCard conversation={conversation({ anchor: null })} active={false} onActivate={() => {}} />,
     );
 
     expect(html).toContain(">Page comment<");
@@ -33,7 +33,7 @@ describe("Thread", () => {
 
   it('flags an Outdated Anchor while keeping the original quote (CONTEXT "Outdated")', () => {
     const html = render(
-      <Thread
+      <ConversationCard
         conversation={conversation({
           anchorStatus: "outdated",
           anchor: { textQuote: { exact: "what it used to say" } },
@@ -57,7 +57,7 @@ describe("Thread", () => {
     });
 
     it("collapses to a comment count, hiding the bodies", () => {
-      const html = render(<Thread conversation={resolved} active={false} onActivate={() => {}} />);
+      const html = render(<ConversationCard conversation={resolved} active={false} onActivate={() => {}} />);
 
       expect(html).toContain("thread-card--resolved");
       expect(html).toContain("Resolved");
@@ -67,7 +67,7 @@ describe("Thread", () => {
 
     it("singularises the collapsed count for one Comment", () => {
       const html = render(
-        <Thread
+        <ConversationCard
           conversation={conversation({ resolved: true, comments: [comment()] })}
           active={false}
           onActivate={() => {}}
@@ -80,7 +80,7 @@ describe("Thread", () => {
 
   it("offers Reply and Resolve, and Reopen once resolved", () => {
     const open = render(
-      <Thread conversation={conversation()} active={false} onActivate={() => {}} />,
+      <ConversationCard conversation={conversation()} active={false} onActivate={() => {}} />,
     );
     expect(open).toContain(">Reply<");
     expect(open).toContain(">Resolve<");
@@ -88,7 +88,7 @@ describe("Thread", () => {
     // Expanded via the collapsed summary in the browser; unresolved is enough to
     // pin the caption flip here.
     const reopened = render(
-      <Thread
+      <ConversationCard
         conversation={conversation({ resolved: false, resolvedBy: "Jane" })}
         active={false}
         onActivate={() => {}}
@@ -103,7 +103,7 @@ describe("Thread", () => {
   describe("capabilities the consumer doesn't have", () => {
     it("drops Resolve when the port cannot record one", () => {
       const html = render(
-        <Thread conversation={conversation()} active={false} onActivate={() => {}} />,
+        <ConversationCard conversation={conversation()} active={false} onActivate={() => {}} />,
         stubPort({ setResolved: undefined }),
       );
 
@@ -114,7 +114,7 @@ describe("Thread", () => {
 
     it("drops Promote when the port cannot promote, even on a promotable Chat", () => {
       const html = render(
-        <Thread
+        <ConversationCard
           conversation={conversation({ visibility: "private" })}
           active={false}
           onActivate={() => {}}
@@ -129,7 +129,7 @@ describe("Thread", () => {
 
     it("drops Delete for a moderator whose port cannot delete a Conversation", () => {
       const html = render(
-        <Thread conversation={conversation()} active={false} onActivate={() => {}} />,
+        <ConversationCard conversation={conversation()} active={false} onActivate={() => {}} />,
         stubPort({ canModerate: true, deleteConversation: undefined }),
       );
 
@@ -139,7 +139,7 @@ describe("Thread", () => {
 
   it("names the resolver only while the Conversation is resolved", () => {
     const html = render(
-      <Thread
+      <ConversationCard
         conversation={conversation({ resolvedBy: "Reviewer Jane", resolved: false })}
         active={false}
         onActivate={() => {}}

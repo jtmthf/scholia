@@ -50,38 +50,29 @@ export function Reactions({ commentId, reactions }: ReactionsProps) {
     );
   }
 
-  if (visible.length === 0) {
-    return (
-      <div class="reactions">
-        {REACTION_PALETTE.map((emoji) => (
-          <button
-            key={emoji}
-            class="reaction-chip"
-            title={`React with ${emoji}`}
-            disabled={pending !== null}
-            onClick={() => void handleToggle(emoji)}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
-    );
-  }
+  // Pick the list: full palette when nothing used yet, reacted emoji otherwise.
+  const items = visible.length > 0 ? visible : REACTION_PALETTE;
 
   return (
     <div class="reactions">
-      {visible.map((emoji) => {
-        const group = grouped.get(emoji)!;
+      {items.map((emoji) => {
+        const group = grouped.get(emoji);
         return (
           <button
             key={emoji}
-            class={`reaction-chip${group.mine ? " reaction-chip--mine" : ""}`}
-            title={`${emoji} ${group.count}${group.mine ? " (you reacted)" : ""}`}
+            class={`reaction-chip${group?.mine ? " reaction-chip--mine" : ""}`}
+            title={
+              group
+                ? `${emoji} ${group.count}${group.mine ? " (you reacted)" : ""}`
+                : `React with ${emoji}`
+            }
             disabled={pending !== null}
             onClick={() => void handleToggle(emoji)}
           >
             {emoji}
-            <span class="reaction-chip__count">{group.count}</span>
+            {group !== undefined && group.count > 0 && (
+              <span class="reaction-chip__count">{group.count}</span>
+            )}
           </button>
         );
       })}

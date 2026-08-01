@@ -6,7 +6,7 @@
 // their build wants it.
 
 export { Rail, type OutdatedOrigin } from "./Rail.js";
-export { Thread } from "./Thread.js";
+export { ConversationCard } from "./ConversationCard.js";
 export { Comment } from "./Comment.js";
 export { Composer } from "./Composer.js";
 export { Reactions } from "./Reactions.js";
