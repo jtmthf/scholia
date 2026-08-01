@@ -1,4 +1,4 @@
-import { Thread } from "./Thread.js";
+import { ConversationCard } from "./ConversationCard.js";
 import type { ConversationDTO } from "./types.js";
 
 /**
@@ -39,8 +39,8 @@ interface RailProps {
 }
 
 // The right-hand comment rail: the reader's private Chats first, then anchored
-// public Threads, then page-level Threads, each rendered as a Thread card.
-// Resolved Conversations render collapsed (handled in Thread). To start an
+// public Threads, then page-level Threads, each rendered as a ConversationCard.
+// Resolved Conversations render collapsed (handled in ConversationCard). To start an
 // anchored Conversation the user selects text in the content (handled by the
 // consumer, which owns the content surface); the rail only offers the page-level +
 // agent entry points.
@@ -63,8 +63,8 @@ export function Rail({
   const anchored = conversations.filter((c) => c.anchor !== null && c.anchorStatus === "live");
   const pageLevel = conversations.filter((c) => c.anchor === null && c.anchorStatus === "live");
 
-  const renderThread = (c: ConversationDTO) => (
-    <Thread
+  const renderConversation = (c: ConversationDTO) => (
+    <ConversationCard
       key={c.id}
       conversation={c}
       active={c.id === activeConversationId}
@@ -75,7 +75,7 @@ export function Rail({
   // A Chat card carries the lock affordance and a Promote control — the reader
   // always owns every Chat in this list, so Promote is always available.
   const renderChat = (c: ConversationDTO) => (
-    <Thread
+    <ConversationCard
       key={c.id}
       conversation={c}
       active={c.id === activeConversationId}
@@ -117,14 +117,14 @@ export function Rail({
       {anchored.length > 0 && (
         <div class="rail-section">
           <h3 class="rail-section-title">Anchored ({anchored.length})</h3>
-          {anchored.map(renderThread)}
+          {anchored.map(renderConversation)}
         </div>
       )}
 
       {pageLevel.length > 0 && (
         <div class="rail-section">
           <h3 class="rail-section-title">Page comments ({pageLevel.length})</h3>
-          {pageLevel.map(renderThread)}
+          {pageLevel.map(renderConversation)}
         </div>
       )}
 
@@ -141,7 +141,7 @@ export function Rail({
                     {origin.label}
                   </a>
                 )}
-                {renderThread(c)}
+                {renderConversation(c)}
               </div>
             );
           })}

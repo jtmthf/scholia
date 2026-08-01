@@ -5,7 +5,7 @@ import { Composer } from "./Composer.js";
 import { PromoteDialog } from "./PromoteDialog.js";
 import type { ConversationDTO } from "./types.js";
 
-interface ThreadProps {
+interface ConversationCardProps {
   conversation: ConversationDTO;
   /** Highlighted because its anchor highlight was clicked / it's selected. */
   active: boolean;
@@ -22,13 +22,18 @@ interface ThreadProps {
 // private Chat (all mutations go through the same port methods). A Chat additionally
 // carries a lock affordance and, for its owning reader, a Promote control. Resolved
 // Conversations collapse to a summary.
-export function Thread({
+//
+// NOTE: CSS class names like thread-card, thread-card--private, etc. intentionally
+// do not match the component name. They are asserted by e2e/tests/comment.spec.ts
+// and are part of the rendered DOM — renaming them is a separate decision tracked
+// separately.
+export function ConversationCard({
   conversation,
   active,
   onActivate,
   isPrivate = false,
   promotable = false,
-}: ThreadProps) {
+}: ConversationCardProps) {
   const port = useComments();
   const [expanded, setExpanded] = useState(!conversation.resolved);
   const [replying, setReplying] = useState(false);
@@ -43,7 +48,7 @@ export function Thread({
   const canResolve = port.setResolved !== undefined;
   const canPromote = promotable && port.promote !== undefined;
 
-  async function deleteThread() {
+  async function deleteConversation() {
     if (!port.deleteConversation) return;
     try {
       await port.deleteConversation(conversation.id);
@@ -166,7 +171,7 @@ export function Thread({
                   <>
                     <button
                       class="thread-action-btn thread-action-btn--delete"
-                      onClick={() => void deleteThread()}
+                      onClick={() => void deleteConversation()}
                     >
                       Confirm delete
                     </button>
