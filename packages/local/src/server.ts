@@ -25,6 +25,7 @@ import {
   createConversation,
   listConversations,
   htmlToDerivedText,
+  acceptsMarkdown,
   type NavNode,
   type DocRecord,
   type ManifestEntry,
@@ -489,24 +490,12 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return c.body(new Uint8Array(buf), 200, { "Content-Type": contentType(target) });
   });
 
-  // Check whether the request's Accept header prefers text/markdown (Issue #64).
-  function acceptsMarkdown(c: Context): boolean {
-    const accept = c.req.header("Accept");
-    if (!accept) return false;
-    for (const part of accept.split(",")) {
-      const trimmed = part.trim();
-      if (/\bq=0\b/.test(trimmed)) continue;
-      if (/^text\/markdown\b/i.test(trimmed)) return true;
-    }
-    return false;
-  }
-
   // Serve the Page's Source (verbatim or derived) instead of its rendered HTML.
   // Returns null when the caller should proceed to render the Page normally.
   // Uses the render cache so the source bytes are read from disk at most once.
   async function maybeServeRawSource(c: Context, fsPath: string): Promise<Response | null> {
     const isRaw = c.req.query("raw") !== undefined;
-    const wantMd = acceptsMarkdown(c);
+    const wantMd = acceptsMarkdown(c.req.header("Accept") ?? null);
     if (!isRaw && !wantMd) return null;
 
     const kind = classifyFile(fsPath);
@@ -523,7 +512,11 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     // ?raw returns the Source verbatim with the correct Content-Type.
     if (isRaw) {
       const ct = kind === "html" ? "text/html; charset=utf-8" : "text/markdown; charset=utf-8";
-      return c.body(source, 200, { "Content-Type": ct, "X-Content-Type-Options": "nosniff" });
+      return c.body(source, 200, {
+        "Content-Type": ct,
+        "X-Content-Type-Options": "nosniff",
+        "X-Scholia-Source": "verbatim",
+      });
     }
 
     // Accept: text/markdown — negotiate the Source representation.
@@ -533,12 +526,14 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       return c.body(htmlToDerivedText(source), 200, {
         "Content-Type": "text/markdown; charset=utf-8",
         "X-Content-Type-Options": "nosniff",
+        "X-Scholia-Source": "derived",
       });
     }
     // Markdown Page: the Source _is_ text/markdown.
     return c.body(source, 200, {
       "Content-Type": "text/markdown; charset=utf-8",
       "X-Content-Type-Options": "nosniff",
+      "X-Scholia-Source": "verbatim",
     });
   }
 

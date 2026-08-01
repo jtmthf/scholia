@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { describeRoute } from "hono-openapi";
-import { contentType, pickEntryPath, rewriteInterPageLinks, htmlToDerivedText } from "@scholia/core";
+import { contentType, pickEntryPath, rewriteInterPageLinks, htmlToDerivedText, acceptsMarkdown } from "@scholia/core";
 import { getLatestManifest, getManifestByOrdinal, type PageEntry } from "@scholia/db";
 import type { AppDeps } from "../config.js";
 import { renderContentDocument, prepareHtmlDocument } from "../content.js";
@@ -87,23 +87,6 @@ function baseHeaders() {
   } as const;
 }
 
-// Check whether the request's Accept header prefers text/markdown (Issue #64).
-// Returns true when text/markdown is present with a non-zero quality factor and
-// is not explicitly excluded (q=0).
-function acceptsMarkdown(c: Context): boolean {
-  const accept = c.req.header("Accept");
-  if (!accept) return false;
-  // Split on comma, extract media type and optional q-value.
-  for (const part of accept.split(",")) {
-    const trimmed = part.trim();
-    // q=0 means "I do NOT accept this type".
-    if (/\bq=0\b/.test(trimmed)) continue;
-    // Match "text/markdown" with optional parameters.
-    if (/^text\/markdown\b/i.test(trimmed)) return true;
-  }
-  return false;
-}
-
 // Serve the Page's Source (verbatim or derived) instead of its rendered HTML.
 // Returns a Response when the request asks for source; returns null when the
 // caller should proceed to serve the rendered Page.
@@ -122,6 +105,7 @@ async function maybeServeSource(
     return c.body(bytes as unknown as Uint8Array<ArrayBuffer>, 200, {
       "Content-Type": ct,
       "X-Content-Type-Options": "nosniff",
+      "X-Scholia-Source": "verbatim",
       ...baseHeaders(),
     });
   }
@@ -130,7 +114,7 @@ async function maybeServeSource(
   // - Markdown Page: same bytes as `?raw` (the Source).
   // - HTML Page: best-effort derived text — NOT the Source, NOT safe for
   //   constructing source ranges (Issue #64: "Source vs representation").
-  if (acceptsMarkdown(c)) {
+  if (acceptsMarkdown(c.req.header("Accept") ?? null)) {
     const bytes = await deps.store.get(page.contentHash);
     if (!bytes) return c.notFound();
     c.header("Vary", "Accept");
@@ -139,6 +123,7 @@ async function maybeServeSource(
       return c.body(text, 200, {
         "Content-Type": "text/markdown; charset=utf-8",
         "X-Content-Type-Options": "nosniff",
+        "X-Scholia-Source": "derived",
         ...baseHeaders(),
       });
     }
@@ -146,6 +131,7 @@ async function maybeServeSource(
     return c.body(bytes as unknown as Uint8Array<ArrayBuffer>, 200, {
       "Content-Type": "text/markdown; charset=utf-8",
       "X-Content-Type-Options": "nosniff",
+      "X-Scholia-Source": "verbatim",
       ...baseHeaders(),
     });
   }

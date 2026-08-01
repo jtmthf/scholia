@@ -124,3 +124,20 @@ export function htmlToDerivedText(html: string): string {
     .replace(/^\n+/, "")
     .replace(/\n+$/, "");
 }
+
+/**
+ * Check whether an HTTP Accept header prefers text/markdown (Issue #64).
+ * Returns true when text/markdown is present with a non-zero quality factor
+ * and is not explicitly excluded (q=0).
+ */
+export function acceptsMarkdown(accept: string | null): boolean {
+  if (!accept) return false;
+  for (const part of accept.split(",")) {
+    const trimmed = part.trim();
+    // q=0 means "I do NOT accept this type".
+    if (/\bq=0\b/.test(trimmed)) continue;
+    // Match "text/markdown" with optional parameters.
+    if (/^text\/markdown\b/i.test(trimmed)) return true;
+  }
+  return false;
+}
