@@ -2,9 +2,10 @@ import type { VNode } from "preact";
 import { renderToString } from "preact-render-to-string";
 import { prerender } from "preact-iso";
 import { locationStub } from "preact-iso/prerender";
-import { dehydrate } from "@tanstack/react-query";
+import { dehydrate, type QueryClient } from "@tanstack/react-query";
 import { App } from "./app.js";
 import { Document, type Assets } from "./document.js";
+import { serializeErrors } from "./data/error-serialization.js";
 import { createQueryClient, prefetchSiteView } from "./data/queries.js";
 import { matchSiteRoute, pinnedVersion } from "./routes.js";
 import { ErrorView, NotFoundView } from "./shell/states.js";
@@ -35,13 +36,15 @@ export async function render(url: string, assets: Assets): Promise<RenderResult>
     const result = await prefetchSiteView(client, matched.slug, matched.pagePath, version);
 
     // The failure views are rendered here rather than left to the shell's own
-    // branches, because the cache can't express a failure to a one-shot render: an
-    // errored query that would refetch on mount reports as *pending*, which is the
-    // right answer in a browser and "Loading…" forever in a document. Errors aren't
-    // dehydrated either, so the client refetches and reaches the same view itself.
-    if (result.outcome === "not-found") return failureDocument(<NotFoundView />, 404, assets);
+    // branches. An errored query that would refetch on mount reports as *pending*
+    // during a one-shot render — "Loading…" forever in a document. Instead of
+    // discarding the errored cache and forcing the client to refetch, we dehydrate
+    // it with `shouldDehydrateQuery` so the client picks up the same error state,
+    // skips the loading flash, and renders the correct view immediately.
+    if (result.outcome === "not-found")
+      return failureDocument(<NotFoundView />, 404, assets, client);
     if (result.outcome === "error") {
-      return failureDocument(<ErrorView message={result.message} />, 500, assets);
+      return failureDocument(<ErrorView message={result.message} />, 500, assets, client);
     }
   }
 
@@ -58,12 +61,22 @@ export async function render(url: string, assets: Assets): Promise<RenderResult>
 }
 
 /**
- * A document for a URL that couldn't be rendered: just the failure view, with an
- * empty cache behind it. The client still hydrates and re-requests, arriving at the
- * same view under its own steam.
+ * A document for a URL that couldn't be rendered: just the failure view, with the
+ * errored query cache behind it. The client hydrates, finds the same error in the
+ * cache, and renders the failure view directly — no loading flash, no redundant
+ * request.
  */
-function failureDocument(view: VNode, status: number, assets: Assets): RenderResult {
-  const html = wrapInDocument(renderToString(view), { mutations: [], queries: [] }, assets);
+function failureDocument(
+  view: VNode,
+  status: number,
+  assets: Assets,
+  client: QueryClient,
+): RenderResult {
+  const state = dehydrate(client, { shouldDehydrateQuery: () => true });
+  // Errors are not JSON-safe: their non-enumerable fields (name, message) would
+  // be lost. Serialize them into plain objects before the cache is stringified.
+  serializeErrors(state);
+  const html = wrapInDocument(renderToString(view), state, assets);
   return { html, status };
 }
 
