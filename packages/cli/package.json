@@ -40,7 +40,8 @@
   },
   "dependencies": {
     "cac": "^7.0.0",
-    "open": "^11.0.0"
+    "open": "^11.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@scholia/client": "workspace:*",

@@ -14,6 +14,7 @@ import {
 } from "@scholia/client";
 import { share } from "./share.js";
 import { resolveEditorPreference } from "./editor-preference.js";
+import { commentCreate, commentList } from "./comment-cli.js";
 
 const cli = cac("scholia");
 
@@ -63,6 +64,21 @@ interface PreviewOptions {
   open: boolean;
   mdx: boolean;
   editor?: string;
+}
+
+interface CommentOptions {
+  page?: string;
+  body?: string;
+  anchor?: string;
+  prefix?: string;
+  suffix?: string;
+  root?: string;
+}
+
+interface CommentsOptions {
+  page?: string;
+  root?: string;
+  json?: boolean;
 }
 
 // Resolve the owner credential for an ops command the same way `share`/`chats` do:
@@ -263,6 +279,51 @@ function registerHostedCommands(cli: CAC): void {
 }
 
 if (HOSTED_ENABLED) registerHostedCommands(cli);
+
+// Local Conversations (ADR-0018, ADR-0019): `scholia comment` creates a
+// Conversation with its first Comment on a Page; `scholia comments` lists
+// them. No server, no token, no network — stored in .scholia/ beside the content.
+cli
+  .command("comment", "Create an anchored comment on a local page")
+  .option("--page <path>", "Page path (relative to project root)", { default: "." })
+  .option("--body <text>", "Comment body text", { default: "" })
+  .option("--anchor <text>", "Exact text to anchor the comment to")
+  .option("--prefix <text>", "Leading context for the anchor quote")
+  .option("--suffix <text>", "Trailing context for the anchor quote")
+  .option("--root <dir>", "Project root directory (default: cwd)")
+  .action(async (options: CommentOptions) => {
+    try {
+      await commentCreate({
+        page: options.page ?? ".",
+        body: options.body ?? "",
+        anchor: options.anchor,
+        prefix: options.prefix,
+        suffix: options.suffix,
+        root: options.root,
+      });
+    } catch (err) {
+      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+cli
+  .command("comments", "List conversations on a local page")
+  .option("--page <path>", "Page path (relative to project root)", { default: "." })
+  .option("--root <dir>", "Project root directory (default: cwd)")
+  .option("--json", "Output as JSON")
+  .action(async (options: CommentsOptions) => {
+    try {
+      await commentList({
+        page: options.page ?? ".",
+        root: options.root,
+        json: options.json ?? false,
+      });
+    } catch (err) {
+      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
 
 // Local Preview (ADR-0010): `scholia <path>` renders a local file or folder in
 // the browser — no account, no token, no network. The default entry point.
