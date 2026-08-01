@@ -72,6 +72,9 @@ importers:
       open:
         specifier: ^11.0.0
         version: 11.0.0
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@scholia/client':
         specifier: workspace:*
@@ -169,6 +172,9 @@ importers:
       unist-util-visit:
         specifier: ^5.1.0
         version: 5.1.0
+      uuid:
+        specifier: ^14.0.1
+        version: 14.0.1
       vfile:
         specifier: ^6.0.3
         version: 6.0.3

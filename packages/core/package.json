@@ -34,6 +34,7 @@
     "shiki": "^4.2.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
+    "uuid": "^14.0.1",
     "vfile": "^6.0.3",
     "vfile-matter": "^5.0.1"
   },

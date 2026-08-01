@@ -76,3 +76,8 @@ export * from "./blob/index.js";
 // MirrorProvider port + outbound domain events (M10, ADR-0008). Pure domain
 // shape; @scholia/github is the v1 impl, server is where HTTP + db meet it.
 export * from "./mirror/index.js";
+
+// Conversation port + use cases (ADR-0018, ADR-0019, ADR-0020).
+// ConversationRepository port, domain types, createConversation and
+// listConversations use cases. Pure domain — no HTTP, no db.
+export * from "./conversation/index.js";
