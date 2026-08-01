@@ -21,6 +21,8 @@ export interface DocRecord {
   title: string;
   body: string;
   headings: Heading[];
+  /** Positional order within its directory in Nav order (0 = first). */
+  order?: number;
 }
 
 export interface RenderResult {

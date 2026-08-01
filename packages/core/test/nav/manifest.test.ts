@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { buildNav, pickEntryPath, type ManifestEntry } from "../../src/nav/manifest.js";
+import { buildNav, pickEntryPath, compareEntryPaths, type ManifestEntry } from "../../src/nav/manifest.js";
 import type { NavNode } from "../../src/types.js";
 
 function md(path: string, title?: string): ManifestEntry {
@@ -21,7 +21,7 @@ describe("buildNav", () => {
     ]);
     expect(tree.map((n) => n.title)).toEqual(["Home", "Guide"]);
     const guide = tree.find((n) => n.type === "dir")!;
-    // README floats first; the dir follows. Inside, files alphabetical by title.
+    // README floats first; the dir follows. Inside, files ordered by filename.
     expect(guide.children!.map((n) => n.title)).toEqual(["Advanced Usage", "Intro"]);
     // urlPath is the Site-relative Page path (what the viewer routes on).
     const intro = guide.children!.find((n) => n.title === "Intro")!;
@@ -92,6 +92,82 @@ describe("pickEntryPath", () => {
     // Scoped to "docs/adr": no index/README there, falls back to the first
     // Page directly inside that directory, alphabetically.
     expect(pickEntryPath(entries, "docs/adr")).toBe("docs/adr/0001-foo.md");
+  });
+
+  test("numeric-prefixed directories sort by numeric value, not lexicographic (10-guide > 9-intro)", () => {
+    // 10-guide would come before 9-intro in pure lexicographic sort
+    // ('1' < '9'), but Nav uses numeric-aware collation so 9 < 10.
+    const entries = [
+      md("docs/9-intro/index.md"),
+      md("docs/10-guide/index.md"),
+    ];
+    // Both are scoped under docs/ and not top-level. The first in Nav order
+    // (numeric-aware) should be 9-intro before 10-guide.
+    expect(pickEntryPath(entries, "docs")).toBe("docs/9-intro/index.md");
+  });
+
+  test("numeric-prefixed entries at the top level use numeric ordering", () => {
+    const entries = [md("10-guide.md"), md("9-intro.md")];
+    expect(pickEntryPath(entries)).toBe("9-intro.md");
+  });
+
+  test("honours explicit `order` field over filename sort", () => {
+    const a = md("b.md", "B");
+    a.order = 0;
+    const z = md("a.md", "A");
+    z.order = 1;
+    expect(pickEntryPath([z, a])).toBe("b.md");
+  });
+
+  test("entries with no explicit order sort after those with order", () => {
+    const noOrder = md("a.md");
+    const hasOrder = md("z.md", "Z");
+    hasOrder.order = 0;
+    expect(pickEntryPath([noOrder, hasOrder])).toBe("z.md");
+  });
+
+  test("index.htm is not recognised as an Entry Page", () => {
+    expect(pickEntryPath([html("index.htm"), md("a.md")])).toBe("a.md");
+  });
+
+  test("scoped fallback uses Nav order across subdirectories", () => {
+    // docs/api/ sorts before docs/guide/ alphabetically, so docs/api/overview.md
+    // should be the first descendant in depth-first Nav order.
+    const entries = [
+      md("docs/guide/intro.md"),
+      md("docs/api/overview.md"),
+    ];
+    expect(pickEntryPath(entries, "docs")).toBe("docs/api/overview.md");
+  });
+});
+
+describe("compareEntryPaths", () => {
+  test("sorts README/index before non-index files", () => {
+    expect(compareEntryPaths("README.md", "zebra.md")).toBeLessThan(0);
+    expect(compareEntryPaths("index.html", "apple.md")).toBeLessThan(0);
+    expect(compareEntryPaths("apple.md", "README.md")).toBeGreaterThan(0);
+  });
+
+  test("README.md and index.html are both treated as index files — both sort before non-index", () => {
+    // Both are index; the shared function sorts them by filename, then named
+    // precedence in pickEntryPath enforces the specific Entry Page order.
+    expect(compareEntryPaths("README.md", "apple.md")).toBeLessThan(0);
+    expect(compareEntryPaths("index.html", "apple.md")).toBeLessThan(0);
+  });
+
+  test("uses numeric-aware collation (10 > 9)", () => {
+    expect(compareEntryPaths("9-intro.md", "10-guide.md")).toBeLessThan(0);
+    expect(compareEntryPaths("10-guide.md", "9-intro.md")).toBeGreaterThan(0);
+  });
+
+  test("honours explicit order over filename", () => {
+    // "z.md" with order=0 sorts before "a.md" with order=1
+    expect(compareEntryPaths("z.md", "a.md", 0, 1)).toBeLessThan(0);
+    expect(compareEntryPaths("a.md", "z.md", 1, 0)).toBeGreaterThan(0);
+  });
+
+  test("entries with no order sort after those with order", () => {
+    expect(compareEntryPaths("z.md", "a.md", 0, undefined)).toBeLessThan(0);
   });
 });
 

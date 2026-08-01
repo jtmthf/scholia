@@ -7,14 +7,13 @@ import { readHtmlMeta } from "../ingest/html.js";
 import { renderedText } from "../ingest/rendered-text.js";
 import { humanize } from "../util/text.js";
 import { disambiguateSiblings } from "./disambiguate.js";
+import { compareEntryPaths } from "./manifest.js";
 import type { Heading, NavNode, DocRecord } from "../types.js";
 
 export interface ScanResult {
   tree: NavNode[];
   docs: DocRecord[];
 }
-
-const INDEX_RE = /^(readme|index)$/i;
 
 function stripExt(name: string): string {
   return name.replace(/\.(md|markdown|mdx|html?)$/i, "");
@@ -44,10 +43,6 @@ async function readMeta(dir: string): Promise<{ order: string[]; titles: Record<
   return { order: [], titles: {} };
 }
 
-function isIndexNode(node: NavNode): boolean {
-  return node.type === "file" && INDEX_RE.test(stripExt(basename(node.fsPath)));
-}
-
 export async function scanTree(root: string): Promise<ScanResult> {
   const docs: DocRecord[] = [];
 
@@ -55,6 +50,8 @@ export async function scanTree(root: string): Promise<ScanResult> {
     const entries = await readdir(dir, { withFileTypes: true });
     const meta = await readMeta(dir);
     const nodes: NavNode[] = [];
+    // Map urlPath -> index in docs[] so we can assign positional order after sort.
+    const docIndexByUrl = new Map<string, number>();
 
     for (const entry of entries) {
       if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
@@ -104,11 +101,23 @@ export async function scanTree(root: string): Promise<ScanResult> {
           humanize(stripExt(entry.name));
         const urlPath = toUrlPath(root, full);
         nodes.push({ type: "file", title, urlPath, fsPath: full, order: orderOf(fm) });
+        docIndexByUrl.set(urlPath, docs.length);
         docs.push({ urlPath, fsPath: full, title, body: content, headings });
       }
     }
 
     nodes.sort((a, b) => compare(a, b, meta.order));
+
+    // Assign positional order to each DocRecord so Entry Page resolution
+    // (which uses the flat manifest) can honour Nav order — including _meta.json
+    // and frontmatter `order` — without re-deriving it.
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i]!;
+      if (node.type !== "file") continue;
+      const idx = docIndexByUrl.get(node.urlPath);
+      if (idx !== undefined) docs[idx]!.order = i;
+    }
+
     return nodes;
   }
 
@@ -118,22 +127,20 @@ export async function scanTree(root: string): Promise<ScanResult> {
 }
 
 function compare(a: NavNode, b: NavNode, metaOrder: string[]): number {
-  // README/index documents always float to the top of their directory.
-  const ai = isIndexNode(a) ? 0 : 1;
-  const bi = isIndexNode(b) ? 0 : 1;
-  if (ai !== bi) return ai - bi;
-
-  // Explicit _meta order wins next.
+  // Explicit _meta order wins first — it encodes the directory's deliberate
+  // ordering and takes priority over everything else.
   const am = metaOrder.indexOf(basename(a.fsPath));
   const bm = metaOrder.indexOf(basename(b.fsPath));
   if (am !== -1 || bm !== -1) {
     return (am === -1 ? Infinity : am) - (bm === -1 ? Infinity : bm);
   }
 
-  // Then frontmatter order, then by filename (not label) with numeric-aware
-  // collation — never by title, so numbered conventions like `0001-…` stay in
-  // sequence even once the label itself comes from prose (an H1), per CONTEXT
-  // "Nav".
-  if (a.order !== b.order) return a.order - b.order;
-  return basename(a.fsPath).localeCompare(basename(b.fsPath), undefined, { numeric: true });
+  // Then delegate to the shared Nav ordering: index-first, then frontmatter
+  // `order`, then numeric-aware filename collation — never by label.
+  return compareEntryPaths(
+    basename(a.fsPath),
+    basename(b.fsPath),
+    a.order,
+    b.order,
+  );
 }
