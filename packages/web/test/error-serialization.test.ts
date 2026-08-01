@@ -21,7 +21,7 @@ describe("serializeErrors", () => {
 
     serializeErrors(state);
 
-    const err = state.queries[0].state.error as Record<string, unknown>;
+    const err = state.queries[0]!.state.error as unknown as Record<string, unknown>;
     expect(err.__errorName).toBe("SiteNotFoundError");
     expect(err.message).toBe('No Site at "nope".');
   });
@@ -31,7 +31,7 @@ describe("serializeErrors", () => {
 
     serializeErrors(state);
 
-    expect(state.queries[0].state.error).toBe("just a string");
+    expect(state.queries[0]!.state.error).toBe("just a string");
   });
 
   it("handles undefined error", () => {
@@ -39,7 +39,7 @@ describe("serializeErrors", () => {
 
     serializeErrors(state);
 
-    expect(state.queries[0].state.error).toBeUndefined();
+    expect(state.queries[0]!.state.error).toBeUndefined();
   });
 
   it("handles empty queries array", () => {
@@ -58,7 +58,7 @@ describe("deserializeErrors", () => {
     // `deserializeErrors` receives the post-JSON.parse state.
     deserializeErrors(state);
 
-    const err = state.queries[0].state.error;
+    const err = state.queries[0]!.state.error;
     expect(err).toBeInstanceOf(SiteNotFoundError);
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toBe('No Site at "nope".');
@@ -70,7 +70,7 @@ describe("deserializeErrors", () => {
     serializeErrors(state);
     deserializeErrors(state);
 
-    const err = state.queries[0].state.error;
+    const err = state.queries[0]!.state.error;
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toBe("boom");
     expect((err as Error).name).toBe("Error");
@@ -82,9 +82,9 @@ describe("deserializeErrors", () => {
     deserializeErrors(state);
 
     // Second deserialize should be a no-op: the error is already an Error instance.
-    const before = state.queries[0].state.error;
+    const before = state.queries[0]!.state.error;
     deserializeErrors(state);
-    expect(state.queries[0].state.error).toBe(before);
+    expect(state.queries[0]!.state.error).toBe(before);
   });
 
   it("leaves a non-serialized-error value unchanged", () => {
@@ -92,6 +92,6 @@ describe("deserializeErrors", () => {
 
     deserializeErrors(state);
 
-    expect(state.queries[0].state.error).toBe("just a string");
+    expect(state.queries[0]!.state.error).toBe("just a string");
   });
 });
