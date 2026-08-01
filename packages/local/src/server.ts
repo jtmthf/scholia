@@ -24,6 +24,7 @@ import {
   appendComment,
   createConversation,
   listConversations,
+  htmlToDerivedText,
   type NavNode,
   type DocRecord,
   type ManifestEntry,
@@ -473,12 +474,73 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       if (!(await exists(target))) return c.notFound();
     }
 
-    if (isDoc(target)) return renderDoc(c, target, true);
+    if (isDoc(target)) {
+      // ?raw or Accept: text/markdown → serve the Page's Source (Issue #64).
+      // Uses the render cache so the source is read at most once — the render
+      // above already ingested it, and we reuse that copy rather than re-reading
+      // the file.
+      const rawResp = await maybeServeRawSource(c, target);
+      if (rawResp) return rawResp;
+      return renderDoc(c, target, true);
+    }
 
     // Non-doc sibling file (image, etc.) referenced by a document.
     const buf = await readFile(target);
     return c.body(new Uint8Array(buf), 200, { "Content-Type": contentType(target) });
   });
+
+  // Check whether the request's Accept header prefers text/markdown (Issue #64).
+  function acceptsMarkdown(c: Context): boolean {
+    const accept = c.req.header("Accept");
+    if (!accept) return false;
+    for (const part of accept.split(",")) {
+      const trimmed = part.trim();
+      if (/\bq=0\b/.test(trimmed)) continue;
+      if (/^text\/markdown\b/i.test(trimmed)) return true;
+    }
+    return false;
+  }
+
+  // Serve the Page's Source (verbatim or derived) instead of its rendered HTML.
+  // Returns null when the caller should proceed to render the Page normally.
+  // Uses the render cache so the source bytes are read from disk at most once.
+  async function maybeServeRawSource(c: Context, fsPath: string): Promise<Response | null> {
+    const isRaw = c.req.query("raw") !== undefined;
+    const wantMd = acceptsMarkdown(c);
+    if (!isRaw && !wantMd) return null;
+
+    const kind = classifyFile(fsPath);
+    // For HTML Pages, the render cache holds the source in page.source.
+    // For Markdown/MDX Pages, same — read from cache to avoid re-reading.
+    let source: string;
+    try {
+      const page = await pages.render(fsPath);
+      source = page.source;
+    } catch {
+      return c.notFound();
+    }
+
+    // ?raw returns the Source verbatim with the correct Content-Type.
+    if (isRaw) {
+      const ct = kind === "html" ? "text/html; charset=utf-8" : "text/markdown; charset=utf-8";
+      return c.body(source, 200, { "Content-Type": ct, "X-Content-Type-Options": "nosniff" });
+    }
+
+    // Accept: text/markdown — negotiate the Source representation.
+    c.header("Vary", "Accept");
+    if (kind === "html") {
+      // Best-effort derived text — NOT the Source, NOT safe for source ranges.
+      return c.body(htmlToDerivedText(source), 200, {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+      });
+    }
+    // Markdown Page: the Source _is_ text/markdown.
+    return c.body(source, 200, {
+      "Content-Type": "text/markdown; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+    });
+  }
 
   async function renderDoc(c: Context, fsPath: string, showNav: boolean) {
     const currentPath = toUrlPath(opts.rootDir, fsPath);

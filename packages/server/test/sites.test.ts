@@ -235,4 +235,93 @@ describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
     expect((await app.request("/sites/nope-nope-nope")).status).toBe(404);
     expect((await app.request("/content/sites/nope-nope-nope")).status).toBe(404);
   });
+
+  describe("?raw and Accept: text/markdown (Issue #64)", () => {
+    const INDEX_HTML =
+      "<!doctype html><html><head><title>Raw Test</title></head>" +
+      "<body><h1>Raw HTML Page</h1><p>Some <em>content</em> here.</p></body></html>";
+    const README_MD_ISSUE64 = "# Raw Markdown\n\nThis is the **Source**.\n";
+
+    let slug: string;
+
+    beforeAll(async () => {
+      const res = await uploadSite([
+        { path: "index.html", kind: "html", bytes: enc.encode(INDEX_HTML) },
+        { path: "README.md", kind: "markdown", bytes: enc.encode(README_MD_ISSUE64) },
+      ]);
+      const body = await res.json();
+      slug = body.slug;
+    });
+
+    test("?raw on a Markdown Page returns Source verbatim as text/markdown", async () => {
+      const res = await app.request(`/content/sites/${slug}/README.md?raw`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      const text = await res.text();
+      expect(text).toBe(README_MD_ISSUE64);
+    });
+
+    test("?raw on an HTML Page returns Source verbatim as text/html", async () => {
+      const res = await app.request(`/content/sites/${slug}/index.html?raw`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+      const text = await res.text();
+      expect(text).toBe(INDEX_HTML);
+    });
+
+    test("Accept: text/markdown on a Markdown Page returns the Source with Vary: Accept", async () => {
+      const res = await app.request(`/content/sites/${slug}/README.md`, {
+        headers: { Accept: "text/markdown" },
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+      expect(res.headers.get("vary")).toContain("Accept");
+      const text = await res.text();
+      expect(text).toBe(README_MD_ISSUE64);
+    });
+
+    test("Accept: text/markdown on an HTML Page returns derived text with Vary: Accept", async () => {
+      const res = await app.request(`/content/sites/${slug}/index.html`, {
+        headers: { Accept: "text/markdown" },
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+      expect(res.headers.get("vary")).toContain("Accept");
+      const text = await res.text();
+      // Derived text — extracted content, not the verbatim HTML.
+      expect(text).toContain("Raw HTML Page");
+      expect(text).toContain("Some content here.");
+      expect(text).not.toContain("<!doctype html>");
+      expect(text).not.toContain("<h1>");
+    });
+
+    test("Accept: text/markdown, */* on HTML Page gets derived text via q-value", async () => {
+      const res = await app.request(`/content/sites/${slug}/index.html`, {
+        headers: { Accept: "text/markdown, */*;q=0.5" },
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+      const text = await res.text();
+      expect(text).toContain("Raw HTML Page");
+    });
+
+    test("no ?raw, no Accept → rendered HTML as before", async () => {
+      const res = await app.request(`/content/sites/${slug}/README.md`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toMatch(/text\/html/);
+      const html = await res.text();
+      expect(html).toContain("data-sm=");
+      expect(html).toContain("Raw Markdown");
+    });
+
+    test("?raw with any value triggers raw mode (bare key is the convention)", async () => {
+      const res = await app.request(`/content/sites/${slug}/README.md?raw=1`);
+      expect(res.status).toBe(200);
+      // ?raw is present → Source, not rendered HTML.
+      expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+      expect(await res.text()).toBe(README_MD_ISSUE64);
+    });
+  });
 });
