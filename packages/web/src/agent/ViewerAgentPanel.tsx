@@ -1,7 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
-import { API_BASE, mintViewerAgentToken } from "../api";
+import { API_BASE, mintViewerAgentToken } from "../api.js";
 import { ensureViewer } from "../viewer";
-import "./agent.css";
 
 interface ViewerAgentPanelProps {
   slug: string;

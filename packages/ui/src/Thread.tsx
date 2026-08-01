@@ -1,44 +1,35 @@
 import { useState } from "preact/hooks";
-import { addComment, ownerDeleteConversation, setResolved, type ConversationDTO } from "../api";
-import { getViewer, setDisplayName } from "../viewer";
-import { Comment } from "./Comment";
-import { Composer } from "./Composer";
-import { PromoteDialog } from "./PromoteDialog";
+import { useComments } from "./port.js";
+import { Comment } from "./Comment.js";
+import { Composer } from "./Composer.js";
+import { PromoteDialog } from "./PromoteDialog.js";
+import type { ConversationDTO } from "./types.js";
 
 interface ThreadProps {
-  slug: string;
   conversation: ConversationDTO;
   /** Highlighted because its anchor highlight was clicked / it's selected. */
   active: boolean;
-  onNeedViewer: () => Promise<{ viewerId: string; displayName: string }>;
-  /** Refetch conversations after any mutation. */
-  onChanged: () => void;
   /** User clicked the card → scroll its anchor into view. */
   onActivate: () => void;
   /** Render a lock affordance + muted styling (a private Chat, not a Thread). */
   isPrivate?: boolean;
-  /** Show the Promote control (the owning Viewer flipping a Chat → Thread). */
+  /** Show the Promote control (the owning reader flipping a Chat → Thread). */
   promotable?: boolean;
-  /** Owner token — when present, show the owner-only "Delete" moderation control. */
-  ownerToken?: string | null;
 }
 
 // One Conversation card: its anchor quote (or "Page comment"), its flat comment
 // list, a reply composer, and resolve/reopen — identical for a public Thread and a
-// private Chat (all mutations use the same endpoints). A Chat additionally carries
-// a lock affordance and, for its owning Viewer, a Promote control. Resolved
+// private Chat (all mutations go through the same port methods). A Chat additionally
+// carries a lock affordance and, for its owning reader, a Promote control. Resolved
 // Conversations collapse to a summary.
 export function Thread({
-  slug,
   conversation,
   active,
-  onNeedViewer,
-  onChanged,
   onActivate,
   isPrivate = false,
   promotable = false,
-  ownerToken = null,
 }: ThreadProps) {
+  const port = useComments();
   const [expanded, setExpanded] = useState(!conversation.resolved);
   const [replying, setReplying] = useState(false);
   const [promoting, setPromoting] = useState(false);
@@ -47,10 +38,8 @@ export function Thread({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function deleteThread() {
-    if (!ownerToken) return;
     try {
-      await ownerDeleteConversation(slug, ownerToken, conversation.id);
-      onChanged();
+      await port.deleteConversation(conversation.id);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Delete failed.");
     }
@@ -58,21 +47,14 @@ export function Thread({
 
   const anchored = conversation.anchor !== null;
   const outdated = conversation.anchorStatus === "outdated";
-  const viewerName = getViewer(slug)?.displayName;
+  const viewerName = port.displayName;
 
   async function submitReply(body: string, displayName: string) {
     setSubmitting(true);
     setError(null);
     try {
-      const { viewerId } = await onNeedViewer();
-      if (displayName && !viewerName) setDisplayName(slug, displayName);
-      await addComment(slug, conversation.id, {
-        body,
-        viewerId,
-        displayName: displayName || viewerName || "Anonymous",
-      });
+      await port.addComment(conversation.id, { body, displayName });
       setReplying(false);
-      onChanged();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Reply failed.");
     } finally {
@@ -82,12 +64,7 @@ export function Thread({
 
   async function toggleResolved() {
     try {
-      const { viewerId, displayName } = await onNeedViewer();
-      await setResolved(slug, conversation.id, !conversation.resolved, {
-        viewerId,
-        displayName: displayName || viewerName || "Anonymous",
-      });
-      onChanged();
+      await port.setResolved(conversation.id, !conversation.resolved);
     } catch {
       // ignore — state stays as-is
     }
@@ -135,14 +112,7 @@ export function Thread({
         <>
           <div class="thread-body" onClick={(e) => e.stopPropagation()}>
             {conversation.comments.map((c) => (
-              <Comment
-                key={c.id}
-                slug={slug}
-                comment={c}
-                onUpdated={onChanged}
-                onDeleted={onChanged}
-                onNeedViewer={onNeedViewer}
-              />
+              <Comment key={c.id} comment={c} />
             ))}
           </div>
 
@@ -155,7 +125,7 @@ export function Thread({
               <Composer
                 placeholder="Reply…"
                 needsName={!viewerName}
-                currentName={viewerName}
+                currentName={viewerName ?? undefined}
                 isSubmitting={submitting}
                 error={error}
                 onSubmit={submitReply}
@@ -181,7 +151,7 @@ export function Thread({
               >
                 {conversation.resolved ? "Reopen" : "Resolve"}
               </button>
-              {ownerToken &&
+              {port.canModerate &&
                 (confirmDelete ? (
                   <>
                     <button
@@ -210,13 +180,7 @@ export function Thread({
 
       {promoting && (
         <div onClick={(e) => e.stopPropagation()}>
-          <PromoteDialog
-            slug={slug}
-            conversation={conversation}
-            onNeedViewer={onNeedViewer}
-            onPromoted={onChanged}
-            onClose={() => setPromoting(false)}
-          />
+          <PromoteDialog conversation={conversation} onClose={() => setPromoting(false)} />
         </div>
       )}
     </div>

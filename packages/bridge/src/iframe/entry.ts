@@ -418,6 +418,13 @@ interface SelectionCandidate {
       const m = e.data.msg;
 
       switch (m["type"]) {
+        // The parent started listening after our one-shot `ready` — announce again
+        // so it can flush whatever it queued meanwhile. Idempotent on both sides.
+        case "ping":
+          send({ type: "ready" });
+          reportHeight();
+          break;
+
         case "set-theme":
           parentControlled = true;
           root.classList.toggle("dark", m["theme"] === "dark");

@@ -7,6 +7,33 @@ accepted (supersedes the Fastify + React choices in PLAN §1)
 > **Update (2026-07-26):** "collab"/`@collab/*` below refers to what is now
 > named Scholia/`@scholia/*` (workspace/env-var rename, issue #15). Left as
 > originally written.
+>
+> **Update (2026-07-29):** the "interactive data-cache SPA" described below is now
+> built (issue #26). The specifics this ADR left open, for the record:
+>
+> - **Query cache:** `@tanstack/react-query`, on Preact via a `react` →
+>   `preact/compat` alias. The alias must also apply to the server bundle, so
+>   react-query is listed in `ssr.noExternal` (aliases don't reach externalized deps)
+>   and inlined in `vitest.config.ts` for the same reason.
+> - **Router:** `preact-iso` — the Preact team's, ~1kB, and isomorphic, which is what
+>   this ADR's SSR requirement needs. Its URL matcher is an internal API, so
+>   `packages/web/src/routes.ts` owns the pattern, its inverse, and the server-side
+>   match together.
+> - **SSR:** a Hono route in `@scholia/web` itself, still a separate origin from the
+>   API and reading it over HTTP — the viewer holds no database credentials. Dev runs
+>   through `@hono/vite-dev-server`; production runs two Vite builds, client then
+>   SSR, so both halves go through Vite and the alias holds either way.
+> - **The document is a Preact component,** not an `index.html` Vite transforms —
+>   the same idiom as the Local Preview chrome, so "Preact everywhere" now reaches
+>   `<html>` on both surfaces. Dev and production differ only in which asset URLs it
+>   emits.
+> - **"SSRs the shell and public Threads, then hydrates" is literal.** Everything
+>   keyed to _who_ is reading — Viewer identity, the Owner token, private Chats,
+>   `mine` affordances — is in `localStorage`, which the server cannot see, so it
+>   renders after hydration. The SSR'd markup is exactly what an anonymous
+>   first-time reader sees, and hydration matches it rather than correcting it.
+>
+> The comment layer moved out to `@scholia/ui` in the same change (ADR-0030).
 
 ## Context & Decision
 

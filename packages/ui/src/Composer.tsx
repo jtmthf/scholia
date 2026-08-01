@@ -5,7 +5,7 @@ interface ComposerProps {
   label?: string;
   /** Placeholder text */
   placeholder?: string;
-  /** If the viewer has no display name yet, prompt for one inline */
+  /** If the reader has no display name yet, prompt for one inline */
   needsName: boolean;
   currentName?: string;
   isSubmitting?: boolean;

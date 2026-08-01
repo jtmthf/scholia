@@ -1,17 +1,15 @@
 import { useState } from "preact/hooks";
-import { editComment, deleteComment, type CommentDTO, type ReactionGroup } from "../api";
-import { IdentityDisplay } from "./Identity";
-import { Reactions } from "./Reactions";
+import { useComments } from "./port.js";
+import { IdentityDisplay } from "./Identity.js";
+import { Reactions } from "./Reactions.js";
+import type { CommentDTO } from "./types.js";
 
 interface CommentProps {
-  slug: string;
   comment: CommentDTO;
-  onUpdated: (updated: CommentDTO) => void;
-  onDeleted: (id: string) => void;
-  onNeedViewer: () => Promise<{ viewerId: string; displayName: string }>;
 }
 
-export function Comment({ slug, comment, onUpdated, onDeleted, onNeedViewer }: CommentProps) {
+export function Comment({ comment }: CommentProps) {
+  const port = useComments();
   const [editing, setEditing] = useState(false);
   const [editBody, setEditBody] = useState(comment.body);
   const [editError, setEditError] = useState<string | null>(null);
@@ -37,9 +35,7 @@ export function Comment({ slug, comment, onUpdated, onDeleted, onNeedViewer }: C
     setEditPending(true);
     setEditError(null);
     try {
-      const { viewerId } = await onNeedViewer();
-      const updated = await editComment(slug, comment.id, { body, viewerId });
-      onUpdated(updated);
+      await port.editComment(comment.id, { body });
       setEditing(false);
     } catch (err: unknown) {
       setEditError(err instanceof Error ? err.message : "Edit failed.");
@@ -51,16 +47,10 @@ export function Comment({ slug, comment, onUpdated, onDeleted, onNeedViewer }: C
   async function handleDelete() {
     if (!confirm("Delete this comment?")) return;
     try {
-      const { viewerId } = await onNeedViewer();
-      await deleteComment(slug, comment.id, viewerId);
-      onDeleted(comment.id);
+      await port.deleteComment(comment.id);
     } catch {
       // ignore — comment stays visible
     }
-  }
-
-  function handleReactionsUpdated(reactions: ReactionGroup[]) {
-    onUpdated({ ...comment, reactions });
   }
 
   if (comment.deleted) {
@@ -106,15 +96,7 @@ export function Comment({ slug, comment, onUpdated, onDeleted, onNeedViewer }: C
         <div class="comment-body">{comment.body}</div>
       )}
 
-      <Reactions
-        slug={slug}
-        commentId={comment.id}
-        reactions={comment.reactions}
-        viewerId={null}
-        displayName=""
-        onUpdated={handleReactionsUpdated}
-        onNeedViewer={onNeedViewer}
-      />
+      <Reactions commentId={comment.id} reactions={comment.reactions} />
 
       {comment.mine && !comment.deleted && (
         <div class="comment-actions">

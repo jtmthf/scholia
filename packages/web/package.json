@@ -5,16 +5,24 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --ssr src/node.ts",
+    "start": "node dist/server/node.js",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.6",
     "@scholia/bridge": "workspace:*",
     "@scholia/core": "workspace:*",
-    "preact": "^10.29.2"
+    "@scholia/ui": "workspace:*",
+    "@tanstack/react-query": "^5.101.4",
+    "hono": "^4.12.26",
+    "preact": "^10.29.2",
+    "preact-iso": "^2.12.1",
+    "preact-render-to-string": "^6.7.0"
   },
   "devDependencies": {
+    "@hono/vite-dev-server": "^0.26.1",
     "@preact/preset-vite": "^2.10.0",
     "typescript": "^7.0.2",
     "vite": "^6.0.7"

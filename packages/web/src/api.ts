@@ -159,63 +159,20 @@ export async function fetchPageDiff(
 // "agent" (M5 only produces human viewers; agents arrive via the API in M7).
 // ----------------------------------------------------------------------------
 
-export interface Identity {
-  name: string;
-  kind: "human" | "agent";
-  tier: "owner" | "viewer";
-  onBehalfOf?: string;
-  source: "native" | "github";
-}
+// The Conversation shapes are the comment layer's own (@scholia/ui) — it renders
+// them, so it defines them. The wire format matches, so the API responses are
+// these types directly; re-exported here so call sites have one import for the
+// data layer.
+export type {
+  Anchor,
+  CommentDTO,
+  ConversationDTO,
+  Identity,
+  ReactionGroup,
+  TextQuote,
+} from "@scholia/ui";
 
-export interface TextQuote {
-  exact: string;
-  prefix?: string;
-  suffix?: string;
-}
-
-export interface Anchor {
-  textQuote: TextQuote;
-  sourceRange?: { start: number; end: number };
-  xpath?: string;
-  css?: string;
-}
-
-// Grouped reaction for one emoji on one comment (fixed review palette).
-export interface ReactionGroup {
-  emoji: string;
-  count: number;
-  /** Whether the current Viewer has this reaction (for toggle UI). */
-  mine: boolean;
-}
-
-export interface CommentDTO {
-  id: string;
-  author: Identity;
-  /** Empty string when the comment is a tombstone (`deleted` true). */
-  body: string;
-  createdAt: string;
-  editedAt: string | null;
-  deleted: boolean;
-  /** Whether the current Viewer authored this comment (for edit/delete UI). */
-  mine: boolean;
-  reactions: ReactionGroup[];
-}
-
-export interface ConversationDTO {
-  id: string;
-  /** The Page this Thread is on; null for a Site/page-level Thread. */
-  pagePath: string | null;
-  /** Anchored span; null for a page-level Thread (no highlight). */
-  anchor: Anchor | null;
-  anchorStatus: "live" | "outdated";
-  /** Ordinal of the Version this Thread was created on (Outdated permalink). */
-  createdOrdinal: number;
-  resolved: boolean;
-  resolvedBy: string | null;
-  /** Private Chat (owning Viewer + its agents only) vs public Thread — CONTEXT. */
-  visibility: "public" | "private";
-  comments: CommentDTO[];
-}
+import type { CommentDTO, ConversationDTO, ReactionGroup, TextQuote } from "@scholia/ui";
 
 // The anchor candidate the viewer submits when starting an anchored Thread.
 // Mirrors `@scholia/bridge` SelectionEvent.candidate: the uniquely-expanded quote
@@ -226,9 +183,6 @@ export interface AnchorInput {
   xpath?: string;
   css?: string;
 }
-
-// The fixed review-oriented reaction palette (CONTEXT "Reaction").
-export const REACTION_PALETTE = ["👍", "👎", "✅", "👀", "🎉", "❤️"] as const;
 
 async function jsonOrThrow<T>(res: Response, what: string): Promise<T> {
   if (!res.ok) throw new Error(`${what} failed (${res.status}).`);

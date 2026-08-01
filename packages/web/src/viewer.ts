@@ -2,9 +2,9 @@
 // "private from casual view, not secure" — CONTEXT "Viewer".
 // Key: scholia:viewer:<slug> → { viewerId: string; displayName?: string }
 
-import { mintViewer } from "./api";
+import { mintViewer } from "./api.js";
 
-interface StoredViewer {
+export interface StoredViewer {
   viewerId: string;
   displayName?: string;
 }
@@ -23,12 +23,24 @@ function readStored(slug: string): StoredViewer | null {
   }
 }
 
+// The store is read during render (does this Viewer have a name yet?) but written
+// from event handlers, so a write has to be able to tell the tree. localStorage
+// fires no same-document event, hence the listener set.
+const listeners = new Set<() => void>();
+
+/** Subscribe to Viewer changes. Returns an unsubscribe function. */
+export function subscribeViewer(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 function writeStored(slug: string, viewer: StoredViewer): void {
   try {
     localStorage.setItem(storageKey(slug), JSON.stringify(viewer));
   } catch {
     // localStorage may be unavailable (private browsing quota exhausted, etc.)
   }
+  for (const listener of listeners) listener();
 }
 
 /** Read the stored Viewer for a Site, or null if none yet. */

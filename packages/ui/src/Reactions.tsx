@@ -1,17 +1,14 @@
 import { useState } from "preact/hooks";
-import { REACTION_PALETTE, toggleReaction, type ReactionGroup } from "../api";
+import { useComments } from "./port.js";
+import { REACTION_PALETTE, type ReactionGroup } from "./types.js";
 
 interface ReactionsProps {
-  slug: string;
   commentId: string;
   reactions: ReactionGroup[];
-  viewerId: string | null;
-  displayName: string;
-  onUpdated: (reactions: ReactionGroup[]) => void;
-  onNeedViewer: () => Promise<{ viewerId: string; displayName: string }>;
 }
 
-export function Reactions({ slug, commentId, reactions, onUpdated, onNeedViewer }: ReactionsProps) {
+export function Reactions({ commentId, reactions }: ReactionsProps) {
+  const port = useComments();
   const [pending, setPending] = useState<string | null>(null);
 
   // Build a map of emoji → ReactionGroup for all palette entries.
@@ -24,12 +21,7 @@ export function Reactions({ slug, commentId, reactions, onUpdated, onNeedViewer 
     if (pending) return;
     setPending(emoji);
     try {
-      const { viewerId, displayName } = await onNeedViewer();
-      const updated = await toggleReaction(slug, commentId, emoji, {
-        viewerId,
-        displayName,
-      });
-      onUpdated(updated);
+      await port.toggleReaction(commentId, emoji);
     } catch {
       // silently ignore — the chip stays in its current state
     } finally {
