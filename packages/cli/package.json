@@ -40,13 +40,13 @@
   },
   "dependencies": {
     "cac": "^7.0.0",
-    "open": "^11.0.0",
-    "yaml": "^2.9.0"
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@scholia/client": "workspace:*",
     "@scholia/core": "workspace:*",
     "@scholia/local": "workspace:*",
+    "@scholia/sidecar": "workspace:*",
     "fflate": "^0.8.2",
     "tsup": "^8.5.1",
     "tsx": "^4.19.2"

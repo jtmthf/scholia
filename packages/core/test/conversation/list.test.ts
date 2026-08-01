@@ -27,6 +27,7 @@ describe("listConversations", () => {
     const listSpy = vi.fn().mockResolvedValue(canned);
     const repo: ConversationRepository = {
       createConversation: vi.fn(),
+      appendComment: vi.fn(),
       listConversations: listSpy,
     };
 
@@ -38,6 +39,7 @@ describe("listConversations", () => {
   test("returns empty array when no Conversations exist for the page", async () => {
     const repo: ConversationRepository = {
       createConversation: vi.fn(),
+      appendComment: vi.fn(),
       listConversations: vi.fn().mockResolvedValue([]),
     };
 
@@ -58,6 +60,7 @@ describe("listConversations", () => {
     ];
     const repo: ConversationRepository = {
       createConversation: vi.fn(),
+      appendComment: vi.fn(),
       listConversations: vi.fn().mockResolvedValue(canned),
     };
 

@@ -28,10 +28,15 @@ export function Comment({ comment }: CommentProps) {
     }
   }
 
+  // A method the port doesn't supply is an affordance this surface doesn't have,
+  // so it is never rendered (see CommentsPort).
+  const canEdit = comment.mine && !comment.deleted && port.editComment !== undefined;
+  const canDelete = comment.mine && !comment.deleted && port.deleteComment !== undefined;
+
   async function handleEdit(e: Event) {
     e.preventDefault();
     const body = editBody.trim();
-    if (!body) return;
+    if (!body || !port.editComment) return;
     setEditPending(true);
     setEditError(null);
     try {
@@ -45,6 +50,7 @@ export function Comment({ comment }: CommentProps) {
   }
 
   async function handleDelete() {
+    if (!port.deleteComment) return;
     if (!confirm("Delete this comment?")) return;
     try {
       await port.deleteComment(comment.id);
@@ -98,20 +104,24 @@ export function Comment({ comment }: CommentProps) {
 
       <Reactions commentId={comment.id} reactions={comment.reactions} />
 
-      {comment.mine && !comment.deleted && (
+      {(canEdit || canDelete) && (
         <div class="comment-actions">
-          <button
-            class="comment-action-btn"
-            onClick={() => {
-              setEditing((e) => !e);
-              setEditBody(comment.body);
-            }}
-          >
-            Edit
-          </button>
-          <button class="comment-action-btn" onClick={() => void handleDelete()}>
-            Delete
-          </button>
+          {canEdit && (
+            <button
+              class="comment-action-btn"
+              onClick={() => {
+                setEditing((e) => !e);
+                setEditBody(comment.body);
+              }}
+            >
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button class="comment-action-btn" onClick={() => void handleDelete()}>
+              Delete
+            </button>
+          )}
         </div>
       )}
     </div>

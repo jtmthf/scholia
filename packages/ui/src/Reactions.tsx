@@ -10,6 +10,8 @@ interface ReactionsProps {
 export function Reactions({ commentId, reactions }: ReactionsProps) {
   const port = useComments();
   const [pending, setPending] = useState<string | null>(null);
+  // A port that can't record a Reaction is a surface without them (see CommentsPort).
+  const canReact = port.toggleReaction !== undefined;
 
   // Build a map of emoji → ReactionGroup for all palette entries.
   const grouped = new Map<string, ReactionGroup>();
@@ -18,7 +20,7 @@ export function Reactions({ commentId, reactions }: ReactionsProps) {
   }
 
   async function handleToggle(emoji: string) {
-    if (pending) return;
+    if (pending || !port.toggleReaction) return;
     setPending(emoji);
     try {
       await port.toggleReaction(commentId, emoji);
@@ -31,6 +33,22 @@ export function Reactions({ commentId, reactions }: ReactionsProps) {
 
   // Only render palette entries that have a count > 0, plus allow clicking any.
   const visible = REACTION_PALETTE.filter((emoji) => (grouped.get(emoji)?.count ?? 0) > 0);
+
+  // A surface that can't record a Reaction shows no palette. Existing tallies
+  // still render, read-only, because they are part of what the Comment says.
+  if (!canReact) {
+    if (visible.length === 0) return null;
+    return (
+      <div class="reactions">
+        {visible.map((emoji) => (
+          <span key={emoji} class="reaction-chip reaction-chip--static">
+            {emoji}
+            <span class="reaction-chip__count">{grouped.get(emoji)!.count}</span>
+          </span>
+        ))}
+      </div>
+    );
+  }
 
   if (visible.length === 0) {
     return (

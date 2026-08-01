@@ -2,10 +2,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { parseFrontmatter } from "../util/frontmatter.js";
 import { extractHeadings } from "../util/headings.js";
-import { isDoc, toUrlPath } from "../util/paths.js";
+import { classifyFile, isDoc, toUrlPath } from "../util/paths.js";
+import { readHtmlMeta } from "../ingest/html.js";
+import { renderedText } from "../ingest/rendered-text.js";
 import { humanize } from "../util/text.js";
 import { disambiguateSiblings } from "./disambiguate.js";
-import type { NavNode, DocRecord } from "../types.js";
+import type { Heading, NavNode, DocRecord } from "../types.js";
 
 export interface ScanResult {
   tree: NavNode[];
@@ -15,7 +17,7 @@ export interface ScanResult {
 const INDEX_RE = /^(readme|index)$/i;
 
 function stripExt(name: string): string {
-  return name.replace(/\.(md|markdown|mdx)$/i, "");
+  return name.replace(/\.(md|markdown|mdx|html?)$/i, "");
 }
 
 function orderOf(data: Record<string, unknown>): number {
@@ -70,20 +72,35 @@ export async function scanTree(root: string): Promise<ScanResult> {
           children,
         });
       } else if (isDoc(entry.name)) {
+        // The two Page kinds carry their title and Outline in different places
+        // (CONTEXT "Page"): frontmatter or a markdown `#` for a Markdown Page,
+        // `<title>` or an `<h1>` element for an HTML Page. Search indexes the
+        // text a reader would see either way.
         let fm: Record<string, unknown> = {};
         let content = "";
+        let headings: Heading[] = [];
+        let docTitle: string | undefined;
         try {
-          const parsed = parseFrontmatter(await readFile(full, "utf8"));
-          fm = parsed.data;
-          content = parsed.content;
+          const raw = await readFile(full, "utf8");
+          if (classifyFile(entry.name) === "html") {
+            const html = readHtmlMeta(raw);
+            headings = html.headings;
+            docTitle = html.title;
+            content = renderedText(raw);
+          } else {
+            const parsed = parseFrontmatter(raw);
+            fm = parsed.data;
+            content = parsed.content;
+            headings = extractHeadings(content);
+            docTitle = headings.find((h) => h.depth === 1)?.text;
+          }
         } catch {
           // Unreadable file — skip its metadata but still list it.
         }
-        const headings = extractHeadings(content);
         const title =
           meta.titles[entry.name] ??
           (typeof fm.title === "string" ? fm.title : undefined) ??
-          headings.find((h) => h.depth === 1)?.text ??
+          docTitle ??
           humanize(stripExt(entry.name));
         const urlPath = toUrlPath(root, full);
         nodes.push({ type: "file", title, urlPath, fsPath: full, order: orderOf(fm) });

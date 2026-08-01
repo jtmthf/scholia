@@ -3,10 +3,17 @@
 // `scholia comments` — list Conversations for a Page.
 // These are Local Preview commands, not hosted — no server, no token, no network.
 
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { createConversation, listConversations, type Anchor } from "@scholia/core";
-import { SidecarStore } from "./sidecar.js";
-import { resolveAuthor } from "./author.js";
+import {
+  createConversation,
+  getProvenance,
+  hashBytes,
+  listConversations,
+  resolveWithinRoot,
+  type Anchor,
+} from "@scholia/core";
+import { SidecarStore, resolveAuthor } from "@scholia/sidecar";
 
 export interface CommentCreateOptions {
   page: string;
@@ -21,6 +28,23 @@ export interface CommentListOptions {
   page: string;
   root?: string;
   json?: boolean;
+}
+
+// sha256 of the Page's Source, the same hash a hosted Version records for it
+// (`StoredPage.contentHash`), so one binding spans both paths. Returns an empty
+// object — not `{ contentHash: undefined }` — when the path names nothing
+// readable, so the header simply omits the field.
+async function pageContentHash(
+  rootDir: string,
+  pagePath: string,
+): Promise<{ contentHash?: string }> {
+  const fsPath = resolveWithinRoot(rootDir, pagePath);
+  if (!fsPath) return {};
+  try {
+    return { contentHash: hashBytes(await readFile(fsPath)) };
+  } catch {
+    return {};
+  }
 }
 
 export async function commentCreate(options: CommentCreateOptions): Promise<void> {
@@ -47,6 +71,11 @@ export async function commentCreate(options: CommentCreateOptions): Promise<void
     body: options.body,
     anchor,
     author,
+    // The binding and its context (CONTEXT "Comment", ADR-0018). Both are
+    // best-effort here: `--page` is a path, and it need not name a file that
+    // exists on this machine or a directory that is a git repository.
+    ...(await pageContentHash(rootDir, options.page)),
+    provenance: await getProvenance(rootDir),
   });
 
   console.log(`Created Conversation ${conversation.header.id}`);

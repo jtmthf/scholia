@@ -339,6 +339,14 @@
   border-color: var(--reaction-active-border);
   color: var(--reaction-active-fg);
 }
+/* A tally on a surface that cannot record Reactions: shown, because it is part of
+   what the Comment says, but never offered as something to click. */
+.reaction-chip--static {
+  cursor: default;
+}
+.reaction-chip--static:hover {
+  border-color: var(--border);
+}
 .reaction-chip__count {
   font-size: 11px;
   font-weight: 600;

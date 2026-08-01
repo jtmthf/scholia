@@ -37,7 +37,14 @@ export function Thread({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Absent port methods are surfaces this consumer doesn't have — the control
+  // isn't rendered rather than rendered and failing (see CommentsPort).
+  const canModerate = port.canModerate && port.deleteConversation !== undefined;
+  const canResolve = port.setResolved !== undefined;
+  const canPromote = promotable && port.promote !== undefined;
+
   async function deleteThread() {
+    if (!port.deleteConversation) return;
     try {
       await port.deleteConversation(conversation.id);
     } catch (err: unknown) {
@@ -63,6 +70,7 @@ export function Thread({
   }
 
   async function toggleResolved() {
+    if (!port.setResolved) return;
     try {
       await port.setResolved(conversation.id, !conversation.resolved);
     } catch {
@@ -137,7 +145,7 @@ export function Thread({
               <button class="thread-action-btn" onClick={() => setReplying(true)}>
                 Reply
               </button>
-              {promotable && (
+              {canPromote && (
                 <button
                   class="thread-action-btn thread-action-btn--promote"
                   onClick={() => setPromoting(true)}
@@ -145,13 +153,15 @@ export function Thread({
                   Promote
                 </button>
               )}
-              <button
-                class="thread-action-btn thread-action-btn--resolve"
-                onClick={() => void toggleResolved()}
-              >
-                {conversation.resolved ? "Reopen" : "Resolve"}
-              </button>
-              {port.canModerate &&
+              {canResolve && (
+                <button
+                  class="thread-action-btn thread-action-btn--resolve"
+                  onClick={() => void toggleResolved()}
+                >
+                  {conversation.resolved ? "Reopen" : "Resolve"}
+                </button>
+              )}
+              {canModerate &&
                 (confirmDelete ? (
                   <>
                     <button

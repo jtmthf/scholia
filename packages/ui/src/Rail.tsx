@@ -30,6 +30,12 @@ interface RailProps {
    * name, Local Preview only has the file as it now stands.
    */
   outdatedNote?: string;
+  /**
+   * What an empty rail says. The consumer's words for the same reason the
+   * Outdated note is: the default names a private Chat, which a surface without
+   * Chats must not offer (CONTEXT "Chat").
+   */
+  emptyNote?: string;
 }
 
 // The right-hand comment rail: the reader's private Chats first, then anchored
@@ -47,6 +53,7 @@ export function Rail({
   onBringAgent,
   outdatedOrigin,
   outdatedNote = "These Threads no longer match the current text.",
+  emptyNote = "No comments yet. Select text in the page to start a Thread or a private Chat, or comment on the whole page.",
 }: RailProps) {
   // Outdated Threads (anchor no longer matches the current text, CONTEXT
   // "Outdated") are pulled out of the live sections into their own collapsed rail,
@@ -96,10 +103,7 @@ export function Rail({
       </div>
 
       {conversations.length === 0 && chats.length === 0 && (
-        <div class="rail-empty">
-          No comments yet. Select text in the page to start a Thread or a private Chat, or comment
-          on the whole page.
-        </div>
+        <div class="rail-empty">{emptyNote}</div>
       )}
 
       {chats.length > 0 && (

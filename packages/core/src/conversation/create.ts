@@ -6,12 +6,17 @@ import { v7 as uuidv7 } from "uuid";
 import type { ConversationRepository } from "./repository.js";
 import type { Conversation, ConversationHeader, CommentEvent } from "./types.js";
 import type { Anchor } from "../anchor/types.js";
+import type { Provenance } from "../util/provenance.js";
 
 export interface CreateConversationParams {
   pagePath: string;
   body: string;
   anchor: Anchor | null;
   author: string;
+  /** sha256 of the Page's Source as rendered — the Comment's binding. */
+  contentHash?: string;
+  /** Best-effort git facts, recorded alongside the binding as context. */
+  provenance?: Provenance;
 }
 
 /**
@@ -32,6 +37,8 @@ export async function createConversation(
     id: conversationId,
     page: params.pagePath,
     anchor: params.anchor,
+    ...(params.contentHash ? { contentHash: params.contentHash } : {}),
+    ...(params.provenance ? { provenance: params.provenance } : {}),
     author: params.author,
     timestamp: now,
   };
