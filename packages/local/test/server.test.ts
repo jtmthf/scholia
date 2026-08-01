@@ -205,7 +205,10 @@ test("single-file mode renders that one file for any path, without a Nav pane", 
 });
 
 describe("?raw and Accept: text/markdown (Issue #64)", () => {
-  test("?raw on a Markdown Page returns Source verbatim as text/markdown", async ({ tmp, serve }) => {
+  test("?raw on a Markdown Page returns Source verbatim as text/markdown", async ({
+    tmp,
+    serve,
+  }) => {
     await tmp.write("README.md", "# Hello\n\nSource text.\n");
     const { url } = await serve();
     const res = await fetch(`${url}/README.md?raw`);
@@ -217,7 +220,8 @@ describe("?raw and Accept: text/markdown (Issue #64)", () => {
 
   test("?raw on an HTML Page returns Source verbatim as text/html", async ({ tmp, serve }) => {
     await tmp.write("README.md", "# Root\n");
-    const htmlSrc = "<!doctype html>\n<html><head><title>Hi</title></head><body><h1>Hi</h1></body></html>\n";
+    const htmlSrc =
+      "<!doctype html>\n<html><head><title>Hi</title></head><body><h1>Hi</h1></body></html>\n";
     await tmp.write("page.html", htmlSrc);
     const { url } = await serve();
     const res = await fetch(`${url}/page.html?raw`);
@@ -226,7 +230,10 @@ describe("?raw and Accept: text/markdown (Issue #64)", () => {
     expect(await res.text()).toBe(htmlSrc);
   });
 
-  test("Accept: text/markdown on Markdown Page returns Source with Vary: Accept", async ({ tmp, serve }) => {
+  test("Accept: text/markdown on Markdown Page returns Source with Vary: Accept", async ({
+    tmp,
+    serve,
+  }) => {
     await tmp.write("README.md", "# Hello\n\nSource text.\n");
     const { url } = await serve();
     const res = await fetch(`${url}/README.md`, {
@@ -238,9 +245,15 @@ describe("?raw and Accept: text/markdown (Issue #64)", () => {
     expect(await res.text()).toBe("# Hello\n\nSource text.\n");
   });
 
-  test("Accept: text/markdown on HTML Page returns derived text with Vary: Accept", async ({ tmp, serve }) => {
+  test("Accept: text/markdown on HTML Page returns derived text with Vary: Accept", async ({
+    tmp,
+    serve,
+  }) => {
     await tmp.write("README.md", "# Root\n");
-    await tmp.write("page.html", "<!doctype html><html><head><title>Hi</title></head><body><h1>Heading</h1><p>Body text.</p></body></html>");
+    await tmp.write(
+      "page.html",
+      "<!doctype html><html><head><title>Hi</title></head><body><h1>Heading</h1><p>Body text.</p></body></html>",
+    );
     const { url } = await serve();
     const res = await fetch(`${url}/page.html`, {
       headers: { Accept: "text/markdown" },

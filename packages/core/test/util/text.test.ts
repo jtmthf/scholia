@@ -40,12 +40,16 @@ describe("htmlToDerivedText", () => {
   });
 
   test("handles nested block and inline elements", () => {
-    const result = htmlToDerivedText("<div><h2>Heading</h2><p>Text with <a href='x'>link</a>.</p></div>");
+    const result = htmlToDerivedText(
+      "<div><h2>Heading</h2><p>Text with <a href='x'>link</a>.</p></div>",
+    );
     expect(result).toBe("Heading\nText with link.");
   });
 
   test("skips script and style content", () => {
-    const result = htmlToDerivedText("<div>Visible<script>hidden()</script><style>body{}</style> text</div>");
+    const result = htmlToDerivedText(
+      "<div>Visible<script>hidden()</script><style>body{}</style> text</div>",
+    );
     expect(result).toBe("Visible text");
   });
 

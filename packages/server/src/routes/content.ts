@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { describeRoute } from "hono-openapi";
-import { contentType, pickEntryPath, rewriteInterPageLinks, htmlToDerivedText, acceptsMarkdown } from "@scholia/core";
+import {
+  contentType,
+  pickEntryPath,
+  rewriteInterPageLinks,
+  htmlToDerivedText,
+  acceptsMarkdown,
+} from "@scholia/core";
 import { getLatestManifest, getManifestByOrdinal, type PageEntry } from "@scholia/db";
 import type { AppDeps } from "../config.js";
 import { renderContentDocument, prepareHtmlDocument } from "../content.js";
@@ -62,9 +68,7 @@ export function contentRoutes(getDeps: () => AppDeps) {
         "the Source representation for Markdown Pages, or a best-effort derived " +
         "text for HTML Pages.",
       operationId: "serveContent",
-      parameters: [
-        { name: "slug", in: "path", required: true, schema: { type: "string" } },
-      ],
+      parameters: [{ name: "slug", in: "path", required: true, schema: { type: "string" } }],
     }),
     async (c) => {
       const deps = getDeps();
