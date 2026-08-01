@@ -1,9 +1,5 @@
 import { describe, test, expect, vi } from "vitest";
-import {
-  listConversations,
-  type ConversationRepository,
-  type Conversation,
-} from "@scholia/core";
+import { listConversations, type ConversationRepository, type Conversation } from "@scholia/core";
 
 describe("listConversations", () => {
   test("delegates to listConversations on the port with the page path", async () => {

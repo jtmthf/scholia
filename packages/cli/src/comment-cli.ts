@@ -4,11 +4,7 @@
 // These are Local Preview commands, not hosted — no server, no token, no network.
 
 import { resolve } from "node:path";
-import {
-  createConversation,
-  listConversations,
-  type Anchor,
-} from "@scholia/core";
+import { createConversation, listConversations, type Anchor } from "@scholia/core";
 import { SidecarStore } from "./sidecar.js";
 import { resolveAuthor } from "./author.js";
 

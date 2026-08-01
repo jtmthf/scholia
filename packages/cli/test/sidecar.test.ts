@@ -57,7 +57,12 @@ describe("SidecarStore", () => {
     expect(result.comments[0]!.body).toBe("This looks great.");
 
     // The file should exist at the expected path.
-    const filePath = join(rootDir, ".scholia", "conversations", "00000000-0000-7000-8000-000000000001.yaml");
+    const filePath = join(
+      rootDir,
+      ".scholia",
+      "conversations",
+      "00000000-0000-7000-8000-000000000001.yaml",
+    );
     const raw = await readFile(filePath, "utf8");
     expect(raw).toContain("id: 00000000-0000-7000-8000-000000000001");
     expect(raw).toContain("body:");
