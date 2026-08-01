@@ -233,6 +233,39 @@ Use \`@name\` in comment bodies to address agents or reviewers. The \`mentions\`
 \`list_comments\` returns only comments that mention the given identity name (case-insensitive,
 slug-tolerant: "Owner's agent" matches \`@owners-agent\`).
 
+## Reading a Page's Source
+
+Scholia serves every Page two ways: as rendered HTML (what a browser sees) and as its
+**Source** — the canonical authored bytes (CONTEXT "Source"). Agents can fetch the Source
+two ways:
+
+- **\`?raw\`** — append to any Page URL to get the Source verbatim. Byte-exact, so Anchor
+  source ranges remain valid. Returns \`text/markdown\` for Markdown Pages,
+  \`text/html\` for HTML Pages. This is the linkable, pasteable address — identical on
+  Local Preview and the hosted content origin.
+
+- **\`Accept: text/markdown\`** — send this header on the Page URL. For Markdown Pages it
+  returns the same bytes as \`?raw\` (the Source). For HTML Pages it returns a
+  best-effort **derived text** representation — convenient for reading, but NOT the
+  Source: line numbers are fabricated and the result must not be used to construct
+  source ranges. To anchor against an HTML Page, use \`?raw\`.
+
+Examples:
+
+\`\`\`
+# Get the Source of README.md (verbatim markdown)
+curl \${contentBase}/README.md?raw
+
+# Same, via content negotiation
+curl -H "Accept: text/markdown" \${contentBase}/README.md
+
+# Read an HTML Page's Source (verbatim HTML)
+curl \${contentBase}/index.html?raw
+
+# Read an HTML Page's derived text (readable, not anchorable)
+curl -H "Accept: text/markdown" \${contentBase}/index.html
+\`\`\`
+
 ## Read More
 
 \`GET /agent-docs\` on your Scholia server — full verb reference and trust framing.
@@ -391,6 +424,31 @@ const AGENT_DOCS_HTML = `<!DOCTYPE html>
   <p>Use <code>@name</code> in comment bodies to address agents or reviewers. The <code>mentions</code>
   filter on <code>list_comments</code> matches case-insensitively and slug-tolerantly
   ("Owner's agent" matches <code>@owners-agent</code>).</p>
+
+  <h2>Reading a Page's Source</h2>
+  <p>Every Page has a <strong>Source</strong> — the canonical authored bytes — reachable two ways:</p>
+  <ul>
+    <li><strong><code>?raw</code></strong> — append to any Page URL to get the Source verbatim.
+    Byte-exact, so Anchor source ranges stay valid. Returns <code>text/markdown</code>
+    for Markdown Pages, <code>text/html</code> for HTML Pages. Identical on Local Preview
+    and the hosted content origin.</li>
+    <li><strong><code>Accept: text/markdown</code></strong> — send this header on the Page URL.
+    For Markdown Pages it returns the same bytes as <code>?raw</code> (the Source).
+    For HTML Pages it returns a best-effort <strong>derived text</strong> — readable,
+    but NOT the Source: line numbers are fabricated and the result must not be
+    used to construct source ranges.</li>
+  </ul>
+  <pre># Verbatin Source (markdown)
+curl \${contentBase}/README.md?raw
+
+# Same, via content negotiation
+curl -H "Accept: text/markdown" \${contentBase}/README.md
+
+# HTML Page Source (verbatim HTML)
+curl \${contentBase}/index.html?raw
+
+# HTML Page derived text (readable, not anchorable)
+curl -H "Accept: text/markdown" \${contentBase}/index.html</pre>
 
   <h2>Site State Gate</h2>
   <p>A Site's owner-set state posture gates <em>public</em> mutations (private Chats are always
