@@ -145,6 +145,20 @@ describe("status codes", () => {
     expect(html).toContain("<h1>Not found</h1>");
   });
 
+  // An errored query is dehydrated with `shouldDehydrateQuery` so the client
+  // picks up the error and renders the failure view immediately — no loading
+  // flash, no redundant request.
+  it("includes the errored site query in the dehydrated cache for a 404 slug", async () => {
+    api = stubApi({ site: "not-found" });
+
+    const { html } = await render("http://localhost:5173/s/nope", DEV_ASSETS);
+
+    // The errored query is in the cache, keyed as the client would look it up.
+    expect(html).toContain('["site","nope",null]');
+    // The error was serialized so it survives JSON.stringify.
+    expect(html).toContain('"__errorName":"SiteNotFoundError"');
+  });
+
   it("404s a URL that isn't a viewer route, without calling the API", async () => {
     api = stubApi({ site: siteFixture() });
 
@@ -160,9 +174,12 @@ describe("status codes", () => {
   it("500s when the API is unreachable", async () => {
     api = stubApi({ site: "unreachable" });
 
-    const { status } = await render("http://localhost:5173/s/abc123", DEV_ASSETS);
+    const { html, status } = await render("http://localhost:5173/s/abc123", DEV_ASSETS);
 
     expect(status).toBe(500);
+    // The errored query is dehydrated so the client renders the error view
+    // immediately rather than flashing "Loading…" and refetching.
+    expect(html).toContain('"__errorName":"Error"');
   });
 });
 
