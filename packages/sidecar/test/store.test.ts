@@ -9,7 +9,7 @@ import { describe, test, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, readFile, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SidecarStore } from "../src/sidecar.js";
+import { SidecarStore } from "../src/store.js";
 import type { Anchor } from "@scholia/core";
 
 describe("SidecarStore", () => {
@@ -321,6 +321,186 @@ describe("SidecarStore", () => {
     expect(results[0]!.comments).toHaveLength(1);
     // Must keep the first occurrence.
     expect(results[0]!.comments[0]!.body).toBe("first occurrence\n");
+  });
+
+  // ---- The Comment's binding (CONTEXT "Comment", ADR-0018) ----
+
+  test("round-trips the content hash and Provenance recorded on the header", async () => {
+    await store.createConversation({
+      header: {
+        id: "00000000-0000-7000-8000-00000000001a",
+        page: "readme.md",
+        anchor: null,
+        contentHash: "a".repeat(64),
+        provenance: { sha: "0123456789abcdef", branch: "main", dirty: true },
+        author: "ivan",
+        timestamp: "2025-01-15T12:00:00.000Z",
+      },
+      firstComment: {
+        id: "00000000-0000-7000-8000-00000000001b",
+        type: "comment",
+        timestamp: "2025-01-15T12:00:00.000Z",
+        author: "ivan",
+        body: "bound",
+      },
+    });
+
+    const [conversation] = await store.listConversations("readme.md");
+    expect(conversation!.header.contentHash).toBe("a".repeat(64));
+    expect(conversation!.header.provenance).toEqual({
+      sha: "0123456789abcdef",
+      branch: "main",
+      dirty: true,
+    });
+  });
+
+  test("omits contentHash and provenance entirely when there are none", async () => {
+    await store.createConversation({
+      header: {
+        id: "00000000-0000-7000-8000-00000000001c",
+        page: "readme.md",
+        anchor: null,
+        author: "judy",
+        timestamp: "2025-01-15T12:00:00.000Z",
+      },
+      firstComment: {
+        id: "00000000-0000-7000-8000-00000000001d",
+        type: "comment",
+        timestamp: "2025-01-15T12:00:00.000Z",
+        author: "judy",
+        body: "unbound",
+      },
+    });
+
+    const raw = await readFile(
+      join(rootDir, ".scholia", "conversations", "00000000-0000-7000-8000-00000000001c.yaml"),
+      "utf8",
+    );
+    expect(raw).not.toContain("contentHash");
+    expect(raw).not.toContain("provenance");
+  });
+
+  // ---- appendComment ----
+
+  async function seedConversation(id: string, commentId: string): Promise<void> {
+    await store.createConversation({
+      header: {
+        id,
+        page: "readme.md",
+        anchor: null,
+        author: "mallory",
+        timestamp: "2025-01-15T12:00:00.000Z",
+      },
+      firstComment: {
+        id: commentId,
+        type: "comment",
+        timestamp: "2025-01-15T12:00:00.000Z",
+        author: "mallory",
+        body: "first",
+      },
+    });
+  }
+
+  test("appendComment adds a document without rewriting the ones before it", async () => {
+    const id = "00000000-0000-7000-8000-000000000020";
+    await seedConversation(id, "00000000-0000-7000-8000-000000000021");
+
+    const filePath = join(rootDir, ".scholia", "conversations", `${id}.yaml`);
+    const before = await readFile(filePath, "utf8");
+
+    await store.appendComment(id, {
+      id: "00000000-0000-7000-8000-000000000022",
+      type: "comment",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "trent",
+      body: "a reply",
+    });
+
+    const after = await readFile(filePath, "utf8");
+    expect(after.startsWith(before)).toBe(true);
+
+    const [conversation] = await store.listConversations("readme.md");
+    expect(conversation!.comments.map((c) => c.body)).toEqual(["first", "a reply"]);
+    expect(conversation!.comments[1]!.author).toBe("trent");
+  });
+
+  test("appended bodies containing the document separator round-trip exactly", async () => {
+    const id = "00000000-0000-7000-8000-000000000023";
+    await seedConversation(id, "00000000-0000-7000-8000-000000000024");
+
+    const body = "Look at this:\n---\nid: not-an-event\ntype: comment\n";
+    await store.appendComment(id, {
+      id: "00000000-0000-7000-8000-000000000025",
+      type: "comment",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "trent",
+      body,
+    });
+
+    const [conversation] = await store.listConversations("readme.md");
+    expect(conversation!.comments).toHaveLength(2);
+    expect(conversation!.comments[1]!.body).toBe(body);
+  });
+
+  test("appendComment rejects for a Conversation that does not exist", async () => {
+    await expect(
+      store.appendComment("00000000-0000-7000-8000-000000000026", {
+        id: "00000000-0000-7000-8000-000000000027",
+        type: "comment",
+        timestamp: "2025-01-15T12:05:00.000Z",
+        author: "trent",
+        body: "nowhere to go",
+      }),
+    ).rejects.toThrow(/no Conversation/);
+  });
+
+  // The id is also the filename, so a caller-supplied id has to be refused
+  // before it reaches `join` rather than escaping the store's directory.
+  test("appendComment refuses an id that is not a UUID", async () => {
+    await expect(
+      store.appendComment("../../escape", {
+        id: "00000000-0000-7000-8000-000000000028",
+        type: "comment",
+        timestamp: "2025-01-15T12:05:00.000Z",
+        author: "mallory",
+        body: "traversal",
+      }),
+    ).rejects.toThrow(/not a Conversation id/);
+  });
+
+  test("comments fold in timestamp order regardless of file position", async () => {
+    const convDir = join(rootDir, ".scholia", "conversations");
+    await mkdir(convDir, { recursive: true });
+
+    // What a union merge leaves behind: both sides' appends kept, in whatever
+    // order git happened to interleave them.
+    const raw = [
+      "---",
+      "id: 00000000-0000-7000-8000-000000000029",
+      "page: readme.md",
+      "anchor: null",
+      "author: peggy",
+      "timestamp: '2025-01-15T12:00:00.000Z'",
+      "---",
+      "id: 00000000-0000-7000-8000-00000000002b",
+      "type: comment",
+      "timestamp: '2025-01-15T12:09:00.000Z'",
+      "author: peggy",
+      "body: |",
+      "  later",
+      "---",
+      "id: 00000000-0000-7000-8000-00000000002a",
+      "type: comment",
+      "timestamp: '2025-01-15T12:01:00.000Z'",
+      "author: peggy",
+      "body: |",
+      "  earlier",
+      "",
+    ].join("\n");
+    await writeFile(join(convDir, "merged.yaml"), raw);
+
+    const [conversation] = await store.listConversations("readme.md");
+    expect(conversation!.comments.map((c) => c.body)).toEqual(["earlier\n", "later\n"]);
   });
 
   // ---- Skipped non-.yaml files ----

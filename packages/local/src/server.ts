@@ -1,19 +1,16 @@
 import { readFile, stat } from "node:fs/promises";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { basename, resolve as resolvePath } from "node:path";
 import net from "node:net";
 import { Hono, type Context } from "hono";
 import { streamSSE, type SSEStreamingApi } from "hono/streaming";
 import { serve, type ServerType } from "@hono/node-server";
 import {
-  renderMarkdown,
-  renderMdx,
   scanTree,
   createSearchIndex,
   resolveWithinRoot,
   toUrlPath,
   isDoc,
-  isMdx,
   extractHeadings,
   contentType,
   escapeHtml,
@@ -21,15 +18,28 @@ import {
   pickEntryPath,
   classifyFile,
   getProvenance,
+  isValidHash,
+  readHtmlMeta,
+  renderedText,
+  appendComment,
+  createConversation,
+  listConversations,
   type NavNode,
   type DocRecord,
-  type Heading,
   type ManifestEntry,
 } from "@scholia/core";
+import { SidecarStore, resolveAuthor } from "@scholia/sidecar";
 import { renderPage } from "./render/layout.js";
+import { PageRenderer, type RenderedPage } from "./render/page.js";
+import {
+  anchorFromSelection,
+  toConversationDTOs,
+  toPagePath,
+  type SelectionInput,
+} from "./conversations.js";
 import { watchPath } from "./watch.js";
 import { resolveEditor, openInEditor } from "./editor.js";
-import { checkOpenRequest, isLocalView } from "./open-guard.js";
+import { checkOpenRequest, checkWriteRequest, isLocalView } from "./open-guard.js";
 
 export interface StartOptions {
   rootDir: string;
@@ -174,18 +184,16 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   let docs: DocRecord[] = [];
   const searchIndex = createSearchIndex();
 
-  // Rendered HTML cached by file path + mtime, so repeat page loads skip the
-  // unified/Shiki/KaTeX pipeline entirely. Invalidated when mtime advances.
-  // `source` rides along too, so a cache hit can still serve "Copy markdown"
-  // without a second read of the file.
-  interface CacheEntry {
-    mtimeMs: number;
-    html: string;
-    title: string;
-    headings: Heading[];
-    source: string;
-  }
-  const renderCache = new Map<string, CacheEntry>();
+  // Renders Pages and caches them by path + mtime. It also computes each Page's
+  // Source Map and content hash, which is what the comment layer anchors and
+  // binds against (see ./render/page.ts).
+  const pages = new PageRenderer({ mdxEnabled: opts.mdxEnabled });
+
+  // Conversations live beside the content, in the served root (ADR-0018). The
+  // author is resolved once at startup from git config — it does not change
+  // while a preview is open, and asking git per keystroke would be silly.
+  const sidecar = new SidecarStore(opts.rootDir);
+  const author = await resolveAuthor(opts.rootDir);
 
   // Project identity for the topbar (ADR-0016/0017 furniture) — the served
   // root's own directory name, not the current Page's title.
@@ -208,10 +216,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     } else {
       const file = opts.singleFile!;
       const raw = await readFile(file, "utf8").catch(() => "");
-      const { data, content } = parseFrontmatter(raw);
-      const headings = extractHeadings(content);
+      // Mirrors `scanTree`'s per-kind title/Outline resolution for the one Page
+      // single-file mode serves (CONTEXT "Page").
+      const html = classifyFile(file) === "html";
+      const { data, content } = html ? { data: {}, content: "" } : parseFrontmatter(raw);
+      const meta = html ? readHtmlMeta(raw) : null;
+      const headings = meta ? meta.headings : extractHeadings(content);
       const title =
         (typeof data.title === "string" ? data.title : undefined) ??
+        (meta ? meta.title : undefined) ??
         headings.find((h) => h.depth === 1)?.text ??
         basename(file);
       docs = [
@@ -219,7 +232,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
           urlPath: toUrlPath(opts.rootDir, file),
           fsPath: file,
           title,
-          body: content,
+          body: html ? renderedText(raw) : content,
           headings,
         },
       ];
@@ -311,6 +324,124 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return c.json({ ok: true });
   });
 
+  // ---------------------------------------------------------------------------
+  // Conversations (ADR-0018): create and read, against the Sidecar in the served
+  // root. Registered before the "*" catch-all, like every other /__ route.
+  //
+  // Unlike /__open these are not loopback-only. A Comment is data in the reader's
+  // own tree rather than a process on their machine, and a Tunnel exists so a
+  // guest can leave one (CONTEXT "Tunnel") — see checkWriteRequest.
+  // ---------------------------------------------------------------------------
+
+  // Where a Page's Source Map comes from at write time. Rendering is cached, so
+  // The Source Map of the render the *reader* was looking at, or null.
+  //
+  // The `data-sm` ids in a selection describe one particular render, so mapping
+  // them through a different one would silently produce a range into bytes the
+  // reader never saw. The content hash they were given names that render, so it
+  // is also the check: when it no longer matches what is on disk, the Anchor
+  // simply carries no source range. That costs a secondary hint and keeps the
+  // text-quote — the primary locator (ADR-0002) — exactly as captured.
+  async function sourceMapAsRendered(pagePath: string, contentHash: string | null) {
+    if (!contentHash) return null;
+    const fsPath = dirMode ? resolveWithinRoot(opts.rootDir, pagePath) : opts.singleFile!;
+    if (!fsPath || !isDoc(fsPath) || !(await exists(fsPath))) return null;
+    const page = await pages.render(fsPath).catch(() => null);
+    return page?.contentHash === contentHash ? page.sourceMap : null;
+  }
+
+  // Every route answers with the Page's whole Conversation list, including the
+  // ones that changed it — so the client never has to merge a mutation into what
+  // it already had (the CommentsPort contract, ADR-0030).
+  async function respondWithConversations(c: Context, pagePath: string) {
+    const conversations = await listConversations(sidecar, pagePath);
+    return c.json({ conversations: toConversationDTOs(conversations, author) });
+  }
+
+  interface CommentWrite {
+    pagePath: string;
+    body: string;
+    /** Present only when the caller sent a well-formed content hash. */
+    contentHash: string | null;
+    selection: SelectionInput | null;
+  }
+
+  // Both write routes take the same shape and reject on the same grounds, so the
+  // guard, the parse and the validation live here rather than twice.
+  async function readCommentWrite(c: Context): Promise<CommentWrite | Response> {
+    const rejection = checkWriteRequest({
+      method: c.req.method,
+      header: (name) => c.req.header(name),
+    });
+    if (rejection) return c.json({ error: rejection.error }, rejection.status);
+
+    const input = await c.req.json().catch(() => null);
+    const pagePath = toPagePath(typeof input?.page === "string" ? input.page : "");
+    const body = typeof input?.body === "string" ? input.body.trim() : "";
+    if (!pagePath) return c.json({ error: "missing page" }, 400);
+    if (!body) return c.json({ error: "a comment needs a body" }, 400);
+
+    // The hash is the Comment's binding, so anything that isn't one is dropped
+    // rather than written: an unbindable Comment is better than a Comment bound
+    // to a value that names nothing.
+    const claimed: unknown = input.contentHash;
+    const contentHash = typeof claimed === "string" && isValidHash(claimed) ? claimed : null;
+
+    return { pagePath, body, contentHash, selection: (input.selection ?? null) as SelectionInput };
+  }
+
+  app.get("/__conversations", async (c) => {
+    const pagePath = toPagePath(c.req.query("page") ?? "");
+    if (!pagePath) return c.json({ error: "missing page" }, 400);
+    return respondWithConversations(c, pagePath);
+  });
+
+  app.all("/__conversations", async (c) => {
+    const write = await readCommentWrite(c);
+    if (write instanceof Response) return write;
+
+    // A Page-level Conversation is the absence of a selection, not a special
+    // kind of one (CONTEXT "Anchor").
+    const anchor = write.selection?.quote?.exact
+      ? anchorFromSelection(
+          write.selection,
+          await sourceMapAsRendered(write.pagePath, write.contentHash),
+        )
+      : null;
+
+    await createConversation(sidecar, {
+      pagePath: write.pagePath,
+      body: write.body,
+      anchor,
+      author,
+      // The hash the browser was given when the Page was rendered, handed back
+      // rather than recomputed — that is what makes it the state the reader
+      // actually commented on. Provenance is read live, as it is everywhere else
+      // locally (CONTEXT "Provenance").
+      ...(write.contentHash ? { contentHash: write.contentHash } : {}),
+      provenance: await getProvenance(opts.rootDir),
+    });
+
+    return respondWithConversations(c, write.pagePath);
+  });
+
+  app.all("/__conversations/:id/comments", async (c) => {
+    const write = await readCommentWrite(c);
+    if (write instanceof Response) return write;
+
+    try {
+      await appendComment(sidecar, {
+        conversationId: c.req.param("id"),
+        body: write.body,
+        author,
+      });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "append failed" }, 404);
+    }
+
+    return respondWithConversations(c, write.pagePath);
+  });
+
   app.get("*", async (c) => {
     const urlPath = c.req.path;
 
@@ -328,10 +459,16 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       if (!index) return c.notFound();
       target = index;
     } else if (!info) {
-      // Try extension-less doc links (e.g. /guide -> /guide.md).
-      const withMd = (await exists(target + ".md")) ? target + ".md" : null;
-      const withMdx = !withMd && (await exists(target + ".mdx")) ? target + ".mdx" : null;
-      target = withMd ?? withMdx ?? target;
+      // Try extension-less Page links (e.g. /guide -> /guide.md), in the order a
+      // reader most likely meant.
+      let resolved: string | null = null;
+      for (const ext of [".md", ".mdx", ".html", ".htm"]) {
+        if (await exists(target + ext)) {
+          resolved = target + ext;
+          break;
+        }
+      }
+      target = resolved ?? target;
       if (!(await exists(target))) return c.notFound();
     }
 
@@ -344,44 +481,16 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
   async function renderDoc(c: Context, fsPath: string, showNav: boolean) {
     const currentPath = toUrlPath(opts.rootDir, fsPath);
-    const useMdx = opts.mdxEnabled && isMdx(fsPath);
-
-    let contentHtml: string;
-    let title: string;
-    let headings: Heading[] = [];
-    let source: string;
-
+    const pagePath = toPagePath(currentPath);
     const info = await stat(fsPath).catch(() => null);
-    const cached = info ? renderCache.get(fsPath) : undefined;
-    if (cached && info && cached.mtimeMs === info.mtimeMs) {
-      contentHtml = cached.html;
-      title = cached.title;
-      headings = cached.headings;
-      source = cached.source;
-    } else {
-      source = await readFile(fsPath, "utf8");
-      try {
-        const result = useMdx
-          ? await renderMdx(source, pathToFileURL(fsPath).href)
-          : await renderMarkdown(source);
-        contentHtml = result.html;
-        title = result.title ?? "scholia";
-        headings = result.headings;
-        if (info) {
-          renderCache.set(fsPath, {
-            mtimeMs: info.mtimeMs,
-            html: contentHtml,
-            title,
-            headings,
-            source,
-          });
-        }
-      } catch (err) {
-        // One bad document should not break the viewer — show the error inline.
-        const message = err instanceof Error ? err.message : String(err);
-        contentHtml = `<h1>Failed to render</h1><p>${escapeHtml(currentPath)}</p><pre class="render-error">${escapeHtml(message)}</pre>`;
-        title = "Render error";
-      }
+
+    let page: RenderedPage | null = null;
+    let failure: string | null = null;
+    try {
+      page = await pages.render(fsPath);
+    } catch (err) {
+      // One bad document should not break the viewer — show the error inline.
+      failure = err instanceof Error ? err.message : String(err);
     }
 
     // Provenance is read live (CONTEXT "Provenance") — recomputed per
@@ -389,10 +498,20 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     // rather than the state at server start.
     const provenance = await getProvenance(opts.rootDir);
 
+    // Conversations are fetched and rendered server-side so the comment rail is
+    // in the first response like every other piece of chrome (ADR-0011). The
+    // client hydrates that markup rather than fetching it back.
+    const conversations = page
+      ? toConversationDTOs(await listConversations(sidecar, pagePath), author)
+      : [];
+
     const html = renderPage({
-      title,
-      contentHtml,
-      headings,
+      title: page?.title ?? "Render error",
+      contentHtml:
+        page?.contentHtml ??
+        `<h1>Failed to render</h1><p>${escapeHtml(currentPath)}</p><pre class="render-error">${escapeHtml(failure ?? "")}</pre>`,
+      pageStyles: page?.styleHtml ?? "",
+      headings: page?.headings ?? [],
       nav: tree,
       currentPath,
       showNav: showNav && tree.length > 0,
@@ -403,9 +522,18 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       // button would be offering a guaranteed 403.
       editorAvailable: editor !== null && isLocalView((name) => c.req.header(name)),
       filePath: fsPath,
-      sourceMarkdown: source,
-      colophon: info
-        ? { relPath: currentPath.replace(/^\/+/, ""), mtimeMs: info.mtimeMs, provenance }
+      sourceMarkdown: page?.source ?? "",
+      colophon: info ? { relPath: pagePath, mtimeMs: info.mtimeMs, provenance } : null,
+      comments: page
+        ? {
+            pagePath,
+            // Taken from the render, not re-read at submit: the Comment binds to
+            // the bytes that produced what the reader is looking at (AC / CONTEXT
+            // "Comment"). A render error has no Page to bind to, so no rail.
+            contentHash: page.contentHash,
+            displayName: author,
+            conversations,
+          }
         : null,
     });
     return c.html(html);
@@ -417,7 +545,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // doc links to) just invalidate caches and reload.
   const watchTarget = opts.singleFile ?? opts.rootDir;
   const watcher = watchPath(watchTarget, (paths) => {
-    for (const p of paths) renderCache.delete(p);
+    for (const p of paths) pages.invalidate(p);
     const structural = paths.some((p) => isDoc(p) || /(^|[\\/])_?meta\.json$/i.test(p));
     const job = structural ? refresh() : Promise.resolve();
     job.then(broadcastReload).catch((err) => console.error("[scholia] refresh failed:", err));

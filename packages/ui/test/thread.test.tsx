@@ -97,6 +97,46 @@ describe("Thread", () => {
     expect(reopened).toContain(">Resolve<");
   });
 
+  // ADR-0030: an absent port method is a surface the consumer doesn't have. The
+  // control is not rendered, rather than rendered and failing on click — Local
+  // Preview's Sidecar has only `comment` events so far (ADR-0019, issue #32).
+  describe("capabilities the consumer doesn't have", () => {
+    it("drops Resolve when the port cannot record one", () => {
+      const html = render(
+        <Thread conversation={conversation()} active={false} onActivate={() => {}} />,
+        stubPort({ setResolved: undefined }),
+      );
+
+      expect(html).not.toContain(">Resolve<");
+      // Reply is unaffected — a Comment is an append, which every port can do.
+      expect(html).toContain(">Reply<");
+    });
+
+    it("drops Promote when the port cannot promote, even on a promotable Chat", () => {
+      const html = render(
+        <Thread
+          conversation={conversation({ visibility: "private" })}
+          active={false}
+          onActivate={() => {}}
+          isPrivate
+          promotable
+        />,
+        stubPort({ promote: undefined }),
+      );
+
+      expect(html).not.toContain(">Promote<");
+    });
+
+    it("drops Delete for a moderator whose port cannot delete a Conversation", () => {
+      const html = render(
+        <Thread conversation={conversation()} active={false} onActivate={() => {}} />,
+        stubPort({ canModerate: true, deleteConversation: undefined }),
+      );
+
+      expect(html).not.toContain("thread-action-btn--delete");
+    });
+  });
+
   it("names the resolver only while the Conversation is resolved", () => {
     const html = render(
       <Thread
@@ -131,6 +171,15 @@ describe("Comment", () => {
     expect(render(<Comment comment={comment({ mine: false })} />)).not.toContain("comment-actions");
     expect(render(<Comment comment={comment({ mine: true })} />)).toContain("comment-actions");
   });
+
+  it("drops edit and delete on the reader's own Comment when the port has neither", () => {
+    const html = render(
+      <Comment comment={comment({ mine: true })} />,
+      stubPort({ editComment: undefined, deleteComment: undefined }),
+    );
+
+    expect(html).not.toContain("comment-actions");
+  });
 });
 
 describe("Reactions", () => {
@@ -158,6 +207,28 @@ describe("Reactions", () => {
     expect(occurrences(html, "reaction-chip__count")).toBe(2);
     expect(html).toContain("reaction-chip--mine");
     expect(html).toContain("👍 2 (you reacted)");
+  });
+
+  it("offers no palette when the port cannot record a Reaction", () => {
+    const html = render(
+      <Reactions commentId="c1" reactions={[]} />,
+      stubPort({ toggleReaction: undefined }),
+    );
+
+    expect(html).toBe("");
+  });
+
+  // Tallies already on a Comment are part of what it says, so they still render
+  // — just not as something to click.
+  it("still shows existing tallies read-only when the port cannot react", () => {
+    const html = render(
+      <Reactions commentId="c1" reactions={[{ emoji: "👍", count: 3, mine: false }]} />,
+      stubPort({ toggleReaction: undefined }),
+    );
+
+    expect(html).toContain("reaction-chip--static");
+    expect(html).toContain("3");
+    expect(html).not.toContain("<button");
   });
 });
 

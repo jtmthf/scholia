@@ -75,6 +75,29 @@ export function isLocalView(header: Header): boolean {
   return nonLocalReason(header) === null;
 }
 
+/**
+ * The guards on writing to the Sidecar — deliberately weaker than `/__open`'s.
+ *
+ * A Comment is data in the reader's own working tree, not a process spawned on
+ * their machine, and a Tunnel exists precisely so a guest can leave one: it
+ * "serves the same live files and writes to the same Sidecar" (CONTEXT
+ * "Tunnel"). So the loopback gate that makes `/__open` safe would break the
+ * feature here, and what is left is the part that still applies — a POST from
+ * this same origin, so a random other tab cannot write into the tree.
+ */
+export function checkWriteRequest(req: OpenRequestInfo): OpenRejection | null {
+  if (req.method !== "POST") {
+    return { status: 405, error: "method not allowed" };
+  }
+
+  const site = req.header("Sec-Fetch-Site");
+  if (site && site !== "same-origin") {
+    return { status: 403, error: "cross-site request rejected" };
+  }
+
+  return null;
+}
+
 // Returns the rejection to send, or null when the request may proceed. Order
 // matters: cheapest and most specific first, so a plain GET reads as "method
 // not allowed" rather than something about tunnels.

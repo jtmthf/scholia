@@ -21,12 +21,13 @@ duplicate them here:
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `core`                              | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. **No HTTP/db** — keep it that way. |
 | `db`                                | Drizzle schema + client + repositories (Postgres).                                                              |
+| `sidecar`                           | The Sidecar: one append-only YAML stream per Conversation, beside the content (ADR-0018/0019).                  |
 | `server`                            | Hono REST API + content origin.                                                                                 |
 | `ui`                                | Shared comment layer (rail, Conversations, Composer). **Preact only** — no bundler/server dep (ADR-0030).       |
 | `web`                               | Preact + Vite viewer, SSR'd by its own Hono route (ADR-0011).                                                   |
 | `local`                             | Local Preview server (Hono), ex-mdttp.                                                                          |
 | `cli`                               | The `scholia` command (`scholia <path>` previews, `scholia share` publishes).                                   |
-| `client`, `mcp`, `github`, `bridge` | Thin clients / integrations over the above.                                                                     |
+| `client`, `mcp`, `github`, `bridge` | Thin clients / integrations over the above. `bridge` also owns the DOM half of anchoring, shared with `local`.  |
 
 ## Commands
 
@@ -89,6 +90,19 @@ Its chrome lives in `packages/local/src/render/layout.tsx` (Preact SSR on the Ho
 — ADR-0011). `packages/local/test/__snapshots__/*.txt` pin the rendered DOM, so altering
 the chrome means updating them deliberately; `pnpm e2e:local` covers it in a real browser,
 including with JavaScript disabled.
+
+Local Preview hosts Conversations (ADR-0018), and three things about how follow from
+ADR-0031:
+
+- **Page content is in the chrome document**, not a frame — for both Page kinds. A `.html`
+  file is a Page: it renders through `ingestHtml` into the same `<article>`, with its own
+  stylesheets hoisted into the head.
+- **The comment rail is server-rendered, and is the page's only hydration boundary.** Every
+  other control is wired by delegation. `client.js` calls `hydrate()` on `#scholia-comments`
+  and nothing else, so live reload must never swap that element — swap
+  `#scholia-comments-data` and re-render instead.
+- **A Comment binds to the content hash captured at render**, written onto the article as
+  `data-content-hash` and handed back on submit, never re-read from disk.
 
 ## The hosted viewer
 

@@ -72,9 +72,6 @@ importers:
       open:
         specifier: ^11.0.0
         version: 11.0.0
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
     devDependencies:
       '@scholia/client':
         specifier: workspace:*
@@ -85,6 +82,9 @@ importers:
       '@scholia/local':
         specifier: workspace:*
         version: link:../local
+      '@scholia/sidecar':
+        specifier: workspace:*
+        version: link:../sidecar
       fflate:
         specifier: ^0.8.2
         version: 0.8.3
@@ -213,12 +213,21 @@ importers:
       '@hono/node-server':
         specifier: ^2.0.6
         version: 2.0.6(hono@4.12.27)
+      '@scholia/bridge':
+        specifier: workspace:*
+        version: link:../bridge
       '@scholia/core':
         specifier: workspace:*
         version: link:../core
+      '@scholia/sidecar':
+        specifier: workspace:*
+        version: link:../sidecar
       '@scholia/theme':
         specifier: workspace:*
         version: link:../theme
+      '@scholia/ui':
+        specifier: workspace:*
+        version: link:../ui
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -297,6 +306,15 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
+
+  packages/sidecar:
+    dependencies:
+      '@scholia/core':
+        specifier: workspace:*
+        version: link:../core
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   packages/theme:
     dependencies:

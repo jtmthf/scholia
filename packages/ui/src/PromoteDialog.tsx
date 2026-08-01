@@ -34,6 +34,8 @@ export function PromoteDialog({ conversation, onClose }: PromoteDialogProps) {
   const canPromote = (checked.size > 0 || summary.trim().length > 0) && !submitting;
 
   async function handlePromote() {
+    // Unreachable in practice — Thread only offers Promote when the port has it.
+    if (!port.promote) return;
     setSubmitting(true);
     setError(null);
     try {

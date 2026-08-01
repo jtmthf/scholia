@@ -15,8 +15,11 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.6",
+    "@scholia/bridge": "workspace:*",
     "@scholia/core": "workspace:*",
+    "@scholia/sidecar": "workspace:*",
     "@scholia/theme": "workspace:*",
+    "@scholia/ui": "workspace:*",
     "chokidar": "^5.0.0",
     "hono": "^4.12.26",
     "katex": "^0.17.0",

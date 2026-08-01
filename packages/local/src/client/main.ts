@@ -1,4 +1,5 @@
 import "./app.css";
+import { mountComments } from "./comments/index.js";
 
 // ---- Theme (dark mode) ----
 function isDark(): boolean {
@@ -226,20 +227,35 @@ async function liveReloadSwap(): Promise<void> {
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
+    // `#scholia-comments` is deliberately not in this list: it is Preact's DOM,
+    // and replacing it wholesale would tear the mounted layer out from under
+    // itself. Its *data* is swapped instead, and `mountComments` re-renders the
+    // island from it.
     for (const sel of [
       ".outline",
       ".nav-pane",
       ".page-header",
       ".colophon",
       "#scholia-source-md",
+      "#scholia-comments-data",
     ]) {
       const next = doc.querySelector(sel);
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
     }
 
+    // The article's `data-content-hash` names the bytes now on screen, so a
+    // Comment started after a reload binds to what the reader can actually see.
+    const currentArticle = document.querySelector("article.markdown-body");
+    const freshArticle = doc.querySelector("article.markdown-body");
+    if (currentArticle && freshArticle) {
+      const hash = freshArticle.getAttribute("data-content-hash");
+      if (hash) currentArticle.setAttribute("data-content-hash", hash);
+    }
+
     addCopyButtons();
     initScrollSpy();
+    mountComments();
     await renderMermaid();
   } catch {
     location.reload();
@@ -395,4 +411,5 @@ initCopyPath();
 initCopyMarkdown();
 addCopyButtons();
 initScrollSpy();
+mountComments();
 void renderMermaid();

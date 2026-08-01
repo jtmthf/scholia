@@ -19,6 +19,12 @@ import { useContext } from "preact/hooks";
  *   with a query cache invalidates; one holding plain state refetches. The
  *   components hold no copy to update, so there is nothing for them to get wrong.
  *
+ * - **An optional method is a surface the consumer doesn't have.** The same
+ *   pattern as `Rail`'s optional `onBringAgent`: where a method is absent, the
+ *   affordance that would call it isn't rendered at all, rather than rendered and
+ *   failing. Local Preview supplies only what the Sidecar can honestly do today
+ *   (ADR-0019: state changes are events, and only `comment` events exist so far).
+ *
  * Methods reject with an `Error` whose message is fit to show a reader; the
  * component that initiated the call renders it inline.
  */
@@ -33,14 +39,21 @@ export interface CommentsPort {
    * already have one, in which case the port falls back to the stored name.
    */
   addComment(conversationId: string, input: { body: string; displayName: string }): Promise<void>;
-  editComment(commentId: string, input: { body: string }): Promise<void>;
-  deleteComment(commentId: string): Promise<void>;
-  toggleReaction(commentId: string, emoji: string): Promise<void>;
-  setResolved(conversationId: string, resolved: boolean): Promise<void>;
+  /** Omit to render Comments without an Edit affordance. */
+  editComment?(commentId: string, input: { body: string }): Promise<void>;
+  /** Omit to render Comments without a Delete affordance. */
+  deleteComment?(commentId: string): Promise<void>;
+  /** Omit to render Comments with no Reactions row at all (CONTEXT "Reaction"). */
+  toggleReaction?(commentId: string, emoji: string): Promise<void>;
+  /** Omit to render Conversations without Resolve/Reopen. */
+  setResolved?(conversationId: string, resolved: boolean): Promise<void>;
   /** Flip a Chat to a public Thread (CONTEXT "Promotion"). */
-  promote(conversationId: string, input: { commentIds: string[]; summary?: string }): Promise<void>;
+  promote?(
+    conversationId: string,
+    input: { commentIds: string[]; summary?: string },
+  ): Promise<void>;
   /** Owner moderation — delete a whole Conversation. Gated on `canModerate`. */
-  deleteConversation(conversationId: string): Promise<void>;
+  deleteConversation?(conversationId: string): Promise<void>;
 }
 
 const CommentsContext = createContext<CommentsPort | null>(null);

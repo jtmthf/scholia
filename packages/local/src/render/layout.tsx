@@ -1,6 +1,18 @@
 import type { VNode } from "preact";
 import { render } from "preact-render-to-string";
 import type { Heading, NavNode, Provenance } from "@scholia/core";
+import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
+import { EMPTY_NOTE, OUTDATED_NOTE } from "./comment-copy.js";
+
+export interface CommentsInfo {
+  /** Repo-relative path of the Page these Conversations are on. */
+  pagePath: string;
+  /** sha256 of the Source that produced this render — the Comment's binding. */
+  contentHash: string;
+  /** The author git config names, so the Composer never has to ask. */
+  displayName: string;
+  conversations: ConversationDTO[];
+}
 
 export interface ColophonInfo {
   /** File path relative to the served root, e.g. "docs/adr/0016-....md". */
@@ -26,6 +38,13 @@ export interface LayoutOptions {
   sourceMarkdown: string;
   /** Null for non-doc / error pages that have no meaningful Colophon. */
   colophon: ColophonInfo | null;
+  /**
+   * An HTML Page's own `<style>`/`<link>` elements, hoisted into the head so the
+   * Page looks the way its author built it. Empty for a Markdown Page.
+   */
+  pageStyles: string;
+  /** Null for a page with nothing to comment on (a render error). */
+  comments: CommentsInfo | null;
 }
 
 // Inline pre-paint script: apply the saved/system theme before first paint to
@@ -174,6 +193,45 @@ function Colophon({ info }: { info: ColophonInfo | null }) {
   );
 }
 
+// The comment layer's server render (ADR-0030's @scholia/ui, ADR-0011's SSR).
+//
+// The rail is chrome like the Nav and the Outline: it is in the first response,
+// finished, so Conversations are readable before any JavaScript runs. What the
+// client adds is the parts that need a live DOM — selecting text, highlighting
+// an Anchor, posting — by hydrating this exact markup.
+//
+// Nothing here can act, so the port it renders under can't either. Every method
+// the components might reach for is absent, which is how @scholia/ui is told a
+// surface doesn't have it; `addComment` is the one it requires, and on the server
+// it is unreachable because nothing has been clicked.
+const SSR_PORT: CommentsPort = {
+  displayName: null,
+  canModerate: false,
+  addComment: () => Promise.reject(new Error("not interactive until the page loads")),
+};
+
+// No `outdatedOrigin`: local files are live rather than snapshotted, so there is
+// no earlier state an Outdated Conversation could link back to. The copy is
+// shared with the client, which hydrates this markup — a string that differed
+// between the two would be a correction the reader can see.
+function CommentRail({ comments }: { comments: CommentsInfo }) {
+  return (
+    <div id="scholia-comments">
+      <CommentsProvider value={{ ...SSR_PORT, displayName: comments.displayName }}>
+        <Rail
+          conversations={comments.conversations}
+          chats={[]}
+          activeConversationId={null}
+          onActivate={() => {}}
+          onNewPageComment={() => {}}
+          outdatedNote={OUTDATED_NOTE}
+          emptyNote={EMPTY_NOTE}
+        />
+      </CommentsProvider>
+    </div>
+  );
+}
+
 // Embeds the raw source as a JSON string inside a non-executing script tag
 // so "Copy markdown" reuses what the server already read for rendering,
 // rather than adding a fetch round-trip. `<` is escaped so neither a
@@ -181,30 +239,62 @@ function Colophon({ info }: { info: ColophonInfo | null }) {
 // also why this is raw HTML rather than a JSX text child: the escaping here
 // has to be JSON's, not the view layer's.
 function SourceScript({ source }: { source: string }) {
-  const json = JSON.stringify(source).replace(/</g, "\\u003c");
+  return <JsonScript id="scholia-source-md" value={source} />;
+}
+
+// The comment layer's props, handed to the client as data rather than re-fetched
+// — it is hydrating markup the server already rendered from these exact values,
+// so fetching them again would be asking the same question twice and risking a
+// different answer.
+function CommentsScript({ comments }: { comments: CommentsInfo }) {
+  return <JsonScript id="scholia-comments-data" value={comments} />;
+}
+
+// A JSON payload in a non-executing script tag. `<` is escaped so neither a
+// "</script>" nor a "<!--" in the value can affect HTML parsing — which is also
+// why this is raw HTML rather than a JSX text child: the escaping here has to be
+// JSON's, not the view layer's.
+function JsonScript({ id, value }: { id: string; value: unknown }) {
+  const json = JSON.stringify(value).replace(/</g, "\\u003c");
+  return <script type="application/json" id={id} dangerouslySetInnerHTML={{ __html: json }} />;
+}
+
+function HeadContent(opts: LayoutOptions) {
   return (
-    <script
-      type="application/json"
-      id="scholia-source-md"
-      dangerouslySetInnerHTML={{ __html: json }}
-    />
+    <>
+      <meta charSet="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>{opts.title}</title>
+      <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      <link rel="stylesheet" href="/__assets/katex/katex.min.css" />
+      <link rel="stylesheet" href="/__assets/client.css" />
+    </>
   );
 }
 
 function Document(opts: LayoutOptions) {
   const relPath = opts.colophon?.relPath ?? opts.currentPath.replace(/^\/+/, "");
 
+  // The head is rendered to a string and concatenated rather than composed as
+  // children, because an HTML Page's own `<style>`/`<link>` elements arrive as
+  // raw markup and `dangerouslySetInnerHTML` needs an element to sit on — and
+  // that element would be a `<div>` in `<head>`, which the parser would move into
+  // the body, taking the Page's styling with it.
+  //
+  // They come last, so the Page wins where it and the chrome disagree: it is the
+  // Page the reader came to read. Which is also why an HTML Page can restyle the
+  // chrome around it — locally the content is the reader's own and there is no
+  // frame to contain it.
+  const head = render(<HeadContent {...opts} />) + opts.pageStyles;
+
   return (
     <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{opts.title}</title>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
-        <link rel="stylesheet" href="/__assets/katex/katex.min.css" />
-        <link rel="stylesheet" href="/__assets/client.css" />
-      </head>
-      <body class={opts.showNav ? "has-nav" : ""}>
+      <head dangerouslySetInnerHTML={{ __html: head }} />
+      <body
+        class={[opts.showNav ? "has-nav" : "", opts.comments ? "has-comments" : ""]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <header class="topbar">
           <div class="topbar-inner">
             {opts.showNav && (
@@ -260,23 +350,34 @@ function Document(opts: LayoutOptions) {
               />
             </div>
             {/* Content HTML comes from the shared render pipeline already
-                escaped; it is inserted verbatim, never re-encoded here. */}
-            <article class="markdown-body" dangerouslySetInnerHTML={{ __html: opts.contentHtml }} />
+                escaped; it is inserted verbatim, never re-encoded here. It is
+                also the surface a reader selects text on, so its `data-sm`
+                stamps and the Page's content hash ride on the element itself. */}
+            <article
+              class="markdown-body"
+              data-page-path={opts.comments?.pagePath}
+              data-content-hash={opts.comments?.contentHash}
+              dangerouslySetInnerHTML={{ __html: opts.contentHtml }}
+            />
             <Colophon info={opts.colophon} />
           </main>
           <Outline headings={opts.headings} />
+          {opts.comments && <CommentRail comments={opts.comments} />}
         </div>
         <SourceScript source={opts.sourceMarkdown} />
+        {opts.comments && <CommentsScript comments={opts.comments} />}
         <script type="module" src="/__assets/client.js" />
       </body>
     </html>
   );
 }
 
-// SSR only (ADR-0011): the chrome is server-rendered and shipped as finished
-// HTML. Nothing here hydrates — `client.js` wires the handful of interactive
-// controls by delegation against the DOM the server sent, so first paint never
-// waits on JS. `preact-render-to-string` emits no doctype, so we prepend one.
+// Server-rendered in full (ADR-0011): the reading view — chrome, content,
+// Colophon and the comment rail — is finished HTML in the first response, so
+// first paint never waits on JS. `client.js` then wires the interactive controls
+// by delegation, and hydrates exactly one island: the comment layer, which needs
+// a live DOM to select text in and highlight Anchors against.
+// `preact-render-to-string` emits no doctype, so we prepend one.
 export function renderPage(opts: LayoutOptions): string {
   return `<!doctype html>\n${render(<Document {...opts} />)}`;
 }

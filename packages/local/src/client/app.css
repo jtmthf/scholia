@@ -9,6 +9,10 @@
  */
 @import "@scholia/theme/tokens.css";
 @import "@scholia/theme/type.css";
+/* The comment layer (ADR-0030). It ships its stylesheet as an export rather than
+   importing it, so the consumer decides where it lands — here, after the theme
+   so the palette contract below is already defined when its rules resolve. */
+@import "@scholia/ui/comments.css";
 
 :root {
   /* Local-only aliases: not part of the shared token set, but derived from
@@ -18,12 +22,39 @@
   --shiki-fallback: var(--color-ink);
   --mark-bg: #fff3b0;
   --mark-fg: #1f2328;
+
+  /* @scholia/ui's palette contract, answered in @scholia/theme's terms. The
+     comment layer resolves every colour through these because the palette
+     belongs to the surrounding surface: the hosted viewer's and Local Preview's
+     editorial identity (ADR-0016) are different palettes on purpose. */
+  --bg: var(--color-paper);
+  --fg: var(--color-ink);
+  --muted: var(--color-muted);
+  --border: var(--color-rule);
+  --chrome-bg: var(--color-surface);
+  --nav-hover: color-mix(in srgb, var(--color-ink) 6%, transparent);
+  --nav-active-bg: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --nav-active-fg: var(--color-accent);
 }
 
 html.dark {
   --topbar-bg: color-mix(in srgb, var(--color-surface) 90%, transparent);
   --mark-bg: #bb8009;
   --mark-fg: #ffffff;
+
+  /* comments.css declares its own dark values under `prefers-color-scheme`, but
+     Local Preview's dark mode is a class the reader can toggle against their OS
+     setting — so the ones that would otherwise stay light are restated here. */
+  --agent-badge-bg: #a371f7;
+  --agent-badge-fg: #0d1117;
+  --owner-tier-fg: #ff7b72;
+  --reaction-active-bg: #0c2d6b;
+  --reaction-active-border: #388bfd;
+  --reaction-active-fg: #79c0ff;
+  --floating-btn-bg: #1f6feb;
+  --floating-btn-hover-bg: #388bfd;
+  --outdated-label-fg: #d29922;
+  --outdated-label-bg: #272115;
 }
 
 * {
@@ -185,9 +216,39 @@ body.has-nav .layout {
   grid-template-columns: var(--layout-nav-width) minmax(0, 1fr) var(--layout-outline-width);
   gap: var(--layout-gap);
 }
+/* The comment rail is another column, and the sheet gets more room to hold it —
+   a Conversation has to sit beside the passage it is about, not below it. */
+body.has-comments .layout {
+  max-width: 1760px;
+  grid-template-columns: minmax(0, 1fr) var(--rail-width);
+  gap: var(--layout-gap);
+}
+body.has-comments.has-nav .layout {
+  grid-template-columns:
+    var(--layout-nav-width) minmax(0, 1fr) var(--layout-outline-width)
+    var(--rail-width);
+}
+#scholia-comments {
+  position: sticky;
+  top: var(--topbar-height);
+  align-self: start;
+  height: calc(100vh - var(--topbar-height));
+  min-width: 0;
+}
+#scholia-comments .comment-rail {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+}
+
 @media (max-width: 1000px) {
   body.has-nav .layout {
     grid-template-columns: var(--layout-nav-width) minmax(0, 1fr);
+  }
+  /* The Outline goes before the rail does: the rail is the reason the reader is
+     here, the Outline is a convenience. */
+  body.has-comments.has-nav .layout {
+    grid-template-columns: var(--layout-nav-width) minmax(0, 1fr) var(--rail-width);
   }
   .outline {
     display: none;
@@ -196,6 +257,21 @@ body.has-nav .layout {
 @media (max-width: 720px) {
   body.has-nav .layout {
     grid-template-columns: 1fr;
+  }
+  /* Too narrow for a column beside the text: the rail stacks under the article
+     and scrolls with it, rather than being hidden — Conversations are the point
+     of the page, so they are never the thing that disappears. */
+  body.has-comments .layout,
+  body.has-comments.has-nav .layout {
+    grid-template-columns: 1fr;
+  }
+  #scholia-comments {
+    position: static;
+    height: auto;
+  }
+  #scholia-comments .comment-rail {
+    border-left: none;
+    border-top: 1px solid var(--border);
   }
   body.has-nav .menu-toggle {
     display: inline-flex;

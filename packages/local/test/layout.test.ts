@@ -12,11 +12,24 @@ import { canonicalHtml } from "./helpers/canonical-html.js";
 //
 // They were captured from the string-template `layout.ts` this file's subject
 // replaced (issue #25), *before* the Preact SSR rewrite, and survived it byte
-// for byte. To re-verify that claim: restore `layout.ts` from 6a158fc over
-// `layout.tsx` and run this file — the goldens still pass.
+// for byte. Issue #28 is the first change that moved them on purpose: the comment
+// rail is server-rendered chrome now (ADR-0018, ADR-0030), so it is in the
+// goldens, and the article carries the Page path and content hash a Comment binds
+// to. Everything above the article is unchanged from that original capture.
 
 function navNode(partial: Partial<NavNode> & Pick<NavNode, "type" | "title" | "urlPath">): NavNode {
   return { fsPath: `/tmp${partial.urlPath}`, order: 0, ...partial };
+}
+
+// A Comment's timestamp is rendered with `toLocaleString`, so its text depends on
+// the machine's timezone — a golden containing it would say "Jul 28, 7:32 AM" here
+// and "11:32 AM" in CI. The redaction keeps the element in the golden (its
+// presence and position are chrome) without pinning what a clock says.
+function pinnedDocument(html: string): string {
+  return canonicalHtml(html).replace(
+    /(comment-timestamp"\n\s*)"[^"]*"/g,
+    '$1"<local time, redacted>"',
+  );
 }
 
 // Deliberately hostile strings: every field the chrome interpolates carries at
@@ -61,6 +74,59 @@ const CONTENT_HTML =
 
 const SOURCE_MARKDOWN = `# Title\n\nA fence that closes a script tag: </script> and a comment: <!-- hi -->\n`;
 
+// The comment rail is chrome too (ADR-0018, ADR-0030) — server-rendered like the
+// Nav and the Outline, so it is in the golden. One anchored Conversation and one
+// Page-level, which is what puts both rail sections on the page.
+const COMMENTS: NonNullable<LayoutOptions["comments"]> = {
+  pagePath: "guide/deep/deeper.md",
+  contentHash: "0".repeat(64),
+  displayName: "Reviewer & Co",
+  conversations: [
+    {
+      id: "01920000-0000-7000-8000-000000000001",
+      pagePath: "guide/deep/deeper.md",
+      anchor: { textQuote: { exact: "Body & text", prefix: "Title\n", suffix: " with an" } },
+      anchorStatus: "live",
+      resolved: false,
+      resolvedBy: null,
+      visibility: "public",
+      comments: [
+        {
+          id: "01920000-0000-7000-8000-000000000002",
+          author: { name: "Reviewer & Co", kind: "human", tier: "viewer", source: "native" },
+          body: "Does this still hold? <not markup>",
+          createdAt: "2026-07-28T11:32:07.250Z",
+          editedAt: null,
+          deleted: false,
+          mine: true,
+          reactions: [],
+        },
+      ],
+    },
+    {
+      id: "01920000-0000-7000-8000-000000000003",
+      pagePath: "guide/deep/deeper.md",
+      anchor: null,
+      anchorStatus: "live",
+      resolved: false,
+      resolvedBy: null,
+      visibility: "public",
+      comments: [
+        {
+          id: "01920000-0000-7000-8000-000000000004",
+          author: { name: "Someone Else", kind: "human", tier: "viewer", source: "native" },
+          body: "Whole-page note.",
+          createdAt: "2026-07-28T12:00:00.000Z",
+          editedAt: null,
+          deleted: false,
+          mine: false,
+          reactions: [],
+        },
+      ],
+    },
+  ],
+};
+
 const FULL: LayoutOptions = {
   title: NASTY,
   contentHtml: CONTENT_HTML,
@@ -72,6 +138,8 @@ const FULL: LayoutOptions = {
   editorAvailable: true,
   filePath: "/Users/someone/my & docs/guide/deep/deeper.md",
   sourceMarkdown: SOURCE_MARKDOWN,
+  pageStyles: "",
+  comments: COMMENTS,
   colophon: {
     relPath: "guide/deep/deeper.md",
     mtimeMs: Date.UTC(2026, 6, 28, 11, 32, 7, 250),
@@ -80,7 +148,9 @@ const FULL: LayoutOptions = {
 };
 
 // Single-file mode with no editor resolved: no Nav pane, no menu toggle, no
-// Outline, no Colophon, and "Copy path" standing in for "Open in editor".
+// Outline, no Colophon, and "Copy path" standing in for "Open in editor". Also
+// the render-error shape — `comments: null` means there is no Page to comment
+// on, so the rail is absent rather than empty.
 const MINIMAL: LayoutOptions = {
   title: "Solo",
   contentHtml: "<h1>Solo</h1>",
@@ -92,7 +162,26 @@ const MINIMAL: LayoutOptions = {
   editorAvailable: false,
   filePath: "/Users/someone/solo.md",
   sourceMarkdown: "# Solo\n",
+  pageStyles: "",
+  comments: null,
   colophon: null,
+};
+
+// An HTML Page: its own markup as the content, its own stylesheets hoisted into
+// the head, and an empty rail because nobody has said anything about it yet.
+const HTML_PAGE: LayoutOptions = {
+  ...MINIMAL,
+  title: "HTML Home",
+  currentPath: "/index.html",
+  contentHtml: `<h1 data-sm="3">HTML Home</h1>\n<p data-sm="4">Hand-written &amp; interactive.</p>`,
+  sourceMarkdown: "<!doctype html>\n<html></html>\n",
+  pageStyles: `<style>body { --page-owns-this: 1; }</style>\n<link rel="stylesheet" href="./page.css">`,
+  comments: {
+    pagePath: "index.html",
+    contentHash: "f".repeat(64),
+    displayName: "Reviewer & Co",
+    conversations: [],
+  },
 };
 
 // The Site root: an empty breadcrumb, and a Colophon with no git Provenance to
@@ -104,21 +193,72 @@ const ROOT_NO_PROVENANCE: LayoutOptions = {
 };
 
 test("the full chrome renders the pinned document", async () => {
-  await expect(canonicalHtml(renderPage(FULL))).toMatchFileSnapshot(
+  await expect(pinnedDocument(renderPage(FULL))).toMatchFileSnapshot(
     "./__snapshots__/chrome-full.txt",
   );
 });
 
 test("single-file mode without an editor renders the pinned document", async () => {
-  await expect(canonicalHtml(renderPage(MINIMAL))).toMatchFileSnapshot(
+  await expect(pinnedDocument(renderPage(MINIMAL))).toMatchFileSnapshot(
     "./__snapshots__/chrome-minimal.txt",
   );
 });
 
 test("the Site root without Provenance renders the pinned document", async () => {
-  await expect(canonicalHtml(renderPage(ROOT_NO_PROVENANCE))).toMatchFileSnapshot(
+  await expect(pinnedDocument(renderPage(ROOT_NO_PROVENANCE))).toMatchFileSnapshot(
     "./__snapshots__/chrome-root.txt",
   );
+});
+
+test("an HTML Page renders the pinned document, with its own styles hoisted", async () => {
+  await expect(pinnedDocument(renderPage(HTML_PAGE))).toMatchFileSnapshot(
+    "./__snapshots__/chrome-html-page.txt",
+  );
+});
+
+// The rail is server-rendered, not fetched — a reader with JavaScript off still
+// sees every Conversation on the Page (ADR-0011).
+test("Conversations are in the first response, not left to the client", () => {
+  const html = renderPage(FULL);
+  expect(html).toContain("Does this still hold?");
+  expect(html).toContain("Whole-page note.");
+  expect(html).toContain("“Body &amp; text”");
+});
+
+// The Comment's binding is taken from the render (CONTEXT "Comment"), so the
+// hash the client posts back has to be the one on the page it is looking at.
+test("the article carries the Page path and the content hash it was rendered from", () => {
+  const html = renderPage(FULL);
+  expect(html).toContain(`data-page-path="guide/deep/deeper.md"`);
+  expect(html).toContain(`data-content-hash="${"0".repeat(64)}"`);
+});
+
+test("a page with nothing to comment on renders no rail and no comment data", () => {
+  const html = renderPage(MINIMAL);
+  expect(html).not.toContain(`id="scholia-comments"`);
+  expect(html).not.toContain(`id="scholia-comments-data"`);
+  expect(html).not.toContain("has-comments");
+});
+
+// The client hydrates the rail from this rather than fetching it back, so it has
+// to be the same values the server just rendered from — and JSON-escaped, so a
+// comment body can't end the script element early.
+test("the comment layer's props are embedded as escaped JSON", () => {
+  const html = renderPage(FULL);
+  const embedded = html.match(
+    /<script type="application\/json" id="scholia-comments-data">([\s\S]*?)<\/script>/,
+  );
+  expect(embedded?.[1]).not.toContain("</script>");
+  expect(JSON.parse(embedded![1]!)).toEqual(COMMENTS);
+});
+
+// An HTML Page brings its own styling and there is no frame to contain it, so it
+// lands in the head — after the chrome's, which is what lets the Page win.
+test("an HTML Page's stylesheets are hoisted into the head, after the chrome's", () => {
+  const html = renderPage(HTML_PAGE);
+  const head = html.slice(0, html.indexOf("</head>"));
+  expect(head).toContain(`<link rel="stylesheet" href="./page.css">`);
+  expect(head.indexOf("/__assets/client.css")).toBeLessThan(head.indexOf("./page.css"));
 });
 
 // The goldens collapse whitespace, so they can't speak for `<pre>`. Content HTML

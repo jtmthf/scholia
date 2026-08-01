@@ -18,6 +18,11 @@ export interface CreateConversationInput {
 export interface ConversationRepository {
   /** Create a new Conversation with its first Comment. */
   createConversation(input: CreateConversationInput): Promise<Conversation>;
+  /**
+   * Append a Comment event to an existing Conversation. Rejects when no
+   * Conversation carries that id — the aggregate has to exist to be appended to.
+   */
+  appendComment(conversationId: string, event: CommentEvent): Promise<void>;
   /** List all Conversations attached to the given Page path. */
   listConversations(pagePath: string): Promise<Conversation[]>;
 }

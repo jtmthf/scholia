@@ -1,6 +1,9 @@
 import { resolve, relative, sep, isAbsolute } from "node:path";
 
-const DOC_EXTENSIONS = [".md", ".markdown", ".mdx"];
+// Every extension that names a Page rather than an Asset (CONTEXT "Page"): a
+// Markdown Page, its MDX flavour, or an HTML Page. `classifyFile` below says
+// which kind; this only says "is one".
+const DOC_EXTENSIONS = [".md", ".markdown", ".mdx", ".html", ".htm"];
 
 export function isDoc(name: string): boolean {
   const lower = name.toLowerCase();

@@ -13,4 +13,5 @@ export type {
 export type { ConversationRepository, CreateConversationInput } from "./repository.js";
 
 export { createConversation, type CreateConversationParams } from "./create.js";
+export { appendComment, type AppendCommentParams } from "./append.js";
 export { listConversations } from "./list.js";

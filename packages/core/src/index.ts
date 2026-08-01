@@ -17,7 +17,7 @@ export { rewriteInterPageLinks, type RewriteLinkOptions } from "./ingest/links.j
 // Markdown Page ingest for hosting: render + Source Map + content-addressed store.
 export { ingestMarkdown, type MarkdownIngest } from "./ingest/markdown.js";
 // HTML Page ingest for hosting: parse5 + Source Map + content-addressed store (M4).
-export { ingestHtml, type HtmlIngest } from "./ingest/html.js";
+export { ingestHtml, readHtmlMeta, type HtmlIngest } from "./ingest/html.js";
 export {
   storeMarkdownPage,
   storeHtmlPage,
