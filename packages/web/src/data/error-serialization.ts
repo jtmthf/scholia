@@ -16,10 +16,7 @@ function isError(value: unknown): value is Error {
 
 function isSerializedError(value: unknown): value is SerializedError {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    "__errorName" in value &&
-    "message" in value
+    typeof value === "object" && value !== null && "__errorName" in value && "message" in value
   );
 }
 
