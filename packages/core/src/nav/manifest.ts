@@ -38,12 +38,7 @@ function isPage(kind: ManifestEntry["kind"]): boolean {
 // index/README floats first, then explicit order, then numeric-aware filename
 // collation — never by label. Tree's `compare` layers `_meta.json` on top of
 // this base.
-export function compareEntryPaths(
-  a: string,
-  b: string,
-  orderA?: number,
-  orderB?: number,
-): number {
+export function compareEntryPaths(a: string, b: string, orderA?: number, orderB?: number): number {
   const aIsIndex = isIndexFile(basename(a));
   const bIsIndex = isIndexFile(basename(b));
   if (aIsIndex !== bIsIndex) return aIsIndex ? -1 : 1;
@@ -109,12 +104,7 @@ export function buildNav(entries: ManifestEntry[]): NavNode[] {
 
 function sortTree(nodes: NavNode[]): void {
   nodes.sort((a, b) => {
-    return compareEntryPaths(
-      basename(a.fsPath),
-      basename(b.fsPath),
-      a.order,
-      b.order,
-    );
+    return compareEntryPaths(basename(a.fsPath), basename(b.fsPath), a.order, b.order);
   });
   for (const node of nodes) if (node.children) sortTree(node.children);
 }

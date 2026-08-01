@@ -137,10 +137,5 @@ function compare(a: NavNode, b: NavNode, metaOrder: string[]): number {
 
   // Then delegate to the shared Nav ordering: index-first, then frontmatter
   // `order`, then numeric-aware filename collation — never by label.
-  return compareEntryPaths(
-    basename(a.fsPath),
-    basename(b.fsPath),
-    a.order,
-    b.order,
-  );
+  return compareEntryPaths(basename(a.fsPath), basename(b.fsPath), a.order, b.order);
 }

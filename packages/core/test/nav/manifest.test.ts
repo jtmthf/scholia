@@ -1,5 +1,10 @@
 import { describe, test, expect } from "vitest";
-import { buildNav, pickEntryPath, compareEntryPaths, type ManifestEntry } from "../../src/nav/manifest.js";
+import {
+  buildNav,
+  pickEntryPath,
+  compareEntryPaths,
+  type ManifestEntry,
+} from "../../src/nav/manifest.js";
 import type { NavNode } from "../../src/types.js";
 
 function md(path: string, title?: string): ManifestEntry {
@@ -97,10 +102,7 @@ describe("pickEntryPath", () => {
   test("numeric-prefixed directories sort by numeric value, not lexicographic (10-guide > 9-intro)", () => {
     // 10-guide would come before 9-intro in pure lexicographic sort
     // ('1' < '9'), but Nav uses numeric-aware collation so 9 < 10.
-    const entries = [
-      md("docs/9-intro/index.md"),
-      md("docs/10-guide/index.md"),
-    ];
+    const entries = [md("docs/9-intro/index.md"), md("docs/10-guide/index.md")];
     // Both are scoped under docs/ and not top-level. The first in Nav order
     // (numeric-aware) should be 9-intro before 10-guide.
     expect(pickEntryPath(entries, "docs")).toBe("docs/9-intro/index.md");
@@ -133,10 +135,7 @@ describe("pickEntryPath", () => {
   test("scoped fallback uses Nav order across subdirectories", () => {
     // docs/api/ sorts before docs/guide/ alphabetically, so docs/api/overview.md
     // should be the first descendant in depth-first Nav order.
-    const entries = [
-      md("docs/guide/intro.md"),
-      md("docs/api/overview.md"),
-    ];
+    const entries = [md("docs/guide/intro.md"), md("docs/api/overview.md")];
     expect(pickEntryPath(entries, "docs")).toBe("docs/api/overview.md");
   });
 });

@@ -147,10 +147,7 @@ test("frontmatter `order` is reflected in DocRecord.order", async ({ tmp }) => {
 });
 
 test("_meta.json order is reflected in DocRecord.order", async ({ tmp }) => {
-  await tmp.write(
-    "_meta.json",
-    JSON.stringify(["zebra.md", "apple.md"]),
-  );
+  await tmp.write("_meta.json", JSON.stringify(["zebra.md", "apple.md"]));
   await tmp.write("apple.md", "# Apple\n");
   await tmp.write("zebra.md", "# Zebra\n");
 
