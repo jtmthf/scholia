@@ -25,6 +25,6 @@
     "@hono/vite-dev-server": "^0.26.1",
     "@preact/preset-vite": "^2.10.0",
     "typescript": "^7.0.2",
-    "vite": "^6.0.7"
+    "vite": "^8.2.0"
   }
 }
