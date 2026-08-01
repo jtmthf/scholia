@@ -115,3 +115,55 @@ test("sorts numbered files by filename, not by their prose h1 label (ADR-style n
     "Mirror Comments To GitHub",
   ]);
 });
+
+test("assigns positional order to DocRecord reflecting Nav order (including _meta.json)", async ({
+  tmp,
+}) => {
+  await tmp.write("README.md", "# Home\n");
+  await tmp.write("zebra.md", "# Zebra\n");
+  await tmp.write("apple.md", "# Apple\n");
+
+  const { docs } = await scanTree(tmp.root);
+  // README should be first (order 0 or similar), then apple, then zebra
+  // (alphabetically by filename within non-index): a < z.
+  const byUrl = Object.fromEntries(docs.map((d) => [d.urlPath, d.order] as const));
+  expect(byUrl["/README.md"]).toBeDefined();
+  expect(byUrl["/apple.md"]).toBeDefined();
+  expect(byUrl["/zebra.md"]).toBeDefined();
+  expect(byUrl["/README.md"]!).toBeLessThan(byUrl["/apple.md"]!);
+  expect(byUrl["/apple.md"]!).toBeLessThan(byUrl["/zebra.md"]!);
+});
+
+test("frontmatter `order` is reflected in DocRecord.order", async ({ tmp }) => {
+  await tmp.write("apple.md", "---\norder: 2\n---\n# Apple\n");
+  await tmp.write("zebra.md", "---\norder: 1\n---\n# Zebra\n");
+
+  const { docs } = await scanTree(tmp.root);
+  const byUrl = Object.fromEntries(docs.map((d) => [d.urlPath, d.order] as const));
+  // zebra has order 1, apple has order 2 -> zebra should come first
+  expect(byUrl["/zebra.md"]).toBeDefined();
+  expect(byUrl["/apple.md"]).toBeDefined();
+  expect(byUrl["/zebra.md"]!).toBeLessThan(byUrl["/apple.md"]!);
+});
+
+test("_meta.json order is reflected in DocRecord.order", async ({ tmp }) => {
+  await tmp.write("_meta.json", JSON.stringify(["zebra.md", "apple.md"]));
+  await tmp.write("apple.md", "# Apple\n");
+  await tmp.write("zebra.md", "# Zebra\n");
+
+  const { docs } = await scanTree(tmp.root);
+  const byUrl = Object.fromEntries(docs.map((d) => [d.urlPath, d.order] as const));
+  // _meta.json lists zebra first, apple second
+  expect(byUrl["/zebra.md"]).toBeDefined();
+  expect(byUrl["/apple.md"]).toBeDefined();
+  expect(byUrl["/zebra.md"]!).toBeLessThan(byUrl["/apple.md"]!);
+});
+
+test("numeric-prefixed files sort by numeric value in Nav (10 > 9)", async ({ tmp }) => {
+  await tmp.write("9-intro.md", "# Nine\n");
+  await tmp.write("10-guide.md", "# Ten\n");
+
+  const { tree } = await scanTree(tmp.root);
+  // Numeric-aware collation: 9 < 10, so 9-intro first
+  expect(titles(tree)).toEqual(["Nine", "Ten"]);
+});

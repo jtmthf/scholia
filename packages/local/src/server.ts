@@ -87,6 +87,7 @@ function resolveIndex(rootDir: string, dir: string, docs: DocRecord[]): string |
     path: d.urlPath.replace(/^\/+/, ""),
     title: d.title,
     kind: classifyFile(d.fsPath),
+    order: d.order,
   }));
   const dirScope = toUrlPath(rootDir, dir).replace(/^\/+/, "");
   const entryPath = pickEntryPath(entries, dirScope);

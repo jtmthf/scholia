@@ -12,17 +12,42 @@ export interface ManifestEntry {
   path: string;
   title?: string | null;
   kind: "markdown" | "html" | "asset";
+  /** Positional order within its directory in Nav order (0 = first), from
+   *  frontmatter or _meta.json. Undefined means no explicit order — fall back
+   *  to numeric-aware filename collation. */
+  order?: number;
 }
 
-const INDEX_RE = /^(readme|index)\.(md|markdown|html?)$/i;
-
 function stripExt(name: string): string {
-  return name.replace(/\.(md|markdown|html?)$/i, "");
+  return name.replace(/\.(md|markdown|mdx|html?)$/i, "");
+}
+
+const INDEX_BASENAME_RE = /^(readme|index)$/i;
+const INDEX_EXT_RE = /\.(md|markdown|mdx|html)$/i;
+
+function isIndexFile(name: string): boolean {
+  return INDEX_BASENAME_RE.test(stripExt(name)) && INDEX_EXT_RE.test(name);
 }
 
 // A Page (Markdown or HTML) appears in Nav and is entry-eligible; Assets do not.
 function isPage(kind: ManifestEntry["kind"]): boolean {
   return kind === "markdown" || kind === "html";
+}
+
+// Shared ordering for Nav and Entry Page resolution (CONTEXT "Entry Page"):
+// index/README floats first, then explicit order, then numeric-aware filename
+// collation — never by label. Tree's `compare` layers `_meta.json` on top of
+// this base.
+export function compareEntryPaths(a: string, b: string, orderA?: number, orderB?: number): number {
+  const aIsIndex = isIndexFile(basename(a));
+  const bIsIndex = isIndexFile(basename(b));
+  if (aIsIndex !== bIsIndex) return aIsIndex ? -1 : 1;
+
+  const oa = orderA ?? Number.POSITIVE_INFINITY;
+  const ob = orderB ?? Number.POSITIVE_INFINITY;
+  if (oa !== ob) return oa - ob;
+
+  return a.localeCompare(b, undefined, { numeric: true });
 }
 
 // Build the auto-generated Nav tree from a Version's manifest. Only Markdown
@@ -77,28 +102,19 @@ export function buildNav(entries: ManifestEntry[]): NavNode[] {
   return root;
 }
 
-function isIndexNode(node: NavNode): boolean {
-  return node.type === "file" && INDEX_RE.test(basename(node.fsPath));
-}
-
 function sortTree(nodes: NavNode[]): void {
   nodes.sort((a, b) => {
-    const ai = isIndexNode(a) ? 0 : 1;
-    const bi = isIndexNode(b) ? 0 : 1;
-    if (ai !== bi) return ai - bi;
-    return a.title.localeCompare(b.title);
+    return compareEntryPaths(basename(a.fsPath), basename(b.fsPath), a.order, b.order);
   });
   for (const node of nodes) if (node.children) sortTree(node.children);
 }
 
 // Resolve the Entry Page path by precedence with no config (CONTEXT "Entry
-// Page"): `index.html` -> `index.md` -> `README.md` -> otherwise the first
-// Page directly inside `dir` (Markdown or HTML) alphabetically. The root is
-// the degenerate case (`dir` omitted / ""), so one rule serves both — CONTEXT
-// "Entry Page" now applies this to any directory in the Site, not just the
-// root. M4 restores `index.html` to the front of the precedence now that HTML
-// is a Page kind. A directory with only nested Pages falls back to the first
-// Page under it by path.
+// Page"): `index.html` -> `index.md` -> `README.md` -> otherwise the first Page
+// in that directory in Nav order, descending into subdirectories when the
+// directory holds no Pages directly. One rule serves both root and subdirs.
+// M4 restores `index.html` to the front of the precedence now that HTML is a
+// Page kind.
 export function pickEntryPath(entries: ManifestEntry[], dir = ""): string | undefined {
   const prefix = dir ? `${dir.replace(/\/+$/, "")}/` : "";
   const scoped = entries
@@ -112,10 +128,23 @@ export function pickEntryPath(entries: ManifestEntry[], dir = ""): string | unde
 
   return (
     named("index.html") ??
-    named("index.htm") ??
     named("index.md") ??
     named("readme.md") ??
-    [...topLevel].sort((a, b) => a.localeCompare(b))[0] ??
-    [...scoped].sort((a, b) => a.localeCompare(b))[0]
+    firstInNavOrder(entries, topLevel) ??
+    firstInNavOrder(entries, scoped)
   );
+}
+
+// Return the first entry path (from `candidates`) when the entries are sorted
+// by Nav order — index-first, then explicit order, then numeric-aware filename
+// collation.
+function firstInNavOrder(entries: ManifestEntry[], candidates: string[]): string | undefined {
+  if (candidates.length === 0) return undefined;
+  const map = new Map(entries.map((e) => [e.path, e]));
+  const sorted = [...candidates].sort((a, b) => {
+    const ea = map.get(a);
+    const eb = map.get(b);
+    return compareEntryPaths(a, b, ea?.order, eb?.order);
+  });
+  return sorted[0];
 }
