@@ -39,6 +39,6 @@ export default defineConfig(({ isSsrBuild }) => ({
     ? // A Node bundle, so it gets Node's target rather than the browser baseline.
       { outDir: "dist/server", emptyOutDir: true, target: "node22" }
     : // The manifest is how the server learns the hashed asset names to emit.
-      { outDir: "dist/client", manifest: true, rollupOptions: { input: "src/entry-client.tsx" } },
+      { outDir: "dist/client", manifest: true, rolldownOptions: { input: "src/entry-client.tsx" } },
   server: { port: 5173 },
 }));

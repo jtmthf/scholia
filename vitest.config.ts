@@ -17,7 +17,8 @@ export default defineConfig({
     testTimeout: 20000,
   },
   // Preact JSX for the .tsx tests, matching tsconfig.base.json.
-  esbuild: { jsx: "automatic", jsxImportSource: "preact" },
+  // Vite 8 replaces esbuild with Oxc (oxc config, same shape).
+  oxc: { jsx: "automatic", jsxImportSource: "preact" },
   // TanStack Query is a React package; @scholia/web renders it on Preact via
   // preact/compat, and its SSR entry is tested here, so the alias has to hold in
   // Vitest too (it mirrors packages/web/vite.config.ts).
