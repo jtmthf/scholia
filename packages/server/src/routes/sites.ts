@@ -427,7 +427,7 @@ export function sitesRoutes(getDeps: () => AppDeps) {
           path: p.path,
           kind: p.kind,
           title: p.title ?? p.path,
-          sourceUrl: `${contentBase}/${encodeURIComponent(p.path)}?format=raw`,
+          sourceUrl: `${contentBase}/${encodeURIComponent(p.path)}?raw`,
         };
         if (include.has("sources") && p.contentHash) {
           const bytes = await deps.store.get(p.contentHash);
@@ -548,7 +548,7 @@ export function sitesRoutes(getDeps: () => AppDeps) {
           (token ? `\n     -H "Authorization: Bearer <token>"` : ""),
         ``,
         `2. Fetch the raw source of a specific page (to craft precise anchors):\n` +
-          `   curl ${contentBase}/README.md?format=raw`,
+          `   curl ${contentBase}/README.md?raw`,
         ``,
         `3. List all public comments:\n` + `   curl ${apiBase}/sites/${slug}/comments`,
       ];
