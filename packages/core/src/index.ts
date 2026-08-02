@@ -59,7 +59,7 @@ export { parseFrontmatter, type Frontmatter } from "./util/frontmatter.js";
 export { extractHeadings } from "./util/headings.js";
 export { contentType } from "./util/mime.js";
 export { classifyFile, isDoc, isMdx, toUrlPath, resolveWithinRoot } from "./util/paths.js";
-export { toText, escapeHtml, humanize } from "./util/text.js";
+export { toText, escapeHtml, humanize, htmlToDerivedText, acceptsMarkdown } from "./util/text.js";
 // Best-effort git facts (CONTEXT "Provenance", ADR-0007) — shared by
 // @scholia/cli (frozen at upload) and @scholia/local (read live for the
 // Colophon).

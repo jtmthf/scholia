@@ -1,4 +1,4 @@
-import { expect } from "vitest";
+import { describe, expect } from "vitest";
 import { createServer } from "node:net";
 import { test as tmpTest } from "./helpers/tmp.js";
 import { startServer, type RunningServer, type StartOptions } from "../src/server.js";
@@ -202,4 +202,88 @@ test("single-file mode renders that one file for any path, without a Nav pane", 
   const html = await res.text();
   expect(html).toContain("Only this renders.");
   expect(html).not.toContain("has-nav");
+});
+
+describe("?raw and Accept: text/markdown (Issue #64)", () => {
+  test("?raw on a Markdown Page returns Source verbatim as text/markdown", async ({
+    tmp,
+    serve,
+  }) => {
+    await tmp.write("README.md", "# Hello\n\nSource text.\n");
+    const { url } = await serve();
+    const res = await fetch(`${url}/README.md?raw`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(await res.text()).toBe("# Hello\n\nSource text.\n");
+  });
+
+  test("?raw on an HTML Page returns Source verbatim as text/html", async ({ tmp, serve }) => {
+    await tmp.write("README.md", "# Root\n");
+    const htmlSrc =
+      "<!doctype html>\n<html><head><title>Hi</title></head><body><h1>Hi</h1></body></html>\n";
+    await tmp.write("page.html", htmlSrc);
+    const { url } = await serve();
+    const res = await fetch(`${url}/page.html?raw`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await res.text()).toBe(htmlSrc);
+  });
+
+  test("Accept: text/markdown on Markdown Page returns Source with Vary: Accept", async ({
+    tmp,
+    serve,
+  }) => {
+    await tmp.write("README.md", "# Hello\n\nSource text.\n");
+    const { url } = await serve();
+    const res = await fetch(`${url}/README.md`, {
+      headers: { Accept: "text/markdown" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(res.headers.get("vary")).toContain("Accept");
+    expect(await res.text()).toBe("# Hello\n\nSource text.\n");
+  });
+
+  test("Accept: text/markdown on HTML Page returns derived text with Vary: Accept", async ({
+    tmp,
+    serve,
+  }) => {
+    await tmp.write("README.md", "# Root\n");
+    await tmp.write(
+      "page.html",
+      "<!doctype html><html><head><title>Hi</title></head><body><h1>Heading</h1><p>Body text.</p></body></html>",
+    );
+    const { url } = await serve();
+    const res = await fetch(`${url}/page.html`, {
+      headers: { Accept: "text/markdown" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(res.headers.get("vary")).toContain("Accept");
+    const text = await res.text();
+    expect(text).toContain("Heading");
+    expect(text).toContain("Body text.");
+    // NOT the verbatim HTML.
+    expect(text).not.toContain("<!doctype html>");
+    expect(text).not.toContain("<h1>");
+  });
+
+  test("no ?raw, no Accept → rendered HTML as before", async ({ tmp, serve }) => {
+    await tmp.write("README.md", "# Hello\n");
+    const { url } = await serve();
+    const res = await fetch(`${url}/README.md`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/text\/html/);
+    expect(await res.text()).toContain("<title>Hello</title>");
+  });
+
+  test("?raw on the directory root serves the Entry Page's Source", async ({ tmp, serve }) => {
+    await tmp.write("README.md", "# Entry Page\n\nRoot content.\n");
+    const { url } = await serve();
+    const res = await fetch(`${url}/?raw`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(await res.text()).toBe("# Entry Page\n\nRoot content.\n");
+  });
 });
