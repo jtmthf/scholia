@@ -68,10 +68,14 @@ function identityFor(author: string): Identity {
 /**
  * Map a stored Conversation onto what the comment layer renders.
  *
- * Two fields are still pinned rather than derived, and each is another ticket:
- * `anchorStatus` is always "live" because continuous re-resolution and Outdated
- * are issue #30; `visibility` is always public because Chats live in a separate
- * directory that does not exist yet (issue #31).
+ * `anchorStatus` is "live" here because the server has no rendered text to
+ * resolve against — locally the files are live, so Outdated is computed on read
+ * (ADR-0018), and the browser decides it by whether the quote still matches what
+ * is on screen. Doing that resolution server-side, through the same matcher the
+ * hosted path uses, is issue #30.
+ *
+ * `visibility` is always public because Chats live in a separate directory that
+ * does not exist yet (issue #31).
  */
 export function toConversationDTO(conversation: Conversation, reader: string): ConversationDTO {
   return {

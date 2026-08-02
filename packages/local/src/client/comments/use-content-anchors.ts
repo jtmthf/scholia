@@ -37,6 +37,16 @@ export interface ContentAnchors {
    * is about rather than in the order it happened to be written.
    */
   anchorOffsets: Record<string, number>;
+  /**
+   * Conversations whose Anchor was tried against the current text and did not
+   * match — Outdated, in the reader's terms (CONTEXT "Outdated").
+   *
+   * Membership, not absence, is the signal: a Conversation that has only just
+   * arrived has not been through a resolution pass yet, and calling it Outdated
+   * for the one frame before the pass runs would flash the card into a section
+   * it does not belong in.
+   */
+  unresolvedAnchors: Set<string>;
 }
 
 // A selection is captured a beat after the reader stops, so a drag doesn't fire
@@ -55,6 +65,7 @@ export function useContentAnchors(opts: {
   const [selection, setSelection] = useState<ContentSelection | null>(null);
   const [activeConversationId, setActive] = useState<string | null>(null);
   const [anchorOffsets, setAnchorOffsets] = useState<Record<string, number>>({});
+  const [unresolvedAnchors, setUnresolvedAnchors] = useState<Set<string>>(() => new Set());
 
   // Watch the reader's selection over the content.
   useEffect(() => {
@@ -102,20 +113,26 @@ export function useContentAnchors(opts: {
   }, [content, contentKey]);
 
   // (Re)resolve every anchored Conversation against the rendered text. An Anchor
-  // that no longer matches simply isn't painted; making that visible as Outdated
-  // is issue #30.
+  // that no longer matches is reported as unresolved, which is what the rail
+  // renders as Outdated — with its original quote intact, because the Anchor is
+  // never rewritten (CONTEXT "Outdated"). Sharing one matcher with hosted, and
+  // re-resolving on every read rather than at write time, is issue #30.
   useEffect(() => {
     const highlights = highlightsRef.current;
     if (!highlights) return;
     highlights.clear();
     const offsets: Record<string, number> = {};
+    const unresolved = new Set<string>();
     for (const conversation of conversations) {
       if (!conversation.anchor) continue;
       if (highlights.resolve(conversation.id, conversation.anchor.textQuote)) {
         offsets[conversation.id] = highlights.offsetTop(conversation.id);
+      } else {
+        unresolved.add(conversation.id);
       }
     }
     setAnchorOffsets(offsets);
+    setUnresolvedAnchors(unresolved);
   }, [conversations, content, contentKey]);
 
   // Clicking a painted Anchor focuses its card, the same gesture the hosted
@@ -136,5 +153,12 @@ export function useContentAnchors(opts: {
 
   const clearSelection = useCallback(() => setSelection(null), []);
 
-  return { selection, clearSelection, activeConversationId, activate, anchorOffsets };
+  return {
+    selection,
+    clearSelection,
+    activeConversationId,
+    activate,
+    anchorOffsets,
+    unresolvedAnchors,
+  };
 }

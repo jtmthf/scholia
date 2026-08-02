@@ -1,5 +1,6 @@
 import "./app.css";
 import { mountComments } from "./comments/index.js";
+import { createLiveReloadGate, installLiveReloadGate } from "./live-reload.js";
 
 // ---- Theme (dark mode) ----
 function isDark(): boolean {
@@ -262,10 +263,15 @@ async function liveReloadSwap(): Promise<void> {
   }
 }
 
+// Every change the server reports goes through the gate rather than straight to
+// the swap: while the reader has a selection live or a Composer open, the swap
+// waits for them (issue #29). The gate owns *when*; this file still owns *what*.
+const liveReload = installLiveReloadGate(createLiveReloadGate(liveReloadSwap));
+
 function connectLiveReload(): void {
   const source = new EventSource("/__livereload");
   source.addEventListener("message", (event) => {
-    if (event.data === "reload") void liveReloadSwap();
+    if (event.data === "reload") liveReload.notify();
   });
   // EventSource auto-reconnects on error; nothing to do.
 }

@@ -8,6 +8,10 @@ interface NewConversationComposerProps {
   /** Where the selection was, so the panel opens beside it. */
   at?: ViewportPoint;
   displayName: string;
+  /** A draft restored from a previous life of this page (issue #29). */
+  initialBody?: string;
+  /** Every keystroke, so the draft outlives the page it is written on. */
+  onBodyChange?: (body: string) => void;
   onSubmit: (body: string) => Promise<void>;
   onCancel: () => void;
 }
@@ -34,6 +38,8 @@ export function NewConversationComposer({
   anchored,
   at,
   displayName,
+  initialBody,
+  onBodyChange,
   onSubmit,
   onCancel,
 }: NewConversationComposerProps) {
@@ -63,6 +69,8 @@ export function NewConversationComposer({
         currentName={displayName}
         isSubmitting={submitting}
         error={error}
+        initialBody={initialBody}
+        onBodyChange={onBodyChange}
         onSubmit={(body) => submit(body)}
         onCancel={onCancel}
       />

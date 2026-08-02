@@ -12,6 +12,15 @@ interface ComposerProps {
   error?: string | null;
   /** Submit button caption (idle state); defaults to "Comment". */
   submitLabel?: string;
+  /**
+   * What the textarea starts with. Read once, on mount: a Composer whose text
+   * could be replaced from outside mid-sentence would be a Composer that types
+   * over the reader. Consumers that persist drafts hand the restored body back
+   * through here (Local Preview does — issue #29).
+   */
+  initialBody?: string;
+  /** Every keystroke, for a consumer that persists what is being written. */
+  onBodyChange?: (body: string) => void;
   onSubmit: (body: string, displayName: string) => void | Promise<void>;
   onCancel?: () => void;
 }
@@ -24,11 +33,18 @@ export function Composer({
   isSubmitting = false,
   error = null,
   submitLabel = "Comment",
+  initialBody = "",
+  onBodyChange,
   onSubmit,
   onCancel,
 }: ComposerProps) {
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody);
   const [name, setName] = useState(currentName);
+
+  function changeBody(next: string): void {
+    setBody(next);
+    onBodyChange?.(next);
+  }
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -37,7 +53,7 @@ export function Composer({
     if (!trimmedBody) return;
     if (needsName && !trimmedName) return;
     await onSubmit(trimmedBody, trimmedName || currentName);
-    setBody("");
+    changeBody("");
   }
 
   const canSubmit = body.trim().length > 0 && (!needsName || name.trim().length > 0);
@@ -60,7 +76,7 @@ export function Composer({
       <textarea
         value={body}
         placeholder={placeholder}
-        onInput={(e) => setBody((e.target as HTMLTextAreaElement).value)}
+        onInput={(e) => changeBody((e.target as HTMLTextAreaElement).value)}
       />
       {error && <div class="composer-error">{error}</div>}
       <div class="composer-footer">

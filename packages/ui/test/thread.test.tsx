@@ -283,6 +283,18 @@ describe("Composer", () => {
     expect(html).not.toContain("composer-name-row");
   });
 
+  // A consumer that persists drafts hands the restored words back through
+  // `initialBody`; Local Preview does, so a draft survives the file changing
+  // underneath it (issue #29).
+  it("starts from a restored body, and offers to post it", () => {
+    const html = render(
+      <Composer needsName={false} initialBody="Half a thought" onSubmit={() => {}} />,
+    );
+
+    expect(html).toContain("Half a thought");
+    expect(html).not.toContain("disabled");
+  });
+
   it("uses the consumer's captions and disables submit until there is a body", () => {
     const html = render(
       <Composer needsName={false} submitLabel="Ask" label="Ask your agent" onSubmit={() => {}} />,
