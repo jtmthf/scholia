@@ -1,0 +1,9 @@
+# https://lefthook.dev
+pre-commit:
+  commands:
+    format:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,md,yaml,yml}"
+      run: pnpm exec oxfmt {staged_files}
+      stage_fixed: true
+    lint:
+      run: pnpm lint
