@@ -1,4 +1,4 @@
-// Conversation domain types (ADR-0018, ADR-0019).
+// Conversation domain types (ADR-0018, ADR-0019, ADR-0032).
 // Pure domain shape — no Drizzle, no HTTP, no db.
 // Conversation is the aggregate root: Comments live inside its boundary.
 
@@ -41,18 +41,87 @@ export interface ConversationHeader {
   timestamp: string;
 }
 
+/** What every event document in the stream carries (ADR-0019). */
+interface EventBase {
+  /** UUIDv7 — the dedup key, and the tiebreak when timestamps collide. */
+  id: string;
+  /** ISO 8601. Ordering comes from here, never from file position. */
+  timestamp: string;
+  /** Who did it. Recorded on every event, including resolve and reopen. */
+  author: string;
+}
+
 /**
  * A `comment` event (documents 1..n in the YAML stream). A Conversation's first
  * Comment and every reply are the same event kind — a reply is an append, not a
- * different shape. Edits, reactions and resolves are separate tickets that widen
- * the same seam.
+ * different shape.
  */
-export interface CommentEvent {
-  id: CommentId;
+export interface CommentEvent extends EventBase {
   type: "comment";
-  timestamp: string;
-  author: string;
   body: string;
+}
+
+/** New body text for a Comment. The original `comment` event stays in the stream. */
+export interface EditedEvent extends EventBase {
+  type: "edited";
+  target: CommentId;
+  body: string;
+}
+
+/**
+ * A tombstone. `target` is a Comment's id, or the Conversation's own id when the
+ * whole Conversation is being deleted — nothing is removed from the stream either
+ * way (ADR-0032).
+ */
+export interface DeletedEvent extends EventBase {
+  type: "deleted";
+  /** A `CommentId`, or the `ConversationId` of the Conversation this belongs to. */
+  target: string;
+}
+
+/** One reaction from one author, from the fixed palette (CONTEXT "Reaction"). */
+export interface ReactedEvent extends EventBase {
+  type: "reacted";
+  target: CommentId;
+  emoji: string;
+}
+
+/** Taking a reaction back. The `reacted` event it undoes stays in the stream. */
+export interface UnreactedEvent extends EventBase {
+  type: "unreacted";
+  target: CommentId;
+  emoji: string;
+}
+
+/** The Conversation is settled. Reopening is its own event, not a retraction. */
+export interface ResolvedEvent extends EventBase {
+  type: "resolved";
+}
+
+export interface ReopenedEvent extends EventBase {
+  type: "reopened";
+}
+
+/**
+ * Every state change a Conversation can undergo, as an appendable document.
+ * There is no other way to change one: the header is immutable and no event is
+ * ever rewritten, which is what makes git's union merge correct here rather than
+ * a hazard (ADR-0019).
+ */
+export type ConversationEvent =
+  | CommentEvent
+  | EditedEvent
+  | DeletedEvent
+  | ReactedEvent
+  | UnreactedEvent
+  | ResolvedEvent
+  | ReopenedEvent;
+
+/** One emoji's tally on a Comment, folded from `reacted`/`unreacted` events. */
+export interface Reaction {
+  emoji: string;
+  /** The authors currently reacting, sorted — so two folds agree exactly. */
+  authors: string[];
 }
 
 /**
@@ -62,14 +131,26 @@ export interface Comment {
   id: CommentId;
   conversationId: ConversationId;
   author: string;
+  /** The latest edited body, or "" once the Comment is a tombstone. */
   body: string;
   timestamp: string;
+  /** When the winning `edited` event was written, or null if never edited. */
+  editedAt: string | null;
+  /** A tombstone: the Comment was deleted, and its body is gone. */
+  deleted: boolean;
+  reactions: Reaction[];
 }
 
 /**
- * Folded read model: one Conversation with its resolved Comments.
+ * Folded read model: one Conversation with its resolved Comments and state.
  */
 export interface Conversation {
   header: ConversationHeader;
   comments: Comment[];
+  resolved: boolean;
+  /** Who resolved it, when it is resolved. Null otherwise. */
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  /** A tombstone over the whole aggregate — the file stays, the Conversation goes. */
+  deleted: boolean;
 }

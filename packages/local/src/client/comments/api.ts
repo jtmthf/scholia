@@ -54,8 +54,72 @@ export function addComment(input: {
   conversationId: string;
   body: string;
 }): Promise<ConversationDTO[]> {
-  return post(`/__conversations/${encodeURIComponent(input.conversationId)}/comments`, {
+  return post(conversationUrl(input.conversationId, "comments"), {
     page: input.pagePath,
     body: input.body,
   });
+}
+
+// The rest of the verb set (ADR-0032). Every one is a POST with the action in
+// the path: the server guards writes with one same-origin POST check, and a
+// DELETE or a PATCH would be a second shape to get right for no gain.
+
+export function setResolved(input: {
+  pagePath: string;
+  conversationId: string;
+  resolved: boolean;
+}): Promise<ConversationDTO[]> {
+  return post(conversationUrl(input.conversationId, "resolve"), {
+    page: input.pagePath,
+    resolved: input.resolved,
+  });
+}
+
+export function editComment(input: {
+  pagePath: string;
+  conversationId: string;
+  commentId: string;
+  body: string;
+}): Promise<ConversationDTO[]> {
+  return post(commentUrl(input.conversationId, input.commentId, "edit"), {
+    page: input.pagePath,
+    body: input.body,
+  });
+}
+
+export function deleteComment(input: {
+  pagePath: string;
+  conversationId: string;
+  commentId: string;
+}): Promise<ConversationDTO[]> {
+  return post(commentUrl(input.conversationId, input.commentId, "delete"), {
+    page: input.pagePath,
+  });
+}
+
+export function toggleReaction(input: {
+  pagePath: string;
+  conversationId: string;
+  commentId: string;
+  emoji: string;
+}): Promise<ConversationDTO[]> {
+  return post(commentUrl(input.conversationId, input.commentId, "reactions"), {
+    page: input.pagePath,
+    emoji: input.emoji,
+  });
+}
+
+export function deleteConversation(input: {
+  pagePath: string;
+  conversationId: string;
+}): Promise<ConversationDTO[]> {
+  return post(conversationUrl(input.conversationId, "delete"), { page: input.pagePath });
+}
+
+function conversationUrl(conversationId: string, action: string): string {
+  return `/__conversations/${encodeURIComponent(conversationId)}/${action}`;
+}
+
+function commentUrl(conversationId: string, commentId: string, action: string): string {
+  return `${conversationUrl(conversationId, "comments")}/${encodeURIComponent(commentId)}/${action}`;
 }

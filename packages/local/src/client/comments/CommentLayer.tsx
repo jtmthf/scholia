@@ -18,6 +18,8 @@ export interface CommentsData {
   pagePath: string;
   contentHash: string;
   displayName: string;
+  /** Whether this reader is the Owner, decided by the server per request. */
+  canModerate: boolean;
   conversations: ConversationDTO[];
 }
 
@@ -47,21 +49,82 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
   const { selection, clearSelection, activeConversationId, activate, anchorOffsets } =
     useContentAnchors({ content, contentKey: data.contentHash, conversations });
 
+  // `@scholia/ui` addresses a Comment by its own id, because that is all a
+  // Comment card knows about itself. The Sidecar is keyed by Conversation — one
+  // file per aggregate (ADR-0019) — so the id of the thread a Comment sits in is
+  // recovered here, from the Conversations the rail is already rendering.
+  function conversationOf(commentId: string): string {
+    const owner = conversations.find((c) => c.comments.some((cm) => cm.id === commentId));
+    if (!owner) throw new Error("That comment is no longer on this page. Reload and try again.");
+    return owner.id;
+  }
+
   const port = useMemo<CommentsPort>(
     () => ({
       // Git already knows who the reader is (CONTEXT "Identity"), so the Composer
       // never has to ask — which is the whole of identity on the local path.
       displayName: data.displayName,
-      canModerate: false,
+      // The server decided this per request: the reader at this machine is the
+      // Owner, a Tunnel guest is not (CONTEXT "Owner", ADR-0022).
+      canModerate: data.canModerate,
       async addComment(conversationId, { body }) {
         setConversations(await api.addComment({ pagePath: data.pagePath, conversationId, body }));
       },
-      // Everything else is deliberately absent, and @scholia/ui reads that as
-      // "this surface doesn't have it": resolve/reopen and reactions are events
-      // the Sidecar cannot write yet (issue #32), and there is nothing to promote
-      // to until Chats exist (issue #31).
+      // Editing and deleting a Comment are the Owner's alone here, and so are
+      // absent for anyone else rather than present and refused (ADR-0030,
+      // ADR-0017's "no broken buttons"). The server gates them the same way,
+      // because `author` is one name for every writer on this machine: until a
+      // Tunnel guest has an Identity of their own (issue #31), "my Comment" and
+      // "the host's Comment" are indistinguishable, so touching words already
+      // written stays with the reader at this machine.
+      ...(data.canModerate
+        ? {
+            async editComment(commentId: string, { body }: { body: string }) {
+              setConversations(
+                await api.editComment({
+                  pagePath: data.pagePath,
+                  conversationId: conversationOf(commentId),
+                  commentId,
+                  body,
+                }),
+              );
+            },
+            async deleteComment(commentId: string) {
+              setConversations(
+                await api.deleteComment({
+                  pagePath: data.pagePath,
+                  conversationId: conversationOf(commentId),
+                  commentId,
+                }),
+              );
+            },
+          }
+        : {}),
+      async toggleReaction(commentId, emoji) {
+        setConversations(
+          await api.toggleReaction({
+            pagePath: data.pagePath,
+            conversationId: conversationOf(commentId),
+            commentId,
+            emoji,
+          }),
+        );
+      },
+      async setResolved(conversationId, resolved) {
+        setConversations(
+          await api.setResolved({ pagePath: data.pagePath, conversationId, resolved }),
+        );
+      },
+      async deleteConversation(conversationId) {
+        setConversations(await api.deleteConversation({ pagePath: data.pagePath, conversationId }));
+      },
+      // `promote` stays absent, and @scholia/ui reads that as "this surface
+      // doesn't have it": there is nothing to promote to until Chats exist
+      // (issue #31).
     }),
-    [data.pagePath, data.displayName],
+    // `conversations` is a dependency because `conversationOf` reads it — a port
+    // closed over a stale list would look up a Comment in a rail that has moved on.
+    [data.pagePath, data.displayName, data.canModerate, conversations],
   );
 
   async function submitDraft(body: string): Promise<void> {

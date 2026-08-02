@@ -11,6 +11,12 @@ export interface CommentsInfo {
   contentHash: string;
   /** The author git config names, so the Composer never has to ask. */
   displayName: string;
+  /**
+   * Whether this reader is the Owner — the person at this machine (CONTEXT
+   * "Owner"). Decided per request, because a Tunnel guest reaches the same
+   * server: they may comment, but not delete other people's Conversations.
+   */
+  canModerate: boolean;
   conversations: ConversationDTO[];
 }
 
@@ -200,15 +206,37 @@ function Colophon({ info }: { info: ColophonInfo | null }) {
 // client adds is the parts that need a live DOM — selecting text, highlighting
 // an Anchor, posting — by hydrating this exact markup.
 //
-// Nothing here can act, so the port it renders under can't either. Every method
-// the components might reach for is absent, which is how @scholia/ui is told a
-// surface doesn't have it; `addComment` is the one it requires, and on the server
-// it is unreachable because nothing has been clicked.
+// The port the rail is *rendered* under, not one it can act through.
+//
+// Every method Local Preview supplies in the browser is present here, rejecting,
+// because @scholia/ui reads an absent method as "this surface doesn't have that
+// affordance" — and a control the server left out would have to appear when the
+// client hydrates, which is a rail that changes shape under the reader. Nothing
+// can be reached anyway until something is clicked, and clicking needs the
+// JavaScript that replaces this port.
+const inert = () => Promise.reject(new Error("not interactive until the page loads"));
+
 const SSR_PORT: CommentsPort = {
   displayName: null,
   canModerate: false,
-  addComment: () => Promise.reject(new Error("not interactive until the page loads")),
+  addComment: inert,
+  toggleReaction: inert,
+  setResolved: inert,
+  deleteConversation: inert,
 };
+
+// Editing and deleting a Comment are the Owner's alone on the local path, so
+// they are present only when this reader is one — matching the port the client
+// builds, because a control the server left out would otherwise appear the
+// moment the page hydrates.
+function portFor(comments: CommentsInfo): CommentsPort {
+  return {
+    ...SSR_PORT,
+    displayName: comments.displayName,
+    canModerate: comments.canModerate,
+    ...(comments.canModerate ? { editComment: inert, deleteComment: inert } : {}),
+  };
+}
 
 // No `outdatedOrigin`: local files are live rather than snapshotted, so there is
 // no earlier state an Outdated Conversation could link back to. The copy is
@@ -217,7 +245,7 @@ const SSR_PORT: CommentsPort = {
 function CommentRail({ comments }: { comments: CommentsInfo }) {
   return (
     <div id="scholia-comments">
-      <CommentsProvider value={{ ...SSR_PORT, displayName: comments.displayName }}>
+      <CommentsProvider value={portFor(comments)}>
         <Rail
           conversations={comments.conversations}
           chats={[]}

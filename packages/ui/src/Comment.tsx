@@ -30,8 +30,15 @@ export function Comment({ comment }: CommentProps) {
 
   // A method the port doesn't supply is an affordance this surface doesn't have,
   // so it is never rendered (see CommentsPort).
+  //
+  // Editing is the author's alone — the Owner moderates by removing a Comment,
+  // not by rewriting it — but deleting is either the author's or the Owner's
+  // (CONTEXT "Owner"). The two are labelled differently so a reader can tell
+  // which of the two they are doing.
   const canEdit = comment.mine && !comment.deleted && port.editComment !== undefined;
-  const canDelete = comment.mine && !comment.deleted && port.deleteComment !== undefined;
+  const moderating = !comment.mine && port.canModerate;
+  const canDelete =
+    (comment.mine || moderating) && !comment.deleted && port.deleteComment !== undefined;
 
   async function handleEdit(e: Event) {
     e.preventDefault();
@@ -51,7 +58,7 @@ export function Comment({ comment }: CommentProps) {
 
   async function handleDelete() {
     if (!port.deleteComment) return;
-    if (!confirm("Delete this comment?")) return;
+    if (!confirm(moderating ? "Delete this comment as the Owner?" : "Delete this comment?")) return;
     try {
       await port.deleteComment(comment.id);
     } catch {
@@ -118,7 +125,11 @@ export function Comment({ comment }: CommentProps) {
             </button>
           )}
           {canDelete && (
-            <button class="comment-action-btn" onClick={() => void handleDelete()}>
+            <button
+              class="comment-action-btn"
+              title={moderating ? "Owner moderation — delete someone else's comment" : undefined}
+              onClick={() => void handleDelete()}
+            >
               Delete
             </button>
           )}

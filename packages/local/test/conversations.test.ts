@@ -6,7 +6,8 @@ import { promisify } from "node:util";
 import { test as tmpTest } from "./helpers/tmp.js";
 import { startServer, type RunningServer, type StartOptions } from "../src/server.js";
 import { anchorFromSelection, toPagePath } from "../src/conversations.js";
-import type { SourceMap } from "@scholia/core";
+import { REACTION_PALETTE as CORE_PALETTE, type SourceMap } from "@scholia/core";
+import { REACTION_PALETTE as UI_PALETTE } from "@scholia/ui";
 
 // The tracer bullet from the server's side (issue #28): a Conversation created
 // against a Page persists to the Sidecar beside the content, and is served back
@@ -58,11 +59,22 @@ const test = tmpTest.extend<{
   },
 });
 
+interface CommentBody {
+  id: string;
+  body: string;
+  author: { name: string };
+  editedAt: string | null;
+  deleted: boolean;
+  reactions: Array<{ emoji: string; count: number; mine: boolean }>;
+}
+
 interface ConversationsBody {
   conversations?: Array<{
     id: string;
     anchor: { textQuote: { exact: string }; sourceRange?: { start: number; end: number } } | null;
-    comments: Array<{ body: string; author: { name: string } }>;
+    resolved: boolean;
+    resolvedBy: string | null;
+    comments: CommentBody[];
   }>;
   error?: string;
 }
@@ -74,6 +86,41 @@ function comment(url: string, body: unknown, init: RequestInit = {}): Promise<Re
     body: JSON.stringify(body),
     ...init,
   });
+}
+
+/**
+ * POST to one of the Conversation action routes.
+ *
+ * `asGuest` adds the header a tunnel puts on a request on its way through, which
+ * is what makes the reader something other than the Owner (ADR-0022) — the same
+ * test that decides whether "Open in editor" is offered.
+ */
+function act(
+  url: string,
+  path: string,
+  body: unknown,
+  opts: { asGuest?: boolean } = {},
+): Promise<Response> {
+  return fetch(`${url}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "Sec-Fetch-Site": "same-origin",
+      ...(opts.asGuest ? { "x-forwarded-for": "203.0.113.9" } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Start a Conversation and hand back the ids everything else needs. */
+async function started(
+  url: string,
+  page: string,
+  body: string,
+): Promise<{ conversationId: string; commentId: string }> {
+  const created = (await (await comment(url, { page, body })).json()) as ConversationsBody;
+  const conversation = created.conversations!.at(-1)!;
+  return { conversationId: conversation.id, commentId: conversation.comments[0]!.id };
 }
 
 async function conversationsOn(url: string, page: string): Promise<ConversationsBody> {
@@ -385,6 +432,180 @@ test("an HTML Page appears in the Nav under its own <title>", async ({ tmp, serv
   const html = await (await fetch(`${url}/`)).text();
   expect(html).toContain(`<a href="/hand.html"`);
   expect(html).toContain("Hand Written");
+});
+
+// ---------------------------------------------------------------------------
+// The rest of the verb set (issue #32, ADR-0032)
+//
+// One claim runs through all of these and is asserted against the bytes on disk
+// rather than the response: **no operation rewrites or removes an existing
+// document in the stream**. Everything else is the route wiring — that the right
+// use case runs, with the right actor.
+// ---------------------------------------------------------------------------
+
+test("resolve and reopen are events, and the Conversation comes back resolved", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId } = await started(url, "guide.md", "needs a fix");
+
+  const before = (await sidecarFiles(tmp.root))[0]!;
+
+  const res = await act(url, `/__conversations/${conversationId}/resolve`, {
+    page: "guide.md",
+    resolved: true,
+  });
+  expect(res.status).toBe(200);
+
+  const resolved = (await res.json()) as ConversationsBody;
+  expect(resolved.conversations![0]!.resolved).toBe(true);
+  // The author is recorded, and it is whoever git says is here.
+  expect(resolved.conversations![0]!.resolvedBy).toBeTruthy();
+
+  const after = (await sidecarFiles(tmp.root))[0]!;
+  expect(after.startsWith(before)).toBe(true);
+  expect(after).toContain("type: resolved");
+
+  await act(url, `/__conversations/${conversationId}/resolve`, {
+    page: "guide.md",
+    resolved: false,
+  });
+
+  const reopened = await conversationsOn(url, "guide.md");
+  expect(reopened.conversations![0]!.resolved).toBe(false);
+  expect(reopened.conversations![0]!.resolvedBy).toBeNull();
+
+  // Both events survive: reopening retracts nothing.
+  const final = (await sidecarFiles(tmp.root))[0]!;
+  expect(final).toContain("type: resolved");
+  expect(final).toContain("type: reopened");
+});
+
+test("a Comment can be edited, and says so", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId, commentId } = await started(url, "guide.md", "orignal");
+
+  const res = await act(url, `/__conversations/${conversationId}/comments/${commentId}/edit`, {
+    page: "guide.md",
+    body: "original",
+  });
+  expect(res.status).toBe(200);
+
+  const { conversations } = (await res.json()) as ConversationsBody;
+  expect(conversations![0]!.comments[0]!.body).toBe("original");
+  expect(conversations![0]!.comments[0]!.editedAt).toBeTruthy();
+
+  // What it used to say is still on disk. An edit hides text from the rail; it
+  // does not erase it.
+  const raw = (await sidecarFiles(tmp.root))[0]!;
+  expect(raw).toContain("orignal");
+  expect(raw).toContain("type: edited");
+});
+
+test("deleting a Comment leaves a tombstone, not a hole", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId, commentId } = await started(url, "guide.md", "regrettable");
+
+  const res = await act(url, `/__conversations/${conversationId}/comments/${commentId}/delete`, {
+    page: "guide.md",
+  });
+  expect(res.status).toBe(200);
+
+  const { conversations } = (await res.json()) as ConversationsBody;
+  expect(conversations![0]!.comments).toHaveLength(1);
+  expect(conversations![0]!.comments[0]!.deleted).toBe(true);
+  expect(conversations![0]!.comments[0]!.body).toBe("");
+
+  const raw = (await sidecarFiles(tmp.root))[0]!;
+  expect(raw).toContain("type: deleted");
+});
+
+test("deleting a Conversation takes it off the Page and leaves its file behind", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId } = await started(url, "guide.md", "off topic");
+
+  const res = await act(url, `/__conversations/${conversationId}/delete`, { page: "guide.md" });
+  expect(res.status).toBe(200);
+  expect(((await res.json()) as ConversationsBody).conversations).toEqual([]);
+
+  expect((await conversationsOn(url, "guide.md")).conversations).toEqual([]);
+  expect(await (await fetch(`${url}/guide.md`)).text()).not.toContain("off topic");
+
+  // Nothing was removed: the file is still there, with every document it had.
+  const raw = (await sidecarFiles(tmp.root))[0]!;
+  expect(raw).toContain("off topic");
+  expect(raw).toContain("type: deleted");
+});
+
+// CONTEXT "Owner": moderating other people's Conversations belongs to the reader
+// at this machine. A Tunnel guest may comment — that is what a Tunnel is for.
+test("a tunnelled guest may comment but may not delete a Conversation", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId } = await started(url, "guide.md", "the host's thread");
+
+  const guestReply = await act(
+    url,
+    `/__conversations/${conversationId}/comments`,
+    { page: "guide.md", body: "passing through" },
+    { asGuest: true },
+  );
+  expect(guestReply.status).toBe(200);
+
+  const refused = await act(
+    url,
+    `/__conversations/${conversationId}/delete`,
+    { page: "guide.md" },
+    { asGuest: true },
+  );
+  expect(refused.status).toBe(403);
+  expect((await conversationsOn(url, "guide.md")).conversations).toHaveLength(1);
+});
+
+test("a reaction can be added and taken back, from the fixed palette only", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId, commentId } = await started(url, "guide.md", "worth a look");
+  const path = `/__conversations/${conversationId}/comments/${commentId}/reactions`;
+
+  const added = (await (
+    await act(url, path, { page: "guide.md", emoji: "👍" })
+  ).json()) as ConversationsBody;
+  expect(added.conversations![0]!.comments[0]!.reactions).toEqual([
+    { emoji: "👍", count: 1, mine: true },
+  ]);
+
+  // Clicking the same chip again takes it back.
+  const removed = (await (
+    await act(url, path, { page: "guide.md", emoji: "👍" })
+  ).json()) as ConversationsBody;
+  expect(removed.conversations![0]!.comments[0]!.reactions).toEqual([]);
+
+  // Both events are on disk: an un-react retracts nothing.
+  const raw = (await sidecarFiles(tmp.root))[0]!;
+  expect(raw).toContain("type: reacted");
+  expect(raw).toContain("type: unreacted");
+
+  const outside = await act(url, path, { page: "guide.md", emoji: "🦖" });
+  expect(outside.status).toBe(400);
+});
+
+// @scholia/ui carries its own copy of the palette because it depends on nothing
+// but Preact (ADR-0030). This package depends on both, so it is where the two
+// can be held against each other.
+test("the reaction palette @scholia/ui renders is the one @scholia/core enforces", () => {
+  expect([...UI_PALETTE]).toEqual([...CORE_PALETTE]);
 });
 
 // ---------------------------------------------------------------------------

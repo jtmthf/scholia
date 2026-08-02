@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { useComments } from "./port.js";
 import { Comment } from "./Comment.js";
 import { Composer } from "./Composer.js";
@@ -36,6 +36,12 @@ export function ConversationCard({
 }: ConversationCardProps) {
   const port = useComments();
   const [expanded, setExpanded] = useState(!conversation.resolved);
+
+  // Whether a resolved card is expanded is the reader's choice, but resolving is
+  // not: a Conversation that has just been settled has to collapse now, not on
+  // the next load. Keyed on `resolved` alone, so expanding a resolved card and
+  // then reacting to a Comment inside it doesn't snap it shut again.
+  useEffect(() => setExpanded(!conversation.resolved), [conversation.resolved]);
   const [replying, setReplying] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [submitting, setSubmitting] = useState(false);

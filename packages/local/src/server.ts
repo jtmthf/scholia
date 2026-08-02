@@ -22,8 +22,14 @@ import {
   readHtmlMeta,
   renderedText,
   appendComment,
+  ConversationError,
   createConversation,
+  deleteComment,
+  deleteConversation,
+  editComment,
   listConversations,
+  setReaction,
+  setResolved,
   htmlToDerivedText,
   acceptsMarkdown,
   type NavNode,
@@ -361,27 +367,41 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return c.json({ conversations: toConversationDTOs(conversations, author) });
   }
 
-  interface CommentWrite {
+  interface PageWrite {
     pagePath: string;
+    input: Record<string, unknown>;
+  }
+
+  interface CommentWrite extends PageWrite {
     body: string;
     /** Present only when the caller sent a well-formed content hash. */
     contentHash: string | null;
     selection: SelectionInput | null;
   }
 
-  // Both write routes take the same shape and reject on the same grounds, so the
-  // guard, the parse and the validation live here rather than twice.
-  async function readCommentWrite(c: Context): Promise<CommentWrite | Response> {
+  // Every write route is guarded, parsed and scoped to a Page the same way, so
+  // that part lives here rather than once per verb.
+  async function readPageWrite(c: Context): Promise<PageWrite | Response> {
     const rejection = checkWriteRequest({
       method: c.req.method,
       header: (name) => c.req.header(name),
     });
     if (rejection) return c.json({ error: rejection.error }, rejection.status);
 
-    const input = await c.req.json().catch(() => null);
-    const pagePath = toPagePath(typeof input?.page === "string" ? input.page : "");
-    const body = typeof input?.body === "string" ? input.body.trim() : "";
+    const input = ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
+    const pagePath = toPagePath(typeof input.page === "string" ? input.page : "");
     if (!pagePath) return c.json({ error: "missing page" }, 400);
+
+    return { pagePath, input };
+  }
+
+  // The two routes that carry a Comment body add its validation and binding.
+  async function readCommentWrite(c: Context): Promise<CommentWrite | Response> {
+    const write = await readPageWrite(c);
+    if (write instanceof Response) return write;
+
+    const { input } = write;
+    const body = typeof input.body === "string" ? input.body.trim() : "";
     if (!body) return c.json({ error: "a comment needs a body" }, 400);
 
     // The hash is the Comment's binding, so anything that isn't one is dropped
@@ -390,7 +410,58 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     const claimed: unknown = input.contentHash;
     const contentHash = typeof claimed === "string" && isValidHash(claimed) ? claimed : null;
 
-    return { pagePath, body, contentHash, selection: (input.selection ?? null) as SelectionInput };
+    return {
+      ...write,
+      body,
+      contentHash,
+      selection: (input.selection ?? null) as SelectionInput,
+    };
+  }
+
+  // Whether this reader is the Owner — the person at this machine (CONTEXT
+  // "Owner"). The same test that decides whether "Open in editor" is offered
+  // (ADR-0017): a Tunnel guest may comment, because that is what a Tunnel is
+  // for, but moderating other people's Conversations stays with the host.
+  function isOwner(c: Context): boolean {
+    return isLocalView((name) => c.req.header(name));
+  }
+
+  // A refused command is the reader's answer, not a stack trace: `core` says why
+  // in words fit to show, and its `code` says which kind of refusal it is. The
+  // mapping onto statuses lives here rather than in core, which carries no HTTP.
+  function refused(c: Context, err: unknown) {
+    const message = err instanceof Error ? err.message : "that did not work";
+    if (!(err instanceof ConversationError)) return c.json({ error: message }, 500);
+    const status = { "not-found": 404, forbidden: 403, invalid: 400 } as const;
+    return c.json({ error: message }, status[err.code]);
+  }
+
+  /**
+   * A route that changes a Conversation.
+   *
+   * Every one of them is the same frame — guard and parse the write, run one
+   * `core` command against the Sidecar, answer with the Page's whole Conversation
+   * list — so the frame is here and each route below is only what it decides.
+   */
+  // Generic in the path so Hono's own inference still reaches `c.req.param`:
+  // a route declared with `:id` gets a `string` back for it, not `string |
+  // undefined`, exactly as it would if it were registered inline.
+  function writeRoute<P extends string>(
+    path: P,
+    command: (c: Context<{ Bindings: NodeBindings }, P>, write: PageWrite) => Promise<unknown>,
+  ): void {
+    app.all(path, async (c) => {
+      const write = await readPageWrite(c);
+      if (write instanceof Response) return write;
+
+      try {
+        await command(c, write);
+      } catch (err) {
+        return refused(c, err);
+      }
+
+      return respondWithConversations(c, write.pagePath);
+    });
   }
 
   app.get("/__conversations", async (c) => {
@@ -439,11 +510,90 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
         author,
       });
     } catch (err) {
-      return c.json({ error: err instanceof Error ? err.message : "append failed" }, 404);
+      return refused(c, err);
     }
 
     return respondWithConversations(c, write.pagePath);
   });
+
+  // The rest of the verb set (ADR-0032). Each one is POST with an action in the
+  // path rather than a DELETE or a PATCH, because `checkWriteRequest` is a
+  // single same-origin POST guard and a second shape would be a second thing to
+  // get right. None of them touches an existing document: every one appends.
+  //
+  // Editing and deleting a Comment additionally require the Owner, which the
+  // domain rule alone would not give us here. `author` is resolved once at
+  // startup from git config, so *every* writer on this server — the host and any
+  // Tunnel guest — acts under the same name, and `comment.author === author` is
+  // therefore true for all of them. Until a guest has an Identity of their own
+  // (CONTEXT "Tunnel", issue #31), the only honest gate on touching words that
+  // are already written is "are you the person at this machine". Commenting,
+  // replying, reacting and resolving stay open, because those only ever add.
+
+  function requireOwner(c: Context): void {
+    if (!isOwner(c)) {
+      throw new ConversationError(
+        "forbidden",
+        "only the reader at this machine can change a Comment that is already written",
+      );
+    }
+  }
+
+  writeRoute("/__conversations/:id/resolve", (c, write) => {
+    // Strictly a boolean: anything else is a caller that meant one of the two
+    // and cannot be assumed into the other.
+    if (typeof write.input.resolved !== "boolean") {
+      throw new ConversationError("invalid", "resolved must be true or false");
+    }
+    return setResolved(sidecar, {
+      conversationId: c.req.param("id"),
+      resolved: write.input.resolved,
+      author,
+    });
+  });
+
+  writeRoute("/__conversations/:id/comments/:commentId/edit", (c, write) => {
+    requireOwner(c);
+    const body = typeof write.input.body === "string" ? write.input.body.trim() : "";
+    if (!body) throw new ConversationError("invalid", "a comment needs a body");
+
+    return editComment(sidecar, {
+      conversationId: c.req.param("id"),
+      commentId: c.req.param("commentId"),
+      body,
+      author,
+    });
+  });
+
+  writeRoute("/__conversations/:id/comments/:commentId/delete", (c) => {
+    requireOwner(c);
+    return deleteComment(sidecar, {
+      conversationId: c.req.param("id"),
+      commentId: c.req.param("commentId"),
+      author,
+      isOwner: true,
+    });
+  });
+
+  writeRoute("/__conversations/:id/comments/:commentId/reactions", (c, write) =>
+    setReaction(sidecar, {
+      conversationId: c.req.param("id"),
+      commentId: c.req.param("commentId"),
+      emoji: typeof write.input.emoji === "string" ? write.input.emoji : "",
+      author,
+      // Absent means toggle, which is what a click on a chip means. A caller
+      // that knows the state it wants says so.
+      ...(typeof write.input.on === "boolean" ? { on: write.input.on } : {}),
+    }),
+  );
+
+  writeRoute("/__conversations/:id/delete", (c) =>
+    deleteConversation(sidecar, {
+      conversationId: c.req.param("id"),
+      author,
+      isOwner: isOwner(c),
+    }),
+  );
 
   app.get("*", async (c) => {
     const urlPath = c.req.path;
@@ -590,6 +740,10 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
             // "Comment"). A render error has no Page to bind to, so no rail.
             contentHash: page.contentHash,
             displayName: author,
+            // The same test as the editor button above, for the same reason: a
+            // moderation control a tunnelled guest would only ever get a 403
+            // from is a broken button (ADR-0017, ADR-0022).
+            canModerate: isOwner(c),
             conversations,
           }
         : null,

@@ -65,5 +65,14 @@ export interface ConversationDTO {
   createdOrdinal?: number;
 }
 
-/** The fixed review-oriented reaction palette (CONTEXT "Reaction"). */
+/**
+ * The fixed review-oriented reaction palette (CONTEXT "Reaction").
+ *
+ * The same six literals as `@scholia/core`'s `REACTION_PALETTE`, which is where
+ * the domain enforces them. They are copied rather than imported because this
+ * package depends on nothing but Preact (ADR-0030), and core's tree — shiki,
+ * katex, an S3 client — has no business inside a comment layer that has to run
+ * anywhere. `packages/local/test/conversations.test.ts` depends on both packages
+ * and asserts the two lists are identical, so the copy cannot drift.
+ */
 export const REACTION_PALETTE = ["👍", "👎", "✅", "👀", "🎉", "❤️"] as const;

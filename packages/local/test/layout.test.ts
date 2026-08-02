@@ -76,11 +76,15 @@ const SOURCE_MARKDOWN = `# Title\n\nA fence that closes a script tag: </script> 
 
 // The comment rail is chrome too (ADR-0018, ADR-0030) — server-rendered like the
 // Nav and the Outline, so it is in the golden. One anchored Conversation and one
-// Page-level, which is what puts both rail sections on the page.
+// Page-level, which is what puts both rail sections on the page; the third is
+// resolved, so the golden pins what a collapsed card looks like. Between them
+// they carry every folded state a Comment can be in (ADR-0032): edited, reacted
+// to, and a tombstone.
 const COMMENTS: NonNullable<LayoutOptions["comments"]> = {
   pagePath: "guide/deep/deeper.md",
   contentHash: "0".repeat(64),
   displayName: "Reviewer & Co",
+  canModerate: true,
   conversations: [
     {
       id: "01920000-0000-7000-8000-000000000001",
@@ -96,9 +100,22 @@ const COMMENTS: NonNullable<LayoutOptions["comments"]> = {
           author: { name: "Reviewer & Co", kind: "human", tier: "viewer", source: "native" },
           body: "Does this still hold? <not markup>",
           createdAt: "2026-07-28T11:32:07.250Z",
-          editedAt: null,
+          editedAt: "2026-07-28T11:40:00.000Z",
           deleted: false,
           mine: true,
+          reactions: [
+            { emoji: "👍", count: 2, mine: true },
+            { emoji: "👀", count: 1, mine: false },
+          ],
+        },
+        {
+          id: "01920000-0000-7000-8000-000000000005",
+          author: { name: "Someone Else", kind: "human", tier: "viewer", source: "native" },
+          body: "",
+          createdAt: "2026-07-28T11:45:00.000Z",
+          editedAt: null,
+          deleted: true,
+          mine: false,
           reactions: [],
         },
       ],
@@ -121,6 +138,27 @@ const COMMENTS: NonNullable<LayoutOptions["comments"]> = {
           deleted: false,
           mine: false,
           reactions: [],
+        },
+      ],
+    },
+    {
+      id: "01920000-0000-7000-8000-000000000006",
+      pagePath: "guide/deep/deeper.md",
+      anchor: null,
+      anchorStatus: "live",
+      resolved: true,
+      resolvedBy: "Someone Else",
+      visibility: "public",
+      comments: [
+        {
+          id: "01920000-0000-7000-8000-000000000007",
+          author: { name: "Reviewer & Co", kind: "human", tier: "viewer", source: "native" },
+          body: "Settled — this is fixed.",
+          createdAt: "2026-07-28T12:10:00.000Z",
+          editedAt: null,
+          deleted: false,
+          mine: true,
+          reactions: [{ emoji: "✅", count: 1, mine: false }],
         },
       ],
     },
@@ -180,6 +218,7 @@ const HTML_PAGE: LayoutOptions = {
     pagePath: "index.html",
     contentHash: "f".repeat(64),
     displayName: "Reviewer & Co",
+    canModerate: false,
     conversations: [],
   },
 };

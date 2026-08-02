@@ -2,30 +2,24 @@ import { describe, test, expect, vi } from "vitest";
 import {
   appendComment,
   createConversation,
+  foldConversation,
   type ConversationRepository,
   type CreateConversationInput,
   type Conversation,
 } from "@scholia/core";
+import { makeHeader } from "./stub-repo.js";
 
 // A stub repository that records calls and returns canned responses.
 function stubRepo(impl?: Partial<ConversationRepository>): ConversationRepository {
   return {
-    createConversation: vi.fn().mockImplementation(
-      (input: CreateConversationInput): Promise<Conversation> =>
-        Promise.resolve({
-          header: input.header,
-          comments: [
-            {
-              id: input.firstComment.id,
-              conversationId: input.header.id,
-              author: input.firstComment.author,
-              body: input.firstComment.body,
-              timestamp: input.firstComment.timestamp,
-            },
-          ],
-        }),
-    ),
-    appendComment: vi.fn().mockResolvedValue(undefined),
+    createConversation: vi
+      .fn()
+      .mockImplementation(
+        (input: CreateConversationInput): Promise<Conversation> =>
+          Promise.resolve(foldConversation(input.header, [input.firstComment])),
+      ),
+    appendEvent: vi.fn().mockResolvedValue(undefined),
+    getConversation: vi.fn().mockResolvedValue(null),
     listConversations: vi.fn().mockResolvedValue([]),
     ...impl,
   };
@@ -69,21 +63,12 @@ describe("createConversation", () => {
   });
 
   test("passes header and firstComment to createConversation on the port", async () => {
-    const createSpy = vi.fn().mockImplementation(
-      (input: CreateConversationInput): Promise<Conversation> =>
-        Promise.resolve({
-          header: input.header,
-          comments: [
-            {
-              id: input.firstComment.id,
-              conversationId: input.header.id,
-              author: input.firstComment.author,
-              body: input.firstComment.body,
-              timestamp: input.firstComment.timestamp,
-            },
-          ],
-        }),
-    );
+    const createSpy = vi
+      .fn()
+      .mockImplementation(
+        (input: CreateConversationInput): Promise<Conversation> =>
+          Promise.resolve(foldConversation(input.header, [input.firstComment])),
+      );
     const repo = stubRepo({ createConversation: createSpy });
 
     await createConversation(repo, {
@@ -154,7 +139,15 @@ describe("createConversation", () => {
 describe("appendComment", () => {
   test("appends a `comment` event with its own UUIDv7 id", async () => {
     const appendSpy = vi.fn().mockResolvedValue(undefined);
-    const repo = stubRepo({ appendComment: appendSpy });
+    const repo = stubRepo({
+      // The command reads the aggregate before it writes, so it has to be there.
+      getConversation: vi
+        .fn()
+        .mockImplementation((id: string) =>
+          Promise.resolve(foldConversation(makeHeader({ id }), [])),
+        ),
+      appendEvent: appendSpy,
+    });
 
     const comment = await appendComment(repo, {
       conversationId: "00000000-0000-7000-8000-000000000001",
@@ -178,13 +171,15 @@ describe("appendComment", () => {
     expect(comment.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
 
-  test("surfaces the repository's rejection rather than swallowing it", async () => {
-    const repo = stubRepo({
-      appendComment: vi.fn().mockRejectedValue(new Error("no Conversation abc in the Sidecar")),
-    });
+  // A reply names a Conversation that has to exist — including "still exists",
+  // since a deleted one is a stream nothing reads back.
+  test("replying to a Conversation that isn't there is refused before anything is written", async () => {
+    const appendSpy = vi.fn().mockResolvedValue(undefined);
+    const repo = stubRepo({ appendEvent: appendSpy });
 
     await expect(
       appendComment(repo, { conversationId: "abc", body: "hi", author: "heidi" }),
-    ).rejects.toThrow(/no Conversation/);
+    ).rejects.toMatchObject({ code: "not-found" });
+    expect(appendSpy).not.toHaveBeenCalled();
   });
 });
