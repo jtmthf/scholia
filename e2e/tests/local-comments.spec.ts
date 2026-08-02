@@ -29,6 +29,13 @@ const SEED = {
   ].join("\n"),
   "reply.md": "# Reply\n\nReply target.\n",
   "gone.md": "# Gone\n\nThis Page says nothing the seeded Anchor quotes.\n",
+  // Owned by the held-live-reload tests (issue #29), which rewrite them under a
+  // reader who is mid-comment. One Page each: they assert what is *still* on
+  // screen, so another test's write would be indistinguishable from the bug.
+  "compose.md": "# Compose\n\nThe passage a reader is writing about.\n",
+  "restore.md": "# Restore\n\nA passage worth returning to.\n",
+  "resume.md": "# Resume\n\nA passage let go of again.\n",
+  "drift.md": "# Drift\n\nA passage that will not survive the edit.\n",
   "server-rendered.md": "# Server Rendered\n\nReadable with JavaScript off.\n",
   "capabilities.md": "# Capabilities\n\nOnly what the Sidecar can do.\n",
   "resolve.md": "# Resolve\n\nSomething to settle.\n",
@@ -222,13 +229,18 @@ test("select text, comment, reload — the Conversation is still anchored", asyn
 
 // An Anchor whose quote is no longer in the Page can't be painted. It must still
 // render — with its original quote, which is what an Outdated Conversation is
-// for (CONTEXT "Outdated") — rather than vanish. Showing it *as* Outdated is
-// issue #30; not losing it is this ticket's job.
-test("a Conversation whose passage is gone still renders, unpainted", async ({ page, request }) => {
+// for (CONTEXT "Outdated") — rather than vanish. Locally the file is live, so
+// Outdated is not a stored status but the answer to "does this quote still match
+// the text as it now stands", decided in the browser against what is on screen.
+test("a Conversation whose passage is gone renders as Outdated, unpainted", async ({
+  page,
+  request,
+}) => {
   await seedComment(request, "gone.md", "About text that no longer exists.", "a passage long gone");
   await page.goto(`${preview.url}/gone.md`);
 
   await expect(page.locator(".thread-card")).toHaveCount(1);
+  await expect(page.locator(".rail-section--outdated .thread-card")).toHaveCount(1);
   await expect(page.locator(".thread-anchor-quote")).toHaveText("“a passage long gone”");
   await expect.poll(() => paintedAnchors(page)).toBe(0);
 });
@@ -335,6 +347,137 @@ test("offers only what the Sidecar can actually do", async ({ page, request }) =
   await expect(card.locator(".thread-action-btn--promote")).toHaveCount(0);
   // No tokens to hand out locally, so no "Bring your agent".
   await expect(page.locator(".bring-agent-btn")).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------------------
+// Holding live reload while composing (issue #29).
+//
+// Local Preview watches the tree, so the reader's agent rewriting the file
+// mid-comment is the normal case rather than an edge one. Every test here writes
+// a real file under the served root and lets chokidar and the SSE stream do what
+// they do — the claim is about what is still on screen afterwards.
+// ---------------------------------------------------------------------------
+
+/** The rail's Composer panel — open while a Conversation is being written. */
+function composer(page: Page) {
+  return page.locator(".floating-composer-panel textarea");
+}
+
+// The ticket's own test: begin composing, modify the file underneath, confirm
+// the draft and the selection survive. Both halves are here in one run, because
+// the claim is about one reader in one sitting — and because the selection can
+// only be read back from the browser before the Composer takes focus, so the two
+// assertions have to be sequenced rather than split across tests.
+test("a Page rewritten mid-comment keeps the selection and the draft", async ({ page }) => {
+  await page.goto(`${preview.url}/compose.md`);
+  const article = page.locator("article.markdown-body");
+
+  // First, with a selection live and nothing said about it yet — precisely when
+  // losing it hurts.
+  await selectForComment(page, "The passage", 0);
+  await preview.write("compose.md", "# Compose\n\nThe passage a reader is writing about, once.\n");
+
+  // The swap waits, and says so — unobtrusively, and without blocking anything.
+  await expect(page.locator("#scholia-content-changed")).toBeVisible();
+  await expect(article).not.toContainText("once");
+  // The selection itself, read back from the browser — not merely the affordance.
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("The passage");
+  await expect(page.locator("#scholia-comment-selection")).toBeVisible();
+
+  // Then with words in the Composer, and the agent writing again underneath.
+  await page.locator("#scholia-comment-selection").click();
+  await composer(page).fill("Half a thought about this.");
+  await preview.write("compose.md", "# Compose\n\nThe passage a reader is writing about, twice.\n");
+
+  await expect(page.locator("#scholia-content-changed")).toBeVisible();
+  await expect(article).not.toContainText("twice");
+  await expect(composer(page)).toHaveValue("Half a thought about this.");
+
+  // Taking the update is the reader's own act, and costs them nothing.
+  await page.locator(".content-changed-btn").click();
+  await expect(article).toContainText("twice");
+  await expect(page.locator("#scholia-content-changed")).toHaveCount(0);
+  await expect(composer(page)).toHaveValue("Half a thought about this.");
+
+  // And the Comment still posts, against the passage it was written about.
+  await page.locator(".floating-composer-panel button[type=submit]").click();
+  await expect(page.locator(".comment-rail")).toContainText("Half a thought about this.");
+  await expect(page.locator(".thread-anchor-quote")).toHaveText("“The passage”");
+});
+
+// The other way a Composer can lose its words: the whole document is rebuilt,
+// which is what the swap falls back to when it fails — and what a refresh does.
+// Holding covers neither, so the draft is on disk beside the tab instead.
+test("a draft is still there after the page is rebuilt from scratch", async ({ page }) => {
+  await page.goto(`${preview.url}/restore.md`);
+
+  await selectForComment(page, "A passage worth returning to", 0);
+  await page.locator("#scholia-comment-selection").click();
+  await composer(page).fill("Picking this up again later.");
+
+  await page.reload();
+
+  await expect(composer(page)).toHaveValue("Picking this up again later.");
+
+  // And it is still the same Conversation it was going to be, anchored to the
+  // passage it was written about.
+  await page.locator(".floating-composer-panel button[type=submit]").click();
+  await expect(page.locator(".thread-anchor-quote")).toHaveText("“A passage worth returning to”");
+
+  // Posted, so there is nothing left to restore.
+  await page.reload();
+  await expect(page.locator(".floating-composer-panel")).toHaveCount(0);
+});
+
+test("reloads resume by themselves once composing ends", async ({ page }) => {
+  await page.goto(`${preview.url}/resume.md`);
+
+  await selectForComment(page, "A passage let go", 0);
+  await page.locator("#scholia-comment-selection").click();
+  await composer(page).fill("Never mind.");
+
+  await preview.write("resume.md", "# Resume\n\nA passage let go of again, and rewritten.\n");
+  await expect(page.locator("#scholia-content-changed")).toBeVisible();
+
+  // Nothing is being composed any more, so the ground is free to move — without
+  // the reader having to take the update explicitly.
+  await page.locator(".floating-composer-panel button", { hasText: "Cancel" }).click();
+
+  await expect(page.locator("article.markdown-body")).toContainText("and rewritten");
+  await expect(page.locator("#scholia-content-changed")).toHaveCount(0);
+
+  // And the next change lands the way it did before any of this.
+  await preview.write("resume.md", "# Resume\n\nA passage let go of again, and again.\n");
+  await expect(page.locator("article.markdown-body")).toContainText("and again");
+});
+
+// The other half of "accept optimistically": the passage really is gone by the
+// time the Comment is posted. It is created anyway, and its original quote is
+// what makes it Outdated rather than meaningless (CONTEXT "Outdated").
+test("a Comment posted after its passage vanished is kept, as Outdated", async ({
+  page,
+  request,
+}) => {
+  await page.goto(`${preview.url}/drift.md`);
+
+  await selectForComment(page, "A passage that will not survive", 0);
+  await page.locator("#scholia-comment-selection").click();
+  await composer(page).fill("Worth saying even so.");
+
+  await preview.write("drift.md", "# Drift\n\nEntirely different words now.\n");
+  await expect(page.locator("#scholia-content-changed")).toBeVisible();
+  await page.locator(".content-changed-btn").click();
+  await expect(page.locator("article.markdown-body")).toContainText("Entirely different words");
+
+  await page.locator(".floating-composer-panel button[type=submit]").click();
+
+  // Kept, and told apart from a Conversation that still matches.
+  await expect(page.locator(".rail-section--outdated .thread-card")).toHaveCount(1);
+  await expect(page.locator(".comment-rail")).toContainText("Worth saying even so.");
+  await expect(page.locator(".thread-anchor-quote")).toHaveText(
+    "“A passage that will not survive”",
+  );
+  expect(await stored(request, "drift.md")).toHaveLength(1);
 });
 
 // ---------------------------------------------------------------------------

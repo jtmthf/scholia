@@ -672,6 +672,51 @@ html.dark .markdown-alert-caution {
   --alert-color: #ff6b9d;
 }
 
+/* ---- Held live reload (issue #29) ----
+   Local Preview watches the tree, so the file changing while a reader is
+   part-way through a comment is ordinary. The swap waits for them; this says so.
+   Quiet by construction — it sits out of the reading column, it is `role=status`
+   rather than an alert, and ignoring it is a valid answer: the update lands by
+   itself once nothing is being composed. */
+.content-changed-notice {
+  position: fixed;
+  left: var(--space-4);
+  bottom: var(--space-4);
+  /* Under the floating Composer (9998) — the draft is what matters, and the
+     notice must never sit over the words being written. */
+  z-index: 9997;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: min(420px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-size: var(--font-size-sm);
+}
+.content-changed-text {
+  color: var(--color-muted);
+}
+.content-changed-btn {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--color-accent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-rule));
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.content-changed-btn:hover {
+  background: var(--color-accent);
+  color: var(--color-paper);
+  border-color: var(--color-accent);
+}
+
 /* ---- Mermaid ---- */
 pre.mermaid {
   background: transparent;

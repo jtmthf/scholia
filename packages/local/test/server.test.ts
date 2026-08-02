@@ -287,3 +287,71 @@ describe("?raw and Accept: text/markdown (Issue #64)", () => {
     expect(await res.text()).toBe("# Entry Page\n\nRoot content.\n");
   });
 });
+
+// Issue #29: a Comment is never refused because the file changed while it was
+// being written. The reader's agent rewriting the Page mid-sentence is the
+// normal case locally, and a hash check would punish them for the tool's timing
+// — it could not be made correct anyway, since the file can change between the
+// check and the write.
+describe("a changed file never rejects a Comment (Issue #29)", () => {
+  const write = (url: string, body: unknown) =>
+    fetch(`${url}/__conversations`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "Sec-Fetch-Site": "same-origin" },
+      body: JSON.stringify(body),
+    });
+
+  test("a contentHash naming a render that is no longer on disk is still accepted", async ({
+    tmp,
+    serve,
+  }) => {
+    await tmp.write("README.md", "# Drift\n\nThe passage as it was.\n");
+    const { url } = await serve();
+
+    // The hash the reader's page was rendered with, then the file moves under it.
+    const page = await (await fetch(`${url}/README.md`)).text();
+    const staleHash = /data-content-hash="([a-f0-9]+)"/.exec(page)?.[1];
+    expect(staleHash).toBeTruthy();
+    await tmp.write("README.md", "# Drift\n\nThe passage as it was, plus more.\n");
+
+    const res = await write(url, {
+      page: "README.md",
+      body: "Written against the older render.",
+      selection: { quote: { exact: "The passage as it was" }, smIds: [1] },
+      contentHash: staleHash,
+    });
+
+    expect(res.status).toBe(200);
+    const { conversations } = (await res.json()) as {
+      conversations: Array<{ anchor: { textQuote: { exact: string }; sourceRange?: unknown } }>;
+    };
+    expect(conversations).toHaveLength(1);
+    // The text-quote — the primary locator (ADR-0002) — is stored exactly as
+    // captured. What the stale hash costs is only the secondary source range,
+    // because `data-sm` ids describe one particular render.
+    expect(conversations[0]!.anchor.textQuote.exact).toBe("The passage as it was");
+    expect(conversations[0]!.anchor.sourceRange).toBeUndefined();
+  });
+
+  test("a quote the file no longer contains is still accepted, quote intact", async ({
+    tmp,
+    serve,
+  }) => {
+    await tmp.write("README.md", "# Gone\n\nEntirely different words now.\n");
+    const { url } = await serve();
+
+    const res = await write(url, {
+      page: "README.md",
+      body: "About a passage that has since been deleted.",
+      selection: { quote: { exact: "a passage long gone" } },
+    });
+
+    expect(res.status).toBe(200);
+    const { conversations } = (await res.json()) as {
+      conversations: Array<{ anchor: { textQuote: { exact: string } } }>;
+    };
+    // Kept, not lost — its original quote is what makes it Outdated rather than
+    // meaningless (CONTEXT "Outdated").
+    expect(conversations[0]!.anchor.textQuote.exact).toBe("a passage long gone");
+  });
+});
