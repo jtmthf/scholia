@@ -3,4 +3,5 @@ packages:
   - "e2e"
 allowBuilds:
   esbuild: false
+  lefthook: true
 engineStrict: false
