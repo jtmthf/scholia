@@ -26,6 +26,19 @@ import type {
 } from "./types.js";
 
 /**
+ * Code-unit order, not `localeCompare`.
+ *
+ * Everything this file sorts is sorted to make the fold reproducible, and
+ * `localeCompare` is the wrong tool for that: with no locale argument it uses
+ * the runtime's default collation, so two machines with different ICU data can
+ * disagree — which is exactly the property the fold exists to deny. `<` compares
+ * UTF-16 code units and is the same everywhere.
+ */
+function compare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
  * The total order events are interpreted in.
  *
  * Timestamps first, because file position means nothing after a union merge
@@ -33,7 +46,7 @@ import type {
  * millisecond still sort the same way on every machine that reads the stream.
  */
 function byTimestampThenId(a: ConversationEvent, b: ConversationEvent): number {
-  return a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id);
+  return compare(a.timestamp, b.timestamp) || compare(a.id, b.id);
 }
 
 /**
@@ -45,7 +58,7 @@ function byTimestampThenId(a: ConversationEvent, b: ConversationEvent): number {
  */
 type ReactionState = Map<string, Map<string, Map<string, boolean>>>;
 
-function setReaction(
+function recordReaction(
   state: ReactionState,
   target: string,
   emoji: string,
@@ -111,11 +124,11 @@ export function foldConversation(
         break;
 
       case "reacted":
-        setReaction(reactions, event.target, event.emoji, event.author, true);
+        recordReaction(reactions, event.target, event.emoji, event.author, true);
         break;
 
       case "unreacted":
-        setReaction(reactions, event.target, event.emoji, event.author, false);
+        recordReaction(reactions, event.target, event.emoji, event.author, false);
         break;
 
       case "resolved":
@@ -139,14 +152,14 @@ export function foldConversation(
       const authors = [...(emojis.get(emoji) ?? new Map())]
         .filter(([, on]) => on)
         .map(([author]) => author)
-        .sort((a, b) => a.localeCompare(b));
+        .sort(compare);
       if (authors.length > 0) groups.push({ emoji, authors });
     }
     return groups;
   }
 
   const folded = [...comments.values()].sort(
-    (a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id),
+    (a, b) => compare(a.timestamp, b.timestamp) || compare(a.id, b.id),
   );
 
   for (const comment of folded) {

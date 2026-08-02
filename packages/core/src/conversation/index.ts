@@ -21,11 +21,7 @@ export type {
 export type { ConversationRepository, CreateConversationInput } from "./repository.js";
 
 export { REACTION_PALETTE, isReactionEmoji, type ReactionEmoji } from "./reactions.js";
-export {
-  ConversationError,
-  conversationErrorStatus,
-  type ConversationErrorCode,
-} from "./errors.js";
+export { ConversationError, type ConversationErrorCode } from "./errors.js";
 export { foldConversation } from "./fold.js";
 
 export { createConversation, type CreateConversationParams } from "./create.js";

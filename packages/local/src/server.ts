@@ -22,7 +22,7 @@ import {
   readHtmlMeta,
   renderedText,
   appendComment,
-  conversationErrorStatus,
+  ConversationError,
   createConversation,
   deleteComment,
   deleteConversation,
@@ -425,10 +425,41 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   }
 
   // A refused command is the reader's answer, not a stack trace: `core` says why
-  // in words fit to show, and the code says which status that deserves.
+  // in words fit to show, and its `code` says which kind of refusal it is. The
+  // mapping onto statuses lives here rather than in core, which carries no HTTP.
   function refused(c: Context, err: unknown) {
     const message = err instanceof Error ? err.message : "that did not work";
-    return c.json({ error: message }, conversationErrorStatus(err));
+    if (!(err instanceof ConversationError)) return c.json({ error: message }, 500);
+    const status = { "not-found": 404, forbidden: 403, invalid: 400 } as const;
+    return c.json({ error: message }, status[err.code]);
+  }
+
+  /**
+   * A route that changes a Conversation.
+   *
+   * Every one of them is the same frame — guard and parse the write, run one
+   * `core` command against the Sidecar, answer with the Page's whole Conversation
+   * list — so the frame is here and each route below is only what it decides.
+   */
+  // Generic in the path so Hono's own inference still reaches `c.req.param`:
+  // a route declared with `:id` gets a `string` back for it, not `string |
+  // undefined`, exactly as it would if it were registered inline.
+  function writeRoute<P extends string>(
+    path: P,
+    command: (c: Context<{ Bindings: NodeBindings }, P>, write: PageWrite) => Promise<unknown>,
+  ): void {
+    app.all(path, async (c) => {
+      const write = await readPageWrite(c);
+      if (write instanceof Response) return write;
+
+      try {
+        await command(c, write);
+      } catch (err) {
+        return refused(c, err);
+      }
+
+      return respondWithConversations(c, write.pagePath);
+    });
   }
 
   app.get("/__conversations", async (c) => {
@@ -487,99 +518,80 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // path rather than a DELETE or a PATCH, because `checkWriteRequest` is a
   // single same-origin POST guard and a second shape would be a second thing to
   // get right. None of them touches an existing document: every one appends.
+  //
+  // Editing and deleting a Comment additionally require the Owner, which the
+  // domain rule alone would not give us here. `author` is resolved once at
+  // startup from git config, so *every* writer on this server — the host and any
+  // Tunnel guest — acts under the same name, and `comment.author === author` is
+  // therefore true for all of them. Until a guest has an Identity of their own
+  // (CONTEXT "Tunnel", issue #31), the only honest gate on touching words that
+  // are already written is "are you the person at this machine". Commenting,
+  // replying, reacting and resolving stay open, because those only ever add.
 
-  app.all("/__conversations/:id/resolve", async (c) => {
-    const write = await readPageWrite(c);
-    if (write instanceof Response) return write;
-
-    try {
-      await setResolved(sidecar, {
-        conversationId: c.req.param("id"),
-        resolved: write.input.resolved !== false,
-        author,
-      });
-    } catch (err) {
-      return refused(c, err);
+  function requireOwner(c: Context): void {
+    if (!isOwner(c)) {
+      throw new ConversationError(
+        "forbidden",
+        "only the reader at this machine can change a Comment that is already written",
+      );
     }
+  }
 
-    return respondWithConversations(c, write.pagePath);
+  writeRoute("/__conversations/:id/resolve", (c, write) => {
+    // Strictly a boolean: anything else is a caller that meant one of the two
+    // and cannot be assumed into the other.
+    if (typeof write.input.resolved !== "boolean") {
+      throw new ConversationError("invalid", "resolved must be true or false");
+    }
+    return setResolved(sidecar, {
+      conversationId: c.req.param("id"),
+      resolved: write.input.resolved,
+      author,
+    });
   });
 
-  app.all("/__conversations/:id/comments/:commentId/edit", async (c) => {
-    const write = await readCommentWrite(c);
-    if (write instanceof Response) return write;
+  writeRoute("/__conversations/:id/comments/:commentId/edit", (c, write) => {
+    requireOwner(c);
+    const body = typeof write.input.body === "string" ? write.input.body.trim() : "";
+    if (!body) throw new ConversationError("invalid", "a comment needs a body");
 
-    try {
-      await editComment(sidecar, {
-        conversationId: c.req.param("id"),
-        commentId: c.req.param("commentId"),
-        body: write.body,
-        author,
-      });
-    } catch (err) {
-      return refused(c, err);
-    }
-
-    return respondWithConversations(c, write.pagePath);
+    return editComment(sidecar, {
+      conversationId: c.req.param("id"),
+      commentId: c.req.param("commentId"),
+      body,
+      author,
+    });
   });
 
-  app.all("/__conversations/:id/comments/:commentId/delete", async (c) => {
-    const write = await readPageWrite(c);
-    if (write instanceof Response) return write;
-
-    try {
-      await deleteComment(sidecar, {
-        conversationId: c.req.param("id"),
-        commentId: c.req.param("commentId"),
-        author,
-        isOwner: isOwner(c),
-      });
-    } catch (err) {
-      return refused(c, err);
-    }
-
-    return respondWithConversations(c, write.pagePath);
+  writeRoute("/__conversations/:id/comments/:commentId/delete", (c) => {
+    requireOwner(c);
+    return deleteComment(sidecar, {
+      conversationId: c.req.param("id"),
+      commentId: c.req.param("commentId"),
+      author,
+      isOwner: true,
+    });
   });
 
-  app.all("/__conversations/:id/comments/:commentId/reactions", async (c) => {
-    const write = await readPageWrite(c);
-    if (write instanceof Response) return write;
+  writeRoute("/__conversations/:id/comments/:commentId/reactions", (c, write) =>
+    setReaction(sidecar, {
+      conversationId: c.req.param("id"),
+      commentId: c.req.param("commentId"),
+      emoji: typeof write.input.emoji === "string" ? write.input.emoji : "",
+      author,
+      // Absent means toggle, which is what a click on a chip means. A caller
+      // that knows the state it wants says so.
+      ...(typeof write.input.on === "boolean" ? { on: write.input.on } : {}),
+    }),
+  );
 
-    const emoji = typeof write.input.emoji === "string" ? write.input.emoji : "";
-
-    try {
-      await setReaction(sidecar, {
-        conversationId: c.req.param("id"),
-        commentId: c.req.param("commentId"),
-        emoji,
-        author,
-        // Absent means toggle, which is what a click on a chip means. A caller
-        // that knows the state it wants says so.
-        ...(typeof write.input.on === "boolean" ? { on: write.input.on } : {}),
-      });
-    } catch (err) {
-      return refused(c, err);
-    }
-
-    return respondWithConversations(c, write.pagePath);
-  });
-
-  app.all("/__conversations/:id/delete", async (c) => {
-    const write = await readPageWrite(c);
-    if (write instanceof Response) return write;
-
-    try {
-      await deleteConversation(sidecar, {
-        conversationId: c.req.param("id"),
-        author,
-        isOwner: isOwner(c),
-      });
-    } catch (err) {
-      return refused(c, err);
-    }
-
-    return respondWithConversations(c, write.pagePath);
-  });
+  writeRoute("/__conversations/:id/delete", (c) =>
+    deleteConversation(sidecar, {
+      conversationId: c.req.param("id"),
+      author,
+      isOwner: isOwner(c),
+    }),
+  );
 
   app.get("*", async (c) => {
     const urlPath = c.req.path;

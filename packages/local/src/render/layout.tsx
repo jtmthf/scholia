@@ -220,12 +220,23 @@ const SSR_PORT: CommentsPort = {
   displayName: null,
   canModerate: false,
   addComment: inert,
-  editComment: inert,
-  deleteComment: inert,
   toggleReaction: inert,
   setResolved: inert,
   deleteConversation: inert,
 };
+
+// Editing and deleting a Comment are the Owner's alone on the local path, so
+// they are present only when this reader is one — matching the port the client
+// builds, because a control the server left out would otherwise appear the
+// moment the page hydrates.
+function portFor(comments: CommentsInfo): CommentsPort {
+  return {
+    ...SSR_PORT,
+    displayName: comments.displayName,
+    canModerate: comments.canModerate,
+    ...(comments.canModerate ? { editComment: inert, deleteComment: inert } : {}),
+  };
+}
 
 // No `outdatedOrigin`: local files are live rather than snapshotted, so there is
 // no earlier state an Outdated Conversation could link back to. The copy is
@@ -234,13 +245,7 @@ const SSR_PORT: CommentsPort = {
 function CommentRail({ comments }: { comments: CommentsInfo }) {
   return (
     <div id="scholia-comments">
-      <CommentsProvider
-        value={{
-          ...SSR_PORT,
-          displayName: comments.displayName,
-          canModerate: comments.canModerate,
-        }}
-      >
+      <CommentsProvider value={portFor(comments)}>
         <Rail
           conversations={comments.conversations}
           chats={[]}

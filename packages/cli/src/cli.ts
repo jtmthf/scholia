@@ -308,7 +308,7 @@ if (HOSTED_ENABLED) registerHostedCommands(cli);
 // Conversation with its first Comment on a Page; `scholia comments` lists
 // them. No server, no token, no network — stored in .scholia/ beside the content.
 cli
-  .command("comment", "Create an anchored comment on a local page")
+  .command("comment", "Create an anchored Comment on a local Page")
   .option("--page <path>", "Page path (relative to project root)", { default: "." })
   .option("--body <text>", "Comment body text", { default: "" })
   .option("--anchor <text>", "Exact text to anchor the comment to")
@@ -332,7 +332,7 @@ cli
   });
 
 cli
-  .command("comments", "List conversations on a local page")
+  .command("comments", "List Conversations on a local Page")
   .option("--page <path>", "Page path (relative to project root)", { default: "." })
   .option("--root <dir>", "Project root directory (default: cwd)")
   .option("--json", "Output as JSON")
@@ -378,7 +378,7 @@ function registerConversationCommands(cli: CAC): void {
     ["reopen", false],
   ] as const) {
     cli
-      .command(name, `Mark a local conversation as ${resolved ? "resolved" : "reopened"}`)
+      .command(name, `Mark a local Conversation as ${resolved ? "resolved" : "reopened"}`)
       .option("--conversation <id>", "Conversation id")
       .option("--root <dir>", "Project root directory (default: cwd)")
       .action((options: ConversationOptions) =>
@@ -395,7 +395,7 @@ function registerConversationCommands(cli: CAC): void {
   }
 
   cli
-    .command("react", "Add or remove a reaction on a local comment")
+    .command("react", "Add or remove a Reaction on a local Comment")
     .option("--conversation <id>", "Conversation id")
     .option("--comment <id>", "Comment id")
     .option("--emoji <emoji>", "One of 👍 👎 ✅ 👀 🎉 ❤️")
@@ -414,7 +414,7 @@ function registerConversationCommands(cli: CAC): void {
     );
 
   cli
-    .command("edit-comment", "Rewrite your own comment (the original stays in the stream)")
+    .command("edit-comment", "Rewrite your own Comment (the original stays in the stream)")
     .option("--conversation <id>", "Conversation id")
     .option("--comment <id>", "Comment id")
     .option("--body <text>", "The new comment body")
@@ -431,7 +431,7 @@ function registerConversationCommands(cli: CAC): void {
     );
 
   cli
-    .command("delete-comment", "Leave a tombstone over a comment")
+    .command("delete-comment", "Leave a tombstone over a Comment")
     .option("--conversation <id>", "Conversation id")
     .option("--comment <id>", "Comment id")
     .option("--root <dir>", "Project root directory (default: cwd)")
@@ -446,7 +446,7 @@ function registerConversationCommands(cli: CAC): void {
     );
 
   cli
-    .command("delete-conversation", "Leave a tombstone over a whole conversation")
+    .command("delete-conversation", "Leave a tombstone over a whole Conversation")
     .option("--conversation <id>", "Conversation id")
     .option("--root <dir>", "Project root directory (default: cwd)")
     .action((options: ConversationOptions) =>

@@ -156,6 +156,23 @@ function centreOf(page: Page, text: string): Promise<{ x: number; y: number }> {
   }, text);
 }
 
+/**
+ * Select `text` and wait for the Comment button the selection offers.
+ *
+ * Retried, because the selection is made programmatically and the listener that
+ * answers it is attached by an effect once the rail hydrates. A real reader
+ * drags for long enough to emit a stream of `selectionchange`, so a late
+ * listener still catches one; this helper emits exactly one, and if it lands
+ * before hydration nothing fires again and the button never comes. Re-selecting
+ * is the same act a reader would repeat, and is idempotent.
+ */
+async function selectForComment(page: Page, text: string, occurrence: number): Promise<void> {
+  await expect(async () => {
+    await selectInContent(page, text, occurrence);
+    await expect(page.locator("#scholia-comment-selection")).toBeVisible({ timeout: 1_000 });
+  }).toPass();
+}
+
 /** Select `text`, click Comment, write `body`, submit — and wait for the card. */
 async function commentOnSelection(
   page: Page,
@@ -163,7 +180,7 @@ async function commentOnSelection(
   body: string,
   occurrence = 0,
 ): Promise<void> {
-  await selectInContent(page, text, occurrence);
+  await selectForComment(page, text, occurrence);
   await page.locator("#scholia-comment-selection").click();
   await page.locator(".floating-composer-panel textarea").fill(body);
   await page.locator(".floating-composer-panel button[type=submit]").click();

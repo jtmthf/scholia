@@ -36,16 +36,20 @@ export async function deleteComment(
   const conversation = await requireConversation(repo, params.conversationId);
   const comment = requireComment(conversation, params.commentId);
 
-  // Already a tombstone. Appending a second one would fold identically, so the
-  // only thing another event buys is noise in a file people read in diffs.
-  if (comment.deleted) return;
-
+  // Authorize before anything else, including before noticing the Comment is
+  // already gone: a stranger must get the same "you may not" either way, or the
+  // difference between the two answers tells them what they were not allowed to
+  // know.
   if (comment.author !== params.author && !params.isOwner) {
     throw new ConversationError(
       "forbidden",
       "only the author of a Comment, or the Owner, can delete it",
     );
   }
+
+  // Already a tombstone. Appending a second one would fold identically, so the
+  // only thing another event buys is noise in a file people read in diffs.
+  if (comment.deleted) return;
 
   await repo.appendEvent(params.conversationId, tombstone(params.author, params.commentId));
 }

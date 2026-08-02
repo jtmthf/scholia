@@ -70,25 +70,36 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
       async addComment(conversationId, { body }) {
         setConversations(await api.addComment({ pagePath: data.pagePath, conversationId, body }));
       },
-      async editComment(commentId, { body }) {
-        setConversations(
-          await api.editComment({
-            pagePath: data.pagePath,
-            conversationId: conversationOf(commentId),
-            commentId,
-            body,
-          }),
-        );
-      },
-      async deleteComment(commentId) {
-        setConversations(
-          await api.deleteComment({
-            pagePath: data.pagePath,
-            conversationId: conversationOf(commentId),
-            commentId,
-          }),
-        );
-      },
+      // Editing and deleting a Comment are the Owner's alone here, and so are
+      // absent for anyone else rather than present and refused (ADR-0030,
+      // ADR-0017's "no broken buttons"). The server gates them the same way,
+      // because `author` is one name for every writer on this machine: until a
+      // Tunnel guest has an Identity of their own (issue #31), "my Comment" and
+      // "the host's Comment" are indistinguishable, so touching words already
+      // written stays with the reader at this machine.
+      ...(data.canModerate
+        ? {
+            async editComment(commentId: string, { body }: { body: string }) {
+              setConversations(
+                await api.editComment({
+                  pagePath: data.pagePath,
+                  conversationId: conversationOf(commentId),
+                  commentId,
+                  body,
+                }),
+              );
+            },
+            async deleteComment(commentId: string) {
+              setConversations(
+                await api.deleteComment({
+                  pagePath: data.pagePath,
+                  conversationId: conversationOf(commentId),
+                  commentId,
+                }),
+              );
+            },
+          }
+        : {}),
       async toggleReaction(commentId, emoji) {
         setConversations(
           await api.toggleReaction({

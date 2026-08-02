@@ -1,8 +1,13 @@
 // Why a Conversation command was refused, in a form a delivery surface can map.
 //
 // The message is written to be shown to a reader — `@scholia/ui` renders whatever
-// a rejection carries (ADR-0030) — and the `code` is what a transport needs to
-// pick a status without pattern-matching on prose.
+// a rejection carries (ADR-0030) — and the `code` says which *kind* of refusal it
+// is, so a transport can pick its own answer without pattern-matching on prose.
+//
+// Deliberately no HTTP here: core is pure domain (CLAUDE.md), and a status code
+// is the delivery layer's vocabulary. `packages/local/src/server.ts` maps these
+// three codes onto statuses; a CLI maps them onto exit codes and says nothing
+// about 403.
 
 export type ConversationErrorCode =
   /** No such Conversation or Comment. */
@@ -19,18 +24,5 @@ export class ConversationError extends Error {
     super(message);
     this.name = "ConversationError";
     this.code = code;
-  }
-}
-
-/** The HTTP status a `ConversationError` deserves; 500 for anything else. */
-export function conversationErrorStatus(err: unknown): 400 | 403 | 404 | 500 {
-  if (!(err instanceof ConversationError)) return 500;
-  switch (err.code) {
-    case "not-found":
-      return 404;
-    case "forbidden":
-      return 403;
-    case "invalid":
-      return 400;
   }
 }
