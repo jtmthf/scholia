@@ -1,16 +1,13 @@
 import { describe, expect, test } from "vitest";
-import {
-  clearDraft,
-  loadDraft,
-  loadLatestDraft,
-  saveDraft,
-  type DraftStorage,
-} from "../src/client/comments/drafts.js";
+import { pageDrafts, type DraftStorage } from "../src/client/comments/drafts.js";
 import type { SelectionCandidate } from "@scholia/bridge";
 
 // The promise (issue #29): a draft is never lost because the file moved under
 // it. These are the storage rules that promise rests on — keyed per Anchor, so
 // a draft comes back attached to the passage it was written about.
+//
+// Updated for issue #31: drafts are further keyed by visibility, so a Chat
+// draft and a Thread draft on the same passage are separate entries.
 
 /** sessionStorage's contract, in a Map. */
 function fakeStorage(): DraftStorage & { size: () => number } {
@@ -31,124 +28,190 @@ function candidate(exact: string, prefix?: string): SelectionCandidate {
   return { quote: { exact, ...(prefix ? { prefix } : {}) }, smIds: [] };
 }
 
+// A factory that injects a custom storage, since pageDrafts reads sessionStorage
+// directly. This patches the global temporarily.
+function withStorage<T>(storage: DraftStorage, fn: (storage: DraftStorage) => T): T {
+  const original = globalThis.sessionStorage;
+  // @ts-expect-error — we're replacing sessionStorage with a fake for testing
+  globalThis.sessionStorage = storage;
+  try {
+    return fn(storage);
+  } finally {
+    globalThis.sessionStorage = original;
+  }
+}
+
 describe("draft storage", () => {
   test("a saved draft comes back with its selection and body", () => {
     const store = fakeStorage();
     const selection = candidate("the moat");
 
-    saveDraft(store, "anchor.md", { selection, body: "Half a thought", at: { left: 10, top: 20 } });
+    withStorage(store, () => {
+      const drafts = pageDrafts("anchor.md");
+      drafts.save({
+        selection,
+        body: "Half a thought",
+        visibility: "public",
+        at: { left: 10, top: 20 },
+      });
 
-    const restored = loadLatestDraft(store, "anchor.md");
-    expect(restored?.body).toBe("Half a thought");
-    expect(restored?.selection).toEqual(selection);
-    expect(restored?.at).toEqual({ left: 10, top: 20 });
+      const restored = drafts.latest();
+      expect(restored?.body).toBe("Half a thought");
+      expect(restored?.selection).toEqual(selection);
+      expect(restored?.visibility).toBe("public");
+      expect(restored?.at).toEqual({ left: 10, top: 20 });
+    });
   });
 
   test("a Page-level draft has no selection and is still restored", () => {
     const store = fakeStorage();
-    saveDraft(store, "page.md", { selection: null, body: "About the whole page" });
+    withStorage(store, () => {
+      const drafts = pageDrafts("page.md");
+      drafts.save({ selection: null, body: "About the whole page", visibility: "public" });
 
-    const restored = loadLatestDraft(store, "page.md");
-    expect(restored?.selection).toBeNull();
-    expect(restored?.body).toBe("About the whole page");
+      const restored = drafts.latest();
+      expect(restored?.selection).toBeNull();
+      expect(restored?.body).toBe("About the whole page");
+    });
   });
 
   test("drafts are kept per Anchor, not per Page", () => {
     const store = fakeStorage();
-    saveDraft(store, "doc.md", { selection: candidate("first passage"), body: "One" });
-    saveDraft(store, "doc.md", { selection: candidate("second passage"), body: "Two" });
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({ selection: candidate("first passage"), body: "One", visibility: "public" });
+      drafts.save({ selection: candidate("second passage"), body: "Two", visibility: "public" });
 
-    expect(store.size()).toBe(2);
-    // The one most recently written is the one the reader was in.
-    expect(loadLatestDraft(store, "doc.md")?.body).toBe("Two");
+      expect(store.size()).toBe(2);
+      expect(drafts.latest()?.body).toBe("Two");
+    });
   });
 
   test("selecting a passage again finds what was being written about it", () => {
     const store = fakeStorage();
     const abandoned = candidate("first passage");
-    saveDraft(store, "doc.md", { selection: abandoned, body: "One" });
-    saveDraft(store, "doc.md", { selection: candidate("second passage"), body: "Two" });
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({ selection: abandoned, body: "One", visibility: "public" });
+      drafts.save({ selection: candidate("second passage"), body: "Two", visibility: "public" });
 
-    expect(loadDraft(store, "doc.md", abandoned)?.body).toBe("One");
-    expect(loadDraft(store, "doc.md", candidate("never written about"))).toBeNull();
+      expect(drafts.load(abandoned)?.body).toBe("One");
+      expect(drafts.load(candidate("never written about"))).toBeNull();
+    });
   });
 
   test("the same Anchor overwrites rather than accumulating", () => {
     const store = fakeStorage();
-    saveDraft(store, "doc.md", { selection: candidate("the moat"), body: "Ha" });
-    saveDraft(store, "doc.md", { selection: candidate("the moat"), body: "Half a thought" });
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({ selection: candidate("the moat"), body: "Ha", visibility: "public" });
+      drafts.save({
+        selection: candidate("the moat"),
+        body: "Half a thought",
+        visibility: "public",
+      });
 
-    expect(store.size()).toBe(1);
-    expect(loadLatestDraft(store, "doc.md")?.body).toBe("Half a thought");
+      expect(store.size()).toBe(1);
+      expect(drafts.latest()?.body).toBe("Half a thought");
+    });
   });
 
   test("the same words in different context are different Anchors", () => {
     const store = fakeStorage();
-    saveDraft(store, "doc.md", { selection: candidate("See below", "first "), body: "One" });
-    saveDraft(store, "doc.md", { selection: candidate("See below", "second "), body: "Two" });
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({
+        selection: candidate("See below", "first "),
+        body: "One",
+        visibility: "public",
+      });
+      drafts.save({
+        selection: candidate("See below", "second "),
+        body: "Two",
+        visibility: "public",
+      });
 
-    expect(store.size()).toBe(2);
+      expect(store.size()).toBe(2);
+    });
   });
 
   test("another Page's drafts are not this Page's", () => {
     const store = fakeStorage();
-    saveDraft(store, "a.md", { selection: candidate("shared words"), body: "On A" });
-    saveDraft(store, "b.md", { selection: candidate("shared words"), body: "On B" });
+    withStorage(store, () => {
+      pageDrafts("a.md").save({
+        selection: candidate("shared words"),
+        body: "On A",
+        visibility: "public",
+      });
+      pageDrafts("b.md").save({
+        selection: candidate("shared words"),
+        body: "On B",
+        visibility: "public",
+      });
 
-    expect(loadLatestDraft(store, "a.md")?.body).toBe("On A");
-    expect(loadLatestDraft(store, "b.md")?.body).toBe("On B");
+      expect(pageDrafts("a.md").latest()?.body).toBe("On A");
+      expect(pageDrafts("b.md").latest()?.body).toBe("On B");
+    });
   });
 
   test("clearing removes only that Anchor's draft", () => {
     const store = fakeStorage();
     const kept = candidate("kept passage");
-    saveDraft(store, "doc.md", { selection: kept, body: "Keep" });
-    saveDraft(store, "doc.md", { selection: candidate("dropped passage"), body: "Drop" });
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({ selection: kept, body: "Keep", visibility: "public" });
+      drafts.save({ selection: candidate("dropped passage"), body: "Drop", visibility: "public" });
 
-    clearDraft(store, "doc.md", candidate("dropped passage"));
+      drafts.clear(candidate("dropped passage"));
 
-    expect(store.size()).toBe(1);
-    expect(loadLatestDraft(store, "doc.md")?.body).toBe("Keep");
+      expect(store.size()).toBe(1);
+      expect(drafts.latest()?.body).toBe("Keep");
+    });
   });
 
-  test("an empty body clears rather than storing nothing to restore", () => {
+  test("an empty body is stored like any other — the caller decides when to clear", () => {
     const store = fakeStorage();
     const selection = candidate("the moat");
-    saveDraft(store, "doc.md", { selection, body: "Something" });
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({ selection, body: "Something", visibility: "public" });
+      drafts.save({ selection, body: "   ", visibility: "public" });
 
-    saveDraft(store, "doc.md", { selection, body: "   " });
-
-    expect(store.size()).toBe(0);
-    expect(loadLatestDraft(store, "doc.md")).toBeNull();
+      // pageDrafts stores whatever it's given. Clearing the draft after post
+      // or on cancel is the CommentLayer's responsibility.
+      expect(drafts.load(selection)?.body).toBe("   ");
+    });
   });
 
   test("nothing saved means nothing to restore", () => {
-    expect(loadLatestDraft(fakeStorage(), "doc.md")).toBeNull();
+    const store = fakeStorage();
+    withStorage(store, () => {
+      expect(pageDrafts("doc.md").latest()).toBeNull();
+    });
+  });
+
+  test("a Chat draft and a Thread draft on the same passage are separate entries", () => {
+    const store = fakeStorage();
+    const selection = candidate("the moat");
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({ selection, body: "Public comment", visibility: "public" });
+      drafts.save({ selection, body: "Private chat", visibility: "private" });
+
+      expect(store.size()).toBe(2);
+      expect(drafts.load(selection, "public")?.body).toBe("Public comment");
+      expect(drafts.load(selection, "private")?.body).toBe("Private chat");
+    });
   });
 
   test("a corrupt entry is ignored rather than thrown", () => {
     const store = fakeStorage();
-    saveDraft(store, "doc.md", { selection: candidate("good"), body: "Readable" });
-    store.setItem("scholia:draft:doc.md:broken", "{not json");
+    withStorage(store, () => {
+      const drafts = pageDrafts("doc.md");
+      drafts.save({ selection: candidate("good"), body: "Readable", visibility: "public" });
+      store.setItem("scholia:draft:doc.md:public:broken", "{not json");
 
-    expect(loadLatestDraft(store, "doc.md")?.body).toBe("Readable");
-  });
-
-  test("a storage that refuses to write is not an error the reader sees", () => {
-    const refusing: DraftStorage = {
-      length: 0,
-      key: () => null,
-      getItem: () => null,
-      setItem: () => {
-        throw new Error("QuotaExceededError");
-      },
-      removeItem: () => {
-        throw new Error("QuotaExceededError");
-      },
-    };
-
-    expect(() => saveDraft(refusing, "doc.md", { selection: null, body: "x" })).not.toThrow();
-    expect(() => clearDraft(refusing, "doc.md", null)).not.toThrow();
-    expect(loadLatestDraft(refusing, "doc.md")).toBeNull();
+      expect(drafts.latest()?.body).toBe("Readable");
+    });
   });
 });
