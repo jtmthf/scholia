@@ -8,6 +8,7 @@
 import {
   mapSmIdsToSourceRange,
   type Anchor,
+  type AuthorKind,
   type Conversation,
   type SourceMap,
 } from "@scholia/core";
@@ -57,12 +58,16 @@ export function anchorFromSelection(
   };
 }
 
-// Local Preview draws no tier distinction. The Sidecar stores an author name and
-// nothing else — there is no Viewer record to consult, and the Owner/Viewer split
-// only becomes observable once a Tunnel has guests (CONTEXT "Tunnel", issue #31).
-// Everyone is rendered as a plain human Viewer, which is quiet and true.
-function identityFor(author: string): Identity {
-  return { name: author, kind: "human", tier: "viewer", source: "native" };
+// Local Preview draws no tier distinction. There is no Viewer record to consult,
+// and the Owner/Viewer split only becomes observable once a Tunnel has guests
+// (CONTEXT "Tunnel"). Everyone is rendered at the Viewer tier, which is quiet
+// and true.
+//
+// Kind is the one distinction that *is* drawn, because the Sidecar records it:
+// an agent declares itself when it writes (CONTEXT "Identity"), and a reader has
+// to be able to tell an agent's words from a person's at a glance.
+function identityFor(author: string, kind: AuthorKind): Identity {
+  return { name: author, kind, tier: "viewer", source: "native" };
 }
 
 /**
@@ -74,8 +79,9 @@ function identityFor(author: string): Identity {
  * is on screen. Doing that resolution server-side, through the same matcher the
  * hosted path uses, is issue #30.
  *
- * `visibility` is always public because Chats live in a separate directory that
- * does not exist yet (issue #31).
+ * `visibility` comes straight off the stored Conversation, which got it from the
+ * directory its file was found in — the Sidecar's Chats directory or its
+ * shareable one (ADR-0019). Nothing here decides it.
  */
 export function toConversationDTO(conversation: Conversation, reader: string): ConversationDTO {
   return {
@@ -85,10 +91,10 @@ export function toConversationDTO(conversation: Conversation, reader: string): C
     anchorStatus: "live",
     resolved: conversation.resolved,
     resolvedBy: conversation.resolvedBy,
-    visibility: "public",
+    visibility: conversation.visibility,
     comments: conversation.comments.map((comment) => ({
       id: comment.id,
-      author: identityFor(comment.author),
+      author: identityFor(comment.author, comment.authorKind),
       body: comment.body,
       createdAt: comment.timestamp,
       editedAt: comment.editedAt,

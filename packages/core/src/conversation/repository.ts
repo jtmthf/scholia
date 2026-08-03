@@ -8,12 +8,31 @@
 // different document, which is what keeps "nothing is ever mutated" (ADR-0019) a
 // property of the *port* rather than of each adapter's discipline.
 
-import type { Conversation, ConversationEvent, ConversationHeader } from "./types.js";
+import type { Conversation, ConversationEvent, ConversationHeader, Visibility } from "./types.js";
 
 /** Input for creating a new Conversation with its first Comment. */
 export interface CreateConversationInput {
   header: ConversationHeader;
   firstComment: ConversationEvent & { type: "comment" };
+  /**
+   * Private (a Chat) or public (a Thread). Defaults to public — the Thread is
+   * the default for review comments (CONTEXT "Thread").
+   *
+   * The adapter's job, not the stream's: ADR-0019 enforces visibility by which
+   * directory the file goes in, so this decides *where* the Conversation is
+   * written rather than what is written into it.
+   */
+  visibility?: Visibility;
+  /**
+   * Further events written into the same initial stream, after `firstComment`.
+   *
+   * A Conversation is normally created with exactly one Comment and grows by
+   * appending. Promotion is the exception: it writes a new Thread that already
+   * carries the Chat messages a human chose (CONTEXT "Promotion"), and those
+   * have to land in the same atomic write as the header — a half-written Thread
+   * would be a Promotion that lost some of what it promoted.
+   */
+  events?: ConversationEvent[];
 }
 
 /**

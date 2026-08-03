@@ -9,14 +9,16 @@
 // A resolved Conversation collapses in the rail; it is never deleted.
 
 import { v7 as uuidv7 } from "uuid";
+import { signedBy } from "./author.js";
 import { requireConversation } from "./guards.js";
 import type { ConversationRepository } from "./repository.js";
-import type { ReopenedEvent, ResolvedEvent } from "./types.js";
+import type { AuthorKind, ReopenedEvent, ResolvedEvent } from "./types.js";
 
 export interface SetResolvedParams {
   conversationId: string;
   resolved: boolean;
   author: string;
+  authorKind?: AuthorKind;
 }
 
 export async function setResolved(
@@ -34,7 +36,7 @@ export async function setResolved(
     id: uuidv7(),
     type: params.resolved ? "resolved" : "reopened",
     timestamp: new Date().toISOString(),
-    author: params.author,
+    ...signedBy(params.author, params.authorKind),
   };
 
   await repo.appendEvent(params.conversationId, event);

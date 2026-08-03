@@ -3,8 +3,15 @@
 // Generates UUIDv7 ids per ADR-0019 — ids move from the database to the application.
 
 import { v7 as uuidv7 } from "uuid";
+import { signedBy } from "./author.js";
 import type { ConversationRepository } from "./repository.js";
-import type { Conversation, ConversationHeader, CommentEvent } from "./types.js";
+import type {
+  AuthorKind,
+  Conversation,
+  ConversationHeader,
+  CommentEvent,
+  Visibility,
+} from "./types.js";
 import type { Anchor } from "../anchor/types.js";
 import type { Provenance } from "../util/provenance.js";
 
@@ -13,6 +20,10 @@ export interface CreateConversationParams {
   body: string;
   anchor: Anchor | null;
   author: string;
+  /** Omit for a person; an agent declares itself (CONTEXT "Identity"). */
+  authorKind?: AuthorKind;
+  /** A Chat when private, a Thread when public or omitted (CONTEXT "Chat"). */
+  visibility?: Visibility;
   /** sha256 of the Page's Source as rendered — the Comment's binding. */
   contentHash?: string;
   /** Best-effort git facts, recorded alongside the binding as context. */
@@ -39,7 +50,7 @@ export async function createConversation(
     anchor: params.anchor,
     ...(params.contentHash ? { contentHash: params.contentHash } : {}),
     ...(params.provenance ? { provenance: params.provenance } : {}),
-    author: params.author,
+    ...signedBy(params.author, params.authorKind),
     timestamp: now,
   };
 
@@ -47,9 +58,14 @@ export async function createConversation(
     id: commentId,
     type: "comment",
     timestamp: now,
-    author: params.author,
+    ...signedBy(params.author, params.authorKind),
     body: params.body,
   };
 
-  return repo.createConversation({ header, firstComment });
+  return repo.createConversation({
+    header,
+    firstComment,
+    // Which directory the aggregate lands in (ADR-0019) — not a field in it.
+    ...(params.visibility ? { visibility: params.visibility } : {}),
+  });
 }

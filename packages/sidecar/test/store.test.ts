@@ -6,7 +6,7 @@
 // format right is the whole point of this adapter.
 
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, readFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, mkdir, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SidecarStore } from "../src/store.js";
@@ -88,7 +88,10 @@ describe("SidecarStore", () => {
     });
 
     const gitignore = await readFile(join(rootDir, ".scholia", ".gitignore"), "utf8");
-    expect(gitignore.trim()).toBe("*");
+    // Nothing in .scholia/ is tracked by default; the rest of the file is the
+    // opt-in, written down because the obvious incantation for it is wrong.
+    expect(gitignore).toMatch(/^\*$/m);
+    expect(gitignore).toContain("!conversations/**");
   });
 
   test("bodies containing YAML special characters round-trip exactly", async () => {
@@ -756,5 +759,310 @@ describe("SidecarStore", () => {
 
   test("getConversation refuses an id that is not a UUID", async () => {
     await expect(store.getConversation("../../escape")).rejects.toThrow(/not a Conversation id/);
+  });
+
+  // ---- Chats: visibility is the directory (ADR-0019, issue #31) ----
+  //
+  // The claim these tests make is that a Chat differs from a Thread in exactly
+  // one way — where its file is — and in no other. Anchoring, the fold, the
+  // event set and Outdated all run the same code, so the tests worth writing are
+  // the ones about the directory itself and about the two kinds not interfering.
+
+  /** Create a Conversation of either visibility with one Comment. */
+  async function seedOf(
+    visibility: "public" | "private",
+    id: string,
+    commentId: string,
+    body = "first",
+    page = "readme.md",
+  ) {
+    return store.createConversation({
+      header: {
+        id,
+        page,
+        anchor: null,
+        author: "alice",
+        timestamp: "2025-01-15T12:00:00.000Z",
+      },
+      firstComment: {
+        id: commentId,
+        type: "comment",
+        timestamp: "2025-01-15T12:00:00.000Z",
+        author: "alice",
+        body,
+      },
+      visibility,
+    });
+  }
+
+  test("a Chat is written to .scholia/chats, a Thread to .scholia/conversations", async () => {
+    const chatId = "00000000-0000-7000-8000-0000000000c1";
+    const threadId = "00000000-0000-7000-8000-0000000000c2";
+    await seedOf("private", chatId, "00000000-0000-7000-8000-0000000000c3");
+    await seedOf("public", threadId, "00000000-0000-7000-8000-0000000000c4");
+
+    await expect(
+      readFile(join(rootDir, ".scholia", "chats", `${chatId}.yaml`), "utf8"),
+    ).resolves.toContain("first");
+    await expect(
+      readFile(join(rootDir, ".scholia", "conversations", `${threadId}.yaml`), "utf8"),
+    ).resolves.toContain("first");
+  });
+
+  test("no `visibility` field is ever written — the directory is the record", async () => {
+    const chatId = "00000000-0000-7000-8000-0000000000c5";
+    await seedOf("private", chatId, "00000000-0000-7000-8000-0000000000c6");
+
+    // A field would be a second source of truth, free to disagree with where the
+    // file actually is (ADR-0019).
+    const raw = await readFile(join(rootDir, ".scholia", "chats", `${chatId}.yaml`), "utf8");
+    expect(raw).not.toContain("visibility");
+  });
+
+  test("the Chats directory ignores itself unconditionally", async () => {
+    await seedOf(
+      "private",
+      "00000000-0000-7000-8000-0000000000c7",
+      "00000000-0000-7000-8000-0000000000c8",
+    );
+
+    const ignore = await readFile(join(rootDir, ".scholia", "chats", ".gitignore"), "utf8");
+    expect(ignore.trim()).toBe("*");
+  });
+
+  test("a weakened Chats .gitignore is put back, so Chats cannot be opted into sharing", async () => {
+    await seedOf(
+      "private",
+      "00000000-0000-7000-8000-0000000000c9",
+      "00000000-0000-7000-8000-0000000000ca",
+    );
+
+    // Someone tries to make their Chats shareable.
+    const ignorePath = join(rootDir, ".scholia", "chats", ".gitignore");
+    await writeFile(ignorePath, "# share them\n!*.yaml\n");
+
+    // Any operation re-asserts it. Unlike `.scholia/.gitignore`, which carries a
+    // repo's deliberate opt-in and is written once, this file is the guarantee.
+    await store.listConversations("readme.md");
+    expect((await readFile(ignorePath, "utf8")).trim()).toBe("*");
+  });
+
+  test("a repo's opt-in to committing Threads is left alone", async () => {
+    await seedOf(
+      "public",
+      "00000000-0000-7000-8000-0000000000cb",
+      "00000000-0000-7000-8000-0000000000cc",
+    );
+
+    // Committing the Sidecar is an explicit per-repo choice (ADR-0018), made by
+    // editing this file — so the store must never write over it.
+    const ignorePath = join(rootDir, ".scholia", ".gitignore");
+    const optedIn = "*\n!.gitignore\n!*/\n!conversations/**\n";
+    await writeFile(ignorePath, optedIn);
+
+    await store.listConversations("readme.md");
+    expect(await readFile(ignorePath, "utf8")).toBe(optedIn);
+  });
+
+  test("listConversations returns both kinds, each carrying where it was found", async () => {
+    await seedOf(
+      "private",
+      "00000000-0000-7000-8000-0000000000d1",
+      "00000000-0000-7000-8000-0000000000d2",
+      "chat",
+    );
+    await seedOf(
+      "public",
+      "00000000-0000-7000-8000-0000000000d3",
+      "00000000-0000-7000-8000-0000000000d4",
+      "thread",
+    );
+
+    const all = await store.listConversations("readme.md");
+    expect(all).toHaveLength(2);
+    expect(Object.fromEntries(all.map((c) => [c.comments[0]!.body, c.visibility]))).toEqual({
+      chat: "private",
+      thread: "public",
+    });
+  });
+
+  test("getConversation finds a Chat by id alone and reports it private", async () => {
+    const chatId = "00000000-0000-7000-8000-0000000000d5";
+    await seedOf("private", chatId, "00000000-0000-7000-8000-0000000000d6");
+
+    const conversation = await store.getConversation(chatId);
+    expect(conversation!.visibility).toBe("private");
+  });
+
+  test("a reply to a Chat stays in the Chat", async () => {
+    const chatId = "00000000-0000-7000-8000-0000000000d7";
+    await seedOf("private", chatId, "00000000-0000-7000-8000-0000000000d8");
+
+    // The caller names no directory: an event goes where its Conversation is.
+    await store.appendEvent(chatId, {
+      id: "00000000-0000-7000-8000-0000000000d9",
+      type: "comment",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "Claude Code",
+      authorKind: "agent",
+      body: "The backoff has no ceiling.",
+    });
+
+    const raw = await readFile(join(rootDir, ".scholia", "chats", `${chatId}.yaml`), "utf8");
+    expect(raw).toContain("The backoff has no ceiling.");
+    // Nothing leaked into the shareable directory.
+    const shareable = await readdir(join(rootDir, ".scholia", "conversations"));
+    expect(shareable.filter((f) => f.endsWith(".yaml"))).toEqual([]);
+  });
+
+  test("a Chat and a Thread may anchor to the same span without interfering", async () => {
+    const anchor: Anchor = {
+      textQuote: { exact: "the same span", prefix: "over ", suffix: " twice" },
+    };
+    const shared = {
+      page: "readme.md",
+      anchor,
+      author: "alice",
+      timestamp: "2025-01-15T12:00:00.000Z",
+    };
+
+    await store.createConversation({
+      header: { ...shared, id: "00000000-0000-7000-8000-0000000000e1" },
+      firstComment: {
+        id: "00000000-0000-7000-8000-0000000000e2",
+        type: "comment",
+        timestamp: "2025-01-15T12:00:00.000Z",
+        author: "alice",
+        body: "publicly",
+      },
+      visibility: "public",
+    });
+    await store.createConversation({
+      header: { ...shared, id: "00000000-0000-7000-8000-0000000000e3" },
+      firstComment: {
+        id: "00000000-0000-7000-8000-0000000000e4",
+        type: "comment",
+        timestamp: "2025-01-15T12:00:00.000Z",
+        author: "alice",
+        body: "privately",
+      },
+      visibility: "private",
+    });
+
+    // Two files, two aggregates, one passage. A new highlight over overlapping
+    // text is a separate Conversation whatever its visibility (CONTEXT
+    // "Conversation").
+    const all = await store.listConversations("readme.md");
+    expect(all).toHaveLength(2);
+    for (const conversation of all) {
+      expect(conversation.header.anchor).toEqual(anchor);
+    }
+  });
+
+  // ---- Agent authorship (CONTEXT "Identity") ----
+
+  test("an agent's Comment records its kind; a person's document is unchanged", async () => {
+    const id = "00000000-0000-7000-8000-0000000000f1";
+    await seedOf("private", id, "00000000-0000-7000-8000-0000000000f2");
+
+    await store.appendEvent(id, {
+      id: "00000000-0000-7000-8000-0000000000f3",
+      type: "comment",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "Claude Code",
+      authorKind: "agent",
+      body: "an agent wrote this",
+    });
+
+    const raw = await readFile(join(rootDir, ".scholia", "chats", `${id}.yaml`), "utf8");
+    const [, human, agent] = raw.split("---\n");
+    // Absent means human, so nothing is written for the person's Comment.
+    expect(human).not.toContain("authorKind");
+    expect(agent).toContain("authorKind: agent");
+
+    const conversation = (await store.getConversation(id))!;
+    expect(conversation.comments.map((c) => c.authorKind)).toEqual(["human", "agent"]);
+  });
+
+  test("an author kind this version doesn't recognise reads back as human", async () => {
+    const convDir = join(rootDir, ".scholia", "conversations");
+    await mkdir(convDir, { recursive: true });
+
+    // Same posture as an unrecognised event kind: a committed Sidecar can be
+    // written by a newer Scholia, and a word we can't read is not a reason to
+    // lose the Comment underneath it.
+    const raw = [
+      "---",
+      "id: 00000000-0000-7000-8000-0000000000f4",
+      "page: readme.md",
+      "anchor: null",
+      "author: peggy",
+      "timestamp: '2025-01-15T12:00:00.000Z'",
+      "---",
+      "id: 00000000-0000-7000-8000-0000000000f5",
+      "type: comment",
+      "timestamp: '2025-01-15T12:00:00.000Z'",
+      "author: peggy",
+      "authorKind: oracle",
+      "body: |",
+      "  still readable",
+      "",
+    ].join("\n");
+    await writeFile(join(convDir, "future-kind.yaml"), raw);
+
+    const [conversation] = await store.listConversations("readme.md");
+    expect(conversation!.comments[0]!.authorKind).toBe("human");
+  });
+
+  // ---- Creating a Conversation with a history (Promotion) ----
+
+  test("createConversation writes every event it was given in one file", async () => {
+    const id = "00000000-0000-7000-8000-0000000000f6";
+    const conversation = await store.createConversation({
+      header: {
+        id,
+        page: "readme.md",
+        anchor: null,
+        author: "alice",
+        timestamp: "2025-01-15T12:10:00.000Z",
+      },
+      firstComment: {
+        id: "00000000-0000-7000-8000-0000000000f7",
+        type: "comment",
+        timestamp: "2025-01-15T12:00:00.000Z",
+        author: "alice",
+        body: "carried over",
+      },
+      // What Promotion hands the store: a Thread that already has a history,
+      // which has to land in the same atomic write as the header.
+      events: [
+        {
+          id: "00000000-0000-7000-8000-0000000000f8",
+          type: "comment",
+          timestamp: "2025-01-15T12:01:00.000Z",
+          author: "Claude Code",
+          authorKind: "agent",
+          body: "and this",
+        },
+        {
+          id: "00000000-0000-7000-8000-0000000000f9",
+          type: "comment",
+          timestamp: "2025-01-15T12:10:00.000Z",
+          author: "alice",
+          body: "the summary",
+        },
+      ],
+    });
+
+    expect(conversation.comments.map((c) => c.body)).toEqual([
+      "carried over",
+      "and this",
+      "the summary",
+    ]);
+
+    // And it is all on disk, not just in the returned fold.
+    const reread = (await store.getConversation(id))!;
+    expect(reread.comments).toHaveLength(3);
+    expect(reread.comments[1]!.authorKind).toBe("agent");
   });
 });

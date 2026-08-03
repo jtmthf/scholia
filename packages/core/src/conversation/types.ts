@@ -12,6 +12,27 @@ export type ConversationId = string;
 export type CommentId = string;
 
 /**
+ * Private (a Chat) or public (a Thread) — CONTEXT "Conversation".
+ *
+ * Never a field in the stream. ADR-0019 puts Threads and Chats in separate
+ * directories so visibility is enforced by the filesystem: a `visibility:` field
+ * would be a string a single `git add` blows straight through, and it could
+ * disagree with the directory the file is actually in. Adapters report where they
+ * found a Conversation; nothing writes this down.
+ */
+export type Visibility = "public" | "private";
+
+/**
+ * Whether a Comment was written by a person or by an agent (CONTEXT "Identity").
+ *
+ * Locally there are no tokens and no Viewer records, so an agent simply declares
+ * its own name — this is the one bit that distinguishes it, and it is what puts
+ * the agent badge on the Comment. Absent means human, so a stream written before
+ * agents could sign their work reads back exactly as it did.
+ */
+export type AuthorKind = "human" | "agent";
+
+/**
  * The immutable Conversation header (document 0 in the multi-document YAML
  * stream per ADR-0019). Written once at creation and never modified.
  */
@@ -37,6 +58,8 @@ export interface ConversationHeader {
   provenance?: Provenance;
   /** The author who created the Conversation. */
   author: string;
+  /** Omitted for a human, so a header only says so when there is something to say. */
+  authorKind?: AuthorKind;
   /** ISO 8601 creation timestamp. */
   timestamp: string;
 }
@@ -49,6 +72,12 @@ interface EventBase {
   timestamp: string;
   /** Who did it. Recorded on every event, including resolve and reopen. */
   author: string;
+  /**
+   * Omitted for a human. Written only when an agent did it, so every document a
+   * person wrote is byte-identical to what it was before agents could sign
+   * theirs — and an older Scholia reading a newer stream simply doesn't see it.
+   */
+  authorKind?: AuthorKind;
 }
 
 /**
@@ -131,6 +160,8 @@ export interface Comment {
   id: CommentId;
   conversationId: ConversationId;
   author: string;
+  /** Always present once folded — an event that says nothing is a human. */
+  authorKind: AuthorKind;
   /** The latest edited body, or "" once the Comment is a tombstone. */
   body: string;
   timestamp: string;
@@ -146,6 +177,11 @@ export interface Comment {
  */
 export interface Conversation {
   header: ConversationHeader;
+  /**
+   * Where the adapter found this Conversation, not something it read out of the
+   * stream (ADR-0019 — see `Visibility`).
+   */
+  visibility: Visibility;
   comments: Comment[];
   resolved: boolean;
   /** Who resolved it, when it is resolved. Null otherwise. */

@@ -40,12 +40,34 @@ export function createConversation(input: {
   /** null for a Page-level Conversation — the absence of a selection. */
   selection: SelectionCandidate | null;
   contentHash: string;
+  /** "private" starts a Chat; anything else a public Thread (CONTEXT "Chat"). */
+  visibility: "public" | "private";
 }): Promise<ConversationDTO[]> {
   return post("/__conversations", {
     page: input.pagePath,
     body: input.body,
     selection: input.selection,
     contentHash: input.contentHash,
+    visibility: input.visibility,
+  });
+}
+
+/**
+ * Promote a Chat: write its chosen messages into a new public Thread.
+ *
+ * The Chat is untouched, so the answer carries both — the new Thread and the
+ * Chat that is still there (CONTEXT "Promotion").
+ */
+export function promote(input: {
+  pagePath: string;
+  conversationId: string;
+  commentIds: string[];
+  summary?: string;
+}): Promise<ConversationDTO[]> {
+  return post(conversationUrl(input.conversationId, "promote"), {
+    page: input.pagePath,
+    commentIds: input.commentIds,
+    ...(input.summary ? { summary: input.summary } : {}),
   });
 }
 

@@ -74,6 +74,7 @@ interface ConversationsBody {
     anchor: { textQuote: { exact: string }; sourceRange?: { start: number; end: number } } | null;
     resolved: boolean;
     resolvedBy: string | null;
+    visibility: "public" | "private";
     comments: CommentBody[];
   }>;
   error?: string;
@@ -128,12 +129,13 @@ async function conversationsOn(url: string, page: string): Promise<Conversations
   return (await res.json()) as ConversationsBody;
 }
 
-// The `.scholia/conversations` directory, read as the bytes on disk rather than
-// through the store — this is the artifact a teammate meets in a PR diff.
-async function sidecarFiles(root: string): Promise<string[]> {
-  const dir = join(root, ".scholia", "conversations");
-  const names = (await readdir(dir)).filter((n) => n.endsWith(".yaml"));
-  return Promise.all(names.map((n) => readFile(join(dir, n), "utf8")));
+// One of the Sidecar's directories, read as the bytes on disk rather than
+// through the store — this is the artifact a teammate meets in a PR diff (or,
+// for `chats`, the one they must never meet).
+async function sidecarFiles(root: string, dir = "conversations"): Promise<string[]> {
+  const path = join(root, ".scholia", dir);
+  const names = (await readdir(path)).filter((n) => n.endsWith(".yaml"));
+  return Promise.all(names.map((n) => readFile(join(path, n), "utf8")));
 }
 
 test("a comment on a selection persists to the Sidecar and comes back on the Page", async ({
@@ -311,7 +313,118 @@ test("the Sidecar self-ignores, so a teammate's git status stays clean", async (
   const { url } = await serve();
   await comment(url, { page: "guide.md", body: "hello" });
 
-  expect((await readFile(join(tmp.root, ".scholia", ".gitignore"), "utf8")).trim()).toBe("*");
+  const ignore = await readFile(join(tmp.root, ".scholia", ".gitignore"), "utf8");
+  expect(ignore).toMatch(/^\*$/m);
+});
+
+test("a Chat lands in its own directory, which ignores itself", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  await comment(url, { page: "guide.md", body: "just between us", visibility: "private" });
+
+  // Visibility is the directory and nothing else (ADR-0019).
+  const chats = await readdir(join(tmp.root, ".scholia", "chats"));
+  expect(chats.filter((f) => f.endsWith(".yaml"))).toHaveLength(1);
+  const threads = await readdir(join(tmp.root, ".scholia", "conversations"));
+  expect(threads.filter((f) => f.endsWith(".yaml"))).toEqual([]);
+
+  // And it carries its own ignore file, which git reads last — so no edit to
+  // the parent can opt a Chat into sharing.
+  const ignore = await readFile(join(tmp.root, ".scholia", "chats", ".gitignore"), "utf8");
+  expect(ignore.trim()).toBe("*");
+});
+
+test("a Chat comes back private, a Thread public", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  await comment(url, { page: "guide.md", body: "publicly" });
+  await comment(url, { page: "guide.md", body: "privately", visibility: "private" });
+
+  const { conversations } = await conversationsOn(url, "guide.md");
+  expect(
+    Object.fromEntries(conversations!.map((c) => [c.comments[0]!.body, c.visibility])),
+  ).toEqual({ publicly: "public", privately: "private" });
+});
+
+test("anything other than an explicit `private` is a public Thread", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+
+  // A Thread mistakenly kept private is a nuisance; a Chat mistakenly made
+  // public is the thing this feature exists to prevent — so the default only
+  // ever errs in the direction it is safe to err in.
+  for (const visibility of [undefined, "", "Private", "secret", true, null]) {
+    await comment(url, { page: "guide.md", body: `v=${String(visibility)}`, visibility });
+  }
+
+  const { conversations } = await conversationsOn(url, "guide.md");
+  expect(conversations!.map((c) => c.visibility)).toEqual(Array(6).fill("public"));
+});
+
+test("promoting writes a new Thread and leaves the Chat where it was", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+
+  const created = (await (
+    await comment(url, { page: "guide.md", body: "is this right?", visibility: "private" })
+  ).json()) as ConversationsBody;
+  const chat = created.conversations!.at(-1)!;
+
+  const res = await act(url, `/__conversations/${chat.id}/promote`, {
+    page: "guide.md",
+    commentIds: [chat.comments[0]!.id],
+    summary: "Worth raising with the team.",
+  });
+  expect(res.status).toBe(200);
+
+  const { conversations } = await conversationsOn(url, "guide.md");
+  const thread = conversations!.find((c) => c.visibility === "public")!;
+  expect(thread.comments.map((c) => c.body)).toEqual([
+    "is this right?",
+    "Worth raising with the team.",
+  ]);
+
+  // Not a move — the Chat is still private, still there, still one message.
+  const stillPrivate = conversations!.find((c) => c.visibility === "private")!;
+  expect(stillPrivate.id).toBe(chat.id);
+  expect(stillPrivate.comments).toHaveLength(1);
+  expect(await sidecarFiles(tmp.root, "chats")).toHaveLength(1);
+  expect(await sidecarFiles(tmp.root, "conversations")).toHaveLength(1);
+});
+
+test("a Tunnel guest cannot promote their host's Chat", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+
+  const created = (await (
+    await comment(url, { page: "guide.md", body: "mine", visibility: "private" })
+  ).json()) as ConversationsBody;
+  const chat = created.conversations!.at(-1)!;
+
+  const res = await act(
+    url,
+    `/__conversations/${chat.id}/promote`,
+    { page: "guide.md", commentIds: [chat.comments[0]!.id] },
+    { asGuest: true },
+  );
+  expect(res.status).toBe(403);
+});
+
+test("a Chat and a Thread on the same span do not interfere", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n\nThe retry loop is unbounded here.\n");
+  const { url } = await serve();
+
+  const selection = { quote: { exact: "retry loop", prefix: "The ", suffix: " is" } };
+  await comment(url, { page: "guide.md", body: "publicly", selection });
+  await comment(url, { page: "guide.md", body: "privately", selection, visibility: "private" });
+
+  // Two Conversations, one passage — a new highlight over overlapping text is a
+  // separate Conversation whatever its visibility (CONTEXT "Conversation").
+  const { conversations } = await conversationsOn(url, "guide.md");
+  expect(conversations).toHaveLength(2);
+  for (const c of conversations!) {
+    expect(c.anchor!.textQuote.exact).toBe("retry loop");
+  }
 });
 
 test("a reply is appended to the Conversation it answers", async ({ tmp, serve }) => {

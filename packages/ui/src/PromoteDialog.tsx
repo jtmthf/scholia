@@ -5,13 +5,24 @@ import type { ConversationDTO } from "./types.js";
 interface PromoteDialogProps {
   conversation: ConversationDTO;
   onClose: () => void;
+  /**
+   * What promoting actually does here, in the consumer's words.
+   *
+   * The two surfaces genuinely differ, so this cannot be one fixed string.
+   * Hosted, visibility is a column and the Chat *becomes* the Thread. Locally it
+   * is a directory (ADR-0019), so Promotion writes a new Thread and the Chat
+   * stays exactly where it was — and there is no Share URL to mention.
+   */
+  note?: string;
 }
+
+const DEFAULT_NOTE =
+  "Choose which messages become public. This Chat flips to a public Thread — everyone with the Share URL will see the selected messages.";
 
 // Promotion UI (CONTEXT "Promotion"): the owning reader picks which Chat Comments
 // become public and optionally writes a summary, rather than dumping the raw
-// transcript. Confirming flips the Chat to a public Thread in place; on the next
-// refresh it moves out of the private section into the public one.
-export function PromoteDialog({ conversation, onClose }: PromoteDialogProps) {
+// transcript.
+export function PromoteDialog({ conversation, onClose, note = DEFAULT_NOTE }: PromoteDialogProps) {
   const port = useComments();
   // Tombstones can't be promoted; offer only live Comments (all checked by default).
   const selectable = conversation.comments.filter((c) => !c.deleted);
@@ -60,10 +71,7 @@ export function PromoteDialog({ conversation, onClose }: PromoteDialogProps) {
           </button>
         </div>
 
-        <p class="promote-note">
-          Choose which messages become public. This Chat flips to a public Thread — everyone with
-          the Share URL will see the selected messages.
-        </p>
+        <p class="promote-note">{note}</p>
 
         <div class="promote-comments">
           {selectable.map((c) => (

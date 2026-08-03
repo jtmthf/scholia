@@ -4,6 +4,8 @@
 export type {
   ConversationId,
   CommentId,
+  Visibility,
+  AuthorKind,
   ConversationHeader,
   CommentEvent,
   EditedEvent,
@@ -36,3 +38,4 @@ export {
 } from "./delete.js";
 export { setReaction, type SetReactionParams } from "./react.js";
 export { setResolved, type SetResolvedParams } from "./resolve.js";
+export { promoteConversation, type PromoteConversationParams } from "./promote.js";

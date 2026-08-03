@@ -15,6 +15,8 @@ interface ConversationCardProps {
   isPrivate?: boolean;
   /** Show the Promote control (the owning reader flipping a Chat → Thread). */
   promotable?: boolean;
+  /** What promoting does on this surface — see PromoteDialog's `note`. */
+  promoteNote?: string;
 }
 
 // One Conversation card: its anchor quote (or "Page comment"), its flat comment
@@ -33,6 +35,7 @@ export function ConversationCard({
   onActivate,
   isPrivate = false,
   promotable = false,
+  promoteNote,
 }: ConversationCardProps) {
   const port = useComments();
   const [expanded, setExpanded] = useState(!conversation.resolved);
@@ -201,7 +204,11 @@ export function ConversationCard({
 
       {promoting && (
         <div onClick={(e) => e.stopPropagation()}>
-          <PromoteDialog conversation={conversation} onClose={() => setPromoting(false)} />
+          <PromoteDialog
+            conversation={conversation}
+            onClose={() => setPromoting(false)}
+            {...(promoteNote ? { note: promoteNote } : {})}
+          />
         </div>
       )}
     </div>

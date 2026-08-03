@@ -98,6 +98,25 @@ async function seedComment(
   expect(res.status()).toBe(200);
 }
 
+/** Seed a private Chat without a browser. */
+async function seedChat(
+  request: APIRequestContext,
+  page: string,
+  body: string,
+  exact?: string,
+): Promise<void> {
+  const res = await request.post(`${preview.url}/__conversations`, {
+    headers: { "Sec-Fetch-Site": "same-origin" },
+    data: {
+      page,
+      body,
+      visibility: "private",
+      ...(exact ? { selection: { quote: { exact } } } : {}),
+    },
+  });
+  expect(res.status()).toBe(200);
+}
+
 /** Select `text` inside the rendered content, the way a reader drags across it. */
 async function selectInContent(page: Page, text: string, occurrence = 0): Promise<void> {
   await page.evaluate(
@@ -192,6 +211,20 @@ async function commentOnSelection(
   await page.locator(".floating-composer-panel textarea").fill(body);
   await page.locator(".floating-composer-panel button[type=submit]").click();
   await expect(page.locator(".comment-rail")).toContainText(body);
+}
+
+/** Select `text`, click Ask (private Chat), write `body`, submit — and wait. */
+async function askOnSelection(
+  page: Page,
+  text: string,
+  body: string,
+  occurrence = 0,
+): Promise<void> {
+  await selectForComment(page, text, occurrence);
+  await page.locator("#scholia-ask-selection").click();
+  await page.locator(".floating-composer-panel textarea").fill(body);
+  await page.locator(".floating-composer-panel button[type=submit]").click();
+  await expect(page.locator(".rail-section--chats")).toContainText(body);
 }
 
 test("select text, comment, reload — the Conversation is still anchored", async ({ page }) => {
@@ -332,9 +365,9 @@ test("a reply lands in the Conversation it answers", async ({ page }) => {
 });
 
 // @scholia/ui renders an absent port method as an affordance this surface
-// doesn't have — not one that fails when clicked (ADR-0030). Local Preview now
-// supplies every method the Sidecar can honour (ADR-0032); what it still cannot
-// do is Promote, because there are no Chats to promote from (issue #31).
+// doesn't have — not one that fails when clicked (ADR-0030). Local Preview
+// supplies every method the Sidecar can honour (ADR-0032). A Thread does not
+// offer Promote — only a Chat card does.
 test("offers only what the Sidecar can actually do", async ({ page, request }) => {
   await seedComment(request, "capabilities.md", "Something to act on.");
   await page.goto(`${preview.url}/capabilities.md`);
@@ -347,6 +380,19 @@ test("offers only what the Sidecar can actually do", async ({ page, request }) =
   await expect(card.locator(".thread-action-btn--promote")).toHaveCount(0);
   // No tokens to hand out locally, so no "Bring your agent".
   await expect(page.locator(".bring-agent-btn")).toHaveCount(0);
+});
+
+// A Chat card carries the lock affordance and a Promote control (issue #31).
+// The Thread test above proves Promote is absent from a public Thread card.
+test("a Chat card offers the Promote control", async ({ page, request }) => {
+  await seedChat(request, "capabilities.md", "A private thought.");
+  await page.goto(`${preview.url}/capabilities.md`);
+
+  // The Chat card has a promote button.
+  const chatCard = page.locator(".rail-section--chats .thread-card", {
+    hasText: "A private thought.",
+  });
+  await expect(chatCard.locator(".thread-action-btn--promote")).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------
@@ -592,4 +638,116 @@ test("the Owner deletes a whole Conversation, and it leaves the Page", async ({
   await expect(page.locator(".thread-card")).toHaveCount(0);
   // The Sidecar still holds the file; what changed is what the fold shows.
   expect(await stored(request, "moderate.md")).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// Private Chats and Promotion (issue #31)
+// ---------------------------------------------------------------------------
+
+// AC: a Chat can be started from a selection and is visible only locally.
+test("creates a Chat from a selection and holds it in the Chats section", async ({ page }) => {
+  await page.goto(`${preview.url}/reply.md`);
+
+  await askOnSelection(page, "Reply target", "Ask my agent about this.");
+
+  // The Chat is in the private Chats section, not the public anchored one.
+  const chats = page.locator(".rail-section--chats");
+  await expect(chats).toBeVisible();
+  await expect(chats.locator(".rail-section-title")).toHaveText("🔒 Chats (private) (1)");
+  await expect(chats.locator(".thread-card")).toHaveCount(1);
+  await expect(chats.locator(".thread-card")).toContainText("Ask my agent about this.");
+
+  // The lock affordance shows: this is private.
+  await expect(chats.locator(".thread-lock")).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator(".rail-section--chats .thread-card")).toHaveCount(1);
+});
+
+// AC: a Chat and a Thread may anchor to the same span without interfering.
+test("a Chat and a Thread on the same span show in their own sections", async ({ page }) => {
+  await page.goto(`${preview.url}/anchor.md`);
+
+  await commentOnSelection(page, "the moat", "Public review comment.");
+  await askOnSelection(page, "the moat", "Private agent question.");
+
+  await expect(page.locator(".rail-section--chats .thread-card")).toHaveCount(1);
+  // The anchored (public) section has one card.
+  await expect(
+    page.locator(
+      ".rail-section:not(.rail-section--chats):not(.rail-section--outdated) .thread-card",
+    ),
+  ).toHaveCount(1);
+});
+
+// AC: Promotion writes a new Thread from selected messages, leaving the Chat.
+test("promoting a Chat writes a new Thread", async ({ page, request }) => {
+  await seedChat(request, "capabilities.md", "Unbounded retry loop.");
+  await page.goto(`${preview.url}/capabilities.md`);
+
+  // Open the Promote dialog on the Chat card.
+  const myChat = page.locator(".rail-section--chats .thread-card", {
+    hasText: "Unbounded retry loop.",
+  });
+  const promoteBtn = myChat.locator(".thread-action-btn--promote");
+  await expect(promoteBtn).toBeVisible();
+  await promoteBtn.click();
+
+  // The Promote dialog opens.
+  const dialog = page.locator(".promote-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".promote-title")).toHaveText("Promote to a public Thread");
+
+  // The Chat's message is listed and checked by default.
+  await expect(dialog.locator(".promote-comment")).toHaveCount(1);
+  await expect(dialog.locator(".promote-comment input[type=checkbox]")).toBeChecked();
+  await expect(dialog.locator(".promote-comment-body")).toHaveText("Unbounded retry loop.");
+
+  // Add a summary.
+  await dialog.locator(".promote-summary").fill("Worth raising with the team.");
+
+  // Submit.
+  await dialog.locator(".btn-primary").click();
+
+  // The dialog closes, and a new Thread appears.
+  await expect(dialog).toHaveCount(0);
+  // The new Thread (public) contains the summary.
+  await expect(
+    page.locator(".rail-section:not(.rail-section--chats):not(.rail-section--outdated)"),
+  ).toContainText("Worth raising with the team.");
+  // The Chat is still in the private section.
+  await expect(myChat).toBeVisible();
+  await expect(myChat).toContainText("Unbounded retry loop.");
+});
+
+// AC: the Chat stays private and unchanged after promotion.
+test("a promoted Chat is untouched — it stays private and in the Chats section", async ({
+  page,
+  request,
+}) => {
+  await seedChat(request, "capabilities.md", "Still private after promo.");
+  await page.goto(`${preview.url}/capabilities.md`);
+
+  // Promote it with a summary only (no messages).
+  const myChat = page.locator(".rail-section--chats .thread-card", {
+    hasText: "Still private after promo.",
+  });
+  const promoteBtn = myChat.locator(".thread-action-btn--promote");
+  await promoteBtn.click();
+  const dialog = page.locator(".promote-dialog");
+  // Uncheck the message, use only the summary.
+  await dialog.locator(".promote-comment input[type=checkbox]").uncheck();
+  await dialog.locator(".promote-summary").fill("Summarised for the team.");
+  await dialog.locator(".btn-primary").click();
+
+  await expect(dialog).toHaveCount(0);
+
+  // The Chat is still there, still private.
+  await expect(myChat).toBeVisible();
+  await expect(myChat).toContainText("Still private after promo.");
+
+  await page.reload();
+  await expect(
+    page.locator(".rail-section--chats .thread-card", { hasText: "Still private after promo." }),
+  ).toBeVisible();
 });

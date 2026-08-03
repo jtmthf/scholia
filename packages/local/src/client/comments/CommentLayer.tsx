@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
 import type { SelectionCandidate } from "@scholia/bridge";
-import { EMPTY_NOTE, OUTDATED_NOTE } from "../../render/comment-copy.js";
+import { CHATS_NOTE, EMPTY_NOTE, OUTDATED_NOTE, PROMOTE_NOTE } from "../../render/comment-copy.js";
+import { splitByVisibility } from "./visibility.js";
 import { liveReloadGate } from "../live-reload.js";
 import * as api from "./api.js";
 import { useContentAnchors } from "./use-content-anchors.js";
@@ -16,7 +17,7 @@ import { ContentChangedNotice } from "./ContentChangedNotice.js";
 import { NewConversationComposer } from "./NewConversationComposer.js";
 import { SelectionAction } from "./SelectionAction.js";
 import { pageDrafts } from "./drafts.js";
-import type { Draft } from "./drafts.js";
+import type { Draft, DraftVisibility } from "./drafts.js";
 
 export interface CommentsData {
   pagePath: string;
@@ -106,7 +107,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
   }
 
   const discardDraft = useCallback((): void => {
-    if (draft) drafts.clear(draft.selection);
+    if (draft) drafts.clear(draft.selection, draft.visibility);
     setDraft(null);
     setEngaged(false);
   }, [draft, drafts]);
@@ -123,11 +124,23 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
     }
   }, []);
 
-  /** Open the Composer on a passage, resuming any draft already written about it. */
-  function composeOn(candidate: SelectionCandidate | null, at?: Draft["at"]): void {
+  /**
+   * Open the Composer on a passage, resuming any draft already written about it
+   * *as this kind of Conversation*.
+   *
+   * Visibility is fixed the moment the reader picks a button and travels with
+   * the draft from here to the post: a Chat and a Thread on the same passage are
+   * two separate drafts, and neither can turn into the other on the way.
+   */
+  function composeOn(
+    candidate: SelectionCandidate | null,
+    visibility: DraftVisibility,
+    at?: Draft["at"],
+  ): void {
     setDraft({
       selection: candidate,
-      body: drafts.load(candidate)?.body ?? "",
+      body: drafts.load(candidate, visibility)?.body ?? "",
+      visibility,
       // The render this draft is about. Held here rather than read at submit,
       // because taking a live reload mid-draft changes what `data` says.
       contentHash: data.contentHash,
@@ -205,9 +218,28 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
       async deleteConversation(conversationId) {
         setConversations(await api.deleteConversation({ pagePath: data.pagePath, conversationId }));
       },
-      // `promote` stays absent, and @scholia/ui reads that as "this surface
-      // doesn't have it": there is nothing to promote to until Chats exist
-      // (issue #31).
+      // Promotion is the Owner's, like editing and deleting: a Chat belongs to
+      // the person at this machine, and a Tunnel guest deciding what their
+      // host's private conversation says in public is not a thing to offer. The
+      // server refuses it on the same test, so an absent method here and a 403
+      // there are the same rule stated twice rather than a broken button.
+      ...(data.canModerate
+        ? {
+            async promote(
+              conversationId: string,
+              input: { commentIds: string[]; summary?: string },
+            ) {
+              setConversations(
+                await api.promote({
+                  pagePath: data.pagePath,
+                  conversationId,
+                  commentIds: input.commentIds,
+                  ...(input.summary ? { summary: input.summary } : {}),
+                }),
+              );
+            },
+          }
+        : {}),
     }),
     // `conversations` is a dependency because `conversationOf` reads it — a port
     // closed over a stale list would look up a Comment in a rail that has moved on.
@@ -232,6 +264,11 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
         // reader was looking at when they selected, not to whatever is on disk
         // now, and not to a later render they took mid-draft (CONTEXT "Comment").
         contentHash: draft?.contentHash ?? data.contentHash,
+        // Whatever the reader chose when they opened this Composer. A draft
+        // carrying nothing here can only be a public one — `composeOn` always
+        // records it, and a restored draft only keeps the value when it says
+        // "private" — so the default cannot post a Chat as a Thread.
+        visibility: draft?.visibility ?? "public",
       }),
     );
     discardDraft();
@@ -257,26 +294,37 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
       .map((c) => (unresolvedAnchors.has(c.id) ? { ...c, anchorStatus: "outdated" as const } : c));
   }, [conversations, anchorOffsets, unresolvedAnchors]);
 
+  // Threads and Chats are two lists in the rail but one list everywhere else:
+  // they anchor, resolve and go Outdated identically, so the ordering pass above
+  // runs over both and the split happens last (ADR-0019).
+  const { threads, chats } = splitByVisibility(ordered);
+
   return (
     <CommentsProvider value={port}>
       <Rail
-        conversations={ordered}
-        chats={[]}
+        conversations={threads}
+        chats={chats}
         activeConversationId={activeConversationId}
         onActivate={activate}
-        onNewPageComment={() => composeOn(null)}
+        onNewPageComment={() => composeOn(null, "public")}
         outdatedNote={OUTDATED_NOTE}
         emptyNote={EMPTY_NOTE}
+        chatsNote={CHATS_NOTE}
+        promoteNote={PROMOTE_NOTE}
       />
       {selection && !draft && (
         <SelectionAction
           at={selection.at}
-          onComment={() => composeOn(selection.candidate, selection.at)}
+          onComment={() => composeOn(selection.candidate, "public", selection.at)}
+          onAsk={() => composeOn(selection.candidate, "private", selection.at)}
         />
       )}
       {draft && (
         <NewConversationComposer
           anchored={draft.selection !== null}
+          // The Composer says which of the two this is, because once it is open
+          // over the passage the buttons that distinguished them are gone.
+          visibility={draft.visibility ?? "public"}
           at={draft.at}
           displayName={data.displayName}
           initialBody={draft.body}

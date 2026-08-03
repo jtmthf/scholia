@@ -3,8 +3,10 @@ import { Composer } from "@scholia/ui";
 import type { ViewportPoint } from "./use-content-anchors.js";
 
 interface NewConversationComposerProps {
-  /** Whether this Conversation has an Anchor, which is all the copy differs by. */
+  /** Whether this Conversation has an Anchor. */
   anchored: boolean;
+  /** Whether this is headed for a public Thread or a private Chat. */
+  visibility: "public" | "private";
   /** Where the selection was, so the panel opens beside it. */
   at?: ViewportPoint;
   displayName: string;
@@ -36,6 +38,7 @@ function panelStyle(at: NewConversationComposerProps["at"]): Record<string, stri
  */
 export function NewConversationComposer({
   anchored,
+  visibility,
   at,
   displayName,
   initialBody,
@@ -58,11 +61,26 @@ export function NewConversationComposer({
     }
   }
 
+  // A Chat and a Thread are the same Composer over the same passage, so the copy
+  // is the only thing telling the reader which one they are about to write. It
+  // says so plainly, and says what "private" actually rests on here — a
+  // directory git is told never to track, rather than a promise.
+  const isPrivate = visibility === "private";
+
   return (
-    <div class="floating-composer-panel" style={panelStyle(at)}>
+    <div
+      class={`floating-composer-panel${isPrivate ? " floating-composer-panel--private" : ""}`}
+      style={panelStyle(at)}
+    >
       <Composer
-        label={anchored ? "New comment on selection" : "Comment on this page"}
-        placeholder="Write a comment…"
+        label={
+          isPrivate
+            ? "🔒 Ask your agent (private Chat)"
+            : anchored
+              ? "New comment on selection"
+              : "Comment on this page"
+        }
+        placeholder={isPrivate ? "Ask your agent about this passage…" : "Write a comment…"}
         // git config already answered this (CONTEXT "Identity"), so the reader is
         // never asked to introduce themselves on their own machine.
         needsName={false}
