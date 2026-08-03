@@ -5,8 +5,13 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { test as tmpTest } from "./helpers/tmp.js";
 import { startServer, type RunningServer, type StartOptions } from "../src/server.js";
-import { anchorFromSelection, toPagePath } from "../src/conversations.js";
-import { REACTION_PALETTE as CORE_PALETTE, type SourceMap } from "@scholia/core";
+import { anchorFromSelection, toConversationDTOs, toPagePath } from "../src/conversations.js";
+import {
+  REACTION_PALETTE as CORE_PALETTE,
+  type Anchor,
+  type Conversation,
+  type SourceMap,
+} from "@scholia/core";
 import { REACTION_PALETTE as UI_PALETTE } from "@scholia/ui";
 
 // The tracer bullet from the server's side (issue #28): a Conversation created
@@ -72,6 +77,7 @@ interface ConversationsBody {
   conversations?: Array<{
     id: string;
     anchor: { textQuote: { exact: string }; sourceRange?: { start: number; end: number } } | null;
+    anchorStatus: "live" | "outdated";
     resolved: boolean;
     resolvedBy: string | null;
     comments: CommentBody[];
@@ -609,8 +615,184 @@ test("the reaction palette @scholia/ui renders is the one @scholia/core enforces
 });
 
 // ---------------------------------------------------------------------------
+// Re-resolving Anchors on every read (issue #30, ADR-0018, ADR-0029)
+//
+// Locally the files are live, so Outdated is not a stored status but the answer
+// to "does this quote still match the Page as it now stands" — computed on every
+// read, against the *rendered* text, by the same `migrateAnchor` the hosted path
+// runs at an upload boundary.
+// ---------------------------------------------------------------------------
+
+test("an Anchor whose passage is gone comes back Outdated, still quoting what it said", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n\nThe anchor is the moat.\n");
+  const { url } = await serve();
+
+  await comment(url, {
+    page: "guide.md",
+    body: "Is this still true?",
+    selection: { quote: { exact: "the moat", prefix: "The anchor is " } },
+  });
+  expect((await conversationsOn(url, "guide.md")).conversations![0]!.anchorStatus).toBe("live");
+
+  // The reader's agent rewrites the passage out of existence — the normal case
+  // locally, not an edge one.
+  await tmp.write("guide.md", "# Guide\n\nEntirely different words now.\n");
+
+  const { conversations } = await conversationsOn(url, "guide.md");
+  expect(conversations![0]!.anchorStatus).toBe("outdated");
+  // The stored Anchor is never rewritten, which is what lets the card go on
+  // showing what the passage used to say (CONTEXT "Outdated").
+  expect(conversations![0]!.anchor!.textQuote.exact).toBe("the moat");
+
+  // And it is Outdated in the first response, before any JavaScript runs.
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).toContain("Outdated (1)");
+});
+
+test("an Outdated Conversation re-attaches when the text comes back", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n\nThe anchor is the moat.\n");
+  const { url } = await serve();
+
+  await comment(url, {
+    page: "guide.md",
+    body: "About the moat.",
+    selection: { quote: { exact: "the moat", prefix: "The anchor is " } },
+  });
+
+  await tmp.write("guide.md", "# Guide\n\nSomething else entirely.\n");
+  expect((await conversationsOn(url, "guide.md")).conversations![0]!.anchorStatus).toBe("outdated");
+
+  // An edit reverted, or a passage restored after a rewrite. Nothing was stored
+  // when it went Outdated, so there is nothing to undo.
+  await tmp.write("guide.md", "# Guide\n\nThe anchor is the moat.\n");
+  expect((await conversationsOn(url, "guide.md")).conversations![0]!.anchorStatus).toBe("live");
+});
+
+// ADR-0029's headline case: `*x*` → `_x_` changes the Source's bytes and leaves
+// the rendered text byte-identical. Resolving in the Source would call this
+// Outdated; a reader would see nothing at all change.
+test("a formatter run that leaves the rendered text alone outdates nothing", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n\nThe *anchor* is the moat.\n");
+  const { url } = await serve();
+
+  await comment(url, {
+    page: "guide.md",
+    body: "Formatting must not touch this.",
+    selection: { quote: { exact: "The anchor is the moat" } },
+  });
+  expect((await conversationsOn(url, "guide.md")).conversations![0]!.anchorStatus).toBe("live");
+
+  await tmp.write("guide.md", "# Guide\n\nThe _anchor_ is the moat.\n");
+
+  expect((await conversationsOn(url, "guide.md")).conversations![0]!.anchorStatus).toBe("live");
+});
+
+// The stored context is belt-and-braces, not the thing being matched: an edit
+// that rewrites the surroundings but leaves the quoted text present and unique
+// still follows. `migrateAnchor` owns that fallback, so the local path gets it
+// by calling the same function rather than by reimplementing it.
+test("an edit that only rewrites the surroundings still follows the passage", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n\nAs written before: the anchor is the moat.\n");
+  const { url } = await serve();
+
+  await comment(url, {
+    page: "guide.md",
+    body: "Keeps up with the rewrite.",
+    selection: { quote: { exact: "the anchor is the moat", prefix: "As written before: " } },
+  });
+
+  await tmp.write("guide.md", "# Guide\n\nPut another way, the anchor is the moat.\n");
+
+  expect((await conversationsOn(url, "guide.md")).conversations![0]!.anchorStatus).toBe("live");
+});
+
+// ---------------------------------------------------------------------------
 // The pure mapping, without a server
 // ---------------------------------------------------------------------------
+
+/** A stored Conversation, as the Sidecar folds one — the DTO mapping's input. */
+function storedConversation(anchor: Anchor | null, id = "1"): Conversation {
+  return {
+    header: {
+      id,
+      page: "guide.md",
+      anchor,
+      author: "Reviewer Jane",
+      timestamp: "2026-01-01T00:00:00.000Z",
+    },
+    comments: [],
+    resolved: false,
+    resolvedBy: null,
+    resolvedAt: null,
+    deleted: false,
+  };
+}
+
+const QUOTED: Anchor = { textQuote: { exact: "the moat", prefix: "The anchor is " } };
+
+test("anchorStatus is decided against the rendered text it is handed", () => {
+  const conversations = [storedConversation(QUOTED)];
+
+  expect(
+    toConversationDTOs(conversations, "Jane", "The anchor is the moat.")[0]!.anchorStatus,
+  ).toBe("live");
+  expect(toConversationDTOs(conversations, "Jane", "Something else.")[0]!.anchorStatus).toBe(
+    "outdated",
+  );
+});
+
+// Uniqueness is the guarantee ADR-0002 exists to keep: a Page carrying two
+// copies of the passage cannot say which one was meant, and anchoring wrong is
+// worse than an honest "this moved".
+test("a passage that now appears twice is Outdated rather than anchored to a guess", () => {
+  const twice = "The anchor is the moat. The anchor is the moat.";
+  expect(toConversationDTOs([storedConversation(QUOTED)], "Jane", twice)[0]!.anchorStatus).toBe(
+    "outdated",
+  );
+});
+
+test("a page-level Conversation has nothing to resolve and stays live", () => {
+  expect(toConversationDTOs([storedConversation(null)], "Jane", "anything")[0]!.anchorStatus).toBe(
+    "live",
+  );
+});
+
+// No rendered text means no Page to judge against — a render that failed, or a
+// path with no file behind it. Silence beats crying wolf: the Conversation is
+// served as stored rather than declared Outdated by a Page we could not read.
+test("a Page that could not be rendered leaves every Anchor as stored", () => {
+  expect(toConversationDTOs([storedConversation(QUOTED)], "Jane", null)[0]!.anchorStatus).toBe(
+    "live",
+  );
+});
+
+// AC: re-resolution cost is acceptable on a large Page. The parse that produces
+// the rendered text happens once per render — it is a parameter here, not
+// something this function derives — so what is left is one literal scan per
+// Conversation. A re-parse per Conversation would not fit in this budget.
+test("re-resolving a rail's worth of Anchors over a large Page is cheap", () => {
+  const paragraph = "Filler prose that says nothing in particular, at length. ";
+  const large = paragraph.repeat(6_000) + "The anchor is the moat.";
+  const conversations = Array.from({ length: 200 }, (_, i) =>
+    storedConversation(QUOTED, `conversation-${i}`),
+  );
+
+  const started = performance.now();
+  const dtos = toConversationDTOs(conversations, "Jane", large);
+  const elapsed = performance.now() - started;
+
+  expect(dtos.every((d) => d.anchorStatus === "live")).toBe(true);
+  expect(elapsed).toBeLessThan(2_000);
+});
 
 test("anchorFromSelection keeps the quote primary and the structural hints secondary", () => {
   const sourceMap: SourceMap = {

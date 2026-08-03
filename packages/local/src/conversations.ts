@@ -7,7 +7,9 @@
 
 import {
   mapSmIdsToSourceRange,
+  migrateAnchor,
   type Anchor,
+  type AnchorStatus,
   type Conversation,
   type SourceMap,
 } from "@scholia/core";
@@ -66,23 +68,49 @@ function identityFor(author: string): Identity {
 }
 
 /**
+ * Whether an Anchor still finds its passage in the Page as it now stands.
+ *
+ * Hosted settles this once, at an upload boundary against an immutable Version.
+ * Locally the files are live, so there is nothing to settle: Outdated is computed
+ * on every read (ADR-0018), from the original Anchor, which is never rewritten —
+ * that is what lets an Outdated card go on showing what the passage used to say.
+ *
+ * `migrateAnchor` is the hosted matcher, called here unchanged so the two paths
+ * cannot drift apart: one behaviour means a Conversation cannot flip to Outdated
+ * the moment it is shared (ADR-0029). Only its verdict is taken. The Anchor it
+ * migrates forward is discarded, because there is nowhere for it to go — the
+ * Sidecar's header is written once, and under literal matching a successful
+ * match leaves the quote identical anyway.
+ *
+ * `pageText` is null when there is no Page to judge against: a render that
+ * failed, or a Conversation filed against a path with no file behind it. Nothing
+ * is claimed in that case, because declaring a Conversation Outdated on the
+ * strength of a Page we could not read would be crying wolf.
+ */
+function anchorStatusFor(anchor: Anchor | null, pageText: string | null): AnchorStatus {
+  if (!anchor || pageText === null) return "live";
+  return migrateAnchor(anchor, pageText).status;
+}
+
+/**
  * Map a stored Conversation onto what the comment layer renders.
  *
- * `anchorStatus` is "live" here because the server has no rendered text to
- * resolve against — locally the files are live, so Outdated is computed on read
- * (ADR-0018), and the browser decides it by whether the quote still matches what
- * is on screen. Doing that resolution server-side, through the same matcher the
- * hosted path uses, is issue #30.
+ * `pageText` is the Page's *rendered* text — the layer the quote was captured
+ * from, and the only one it can be re-resolved against (ADR-0029).
  *
  * `visibility` is always public because Chats live in a separate directory that
  * does not exist yet (issue #31).
  */
-export function toConversationDTO(conversation: Conversation, reader: string): ConversationDTO {
+export function toConversationDTO(
+  conversation: Conversation,
+  reader: string,
+  pageText: string | null,
+): ConversationDTO {
   return {
     id: conversation.header.id,
     pagePath: conversation.header.page,
     anchor: conversation.header.anchor,
-    anchorStatus: "live",
+    anchorStatus: anchorStatusFor(conversation.header.anchor, pageText),
     resolved: conversation.resolved,
     resolvedBy: conversation.resolvedBy,
     visibility: "public",
@@ -115,9 +143,10 @@ export function toConversationDTO(conversation: Conversation, reader: string): C
 export function toConversationDTOs(
   conversations: Conversation[],
   reader: string,
+  pageText: string | null,
 ): ConversationDTO[] {
   return conversations
-    .map((conversation) => toConversationDTO(conversation, reader))
+    .map((conversation) => toConversationDTO(conversation, reader, pageText))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 

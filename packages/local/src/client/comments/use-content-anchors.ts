@@ -37,16 +37,6 @@ export interface ContentAnchors {
    * is about rather than in the order it happened to be written.
    */
   anchorOffsets: Record<string, number>;
-  /**
-   * Conversations whose Anchor was tried against the current text and did not
-   * match — Outdated, in the reader's terms (CONTEXT "Outdated").
-   *
-   * Membership, not absence, is the signal: a Conversation that has only just
-   * arrived has not been through a resolution pass yet, and calling it Outdated
-   * for the one frame before the pass runs would flash the card into a section
-   * it does not belong in.
-   */
-  unresolvedAnchors: Set<string>;
 }
 
 // A selection is captured a beat after the reader stops, so a drag doesn't fire
@@ -65,7 +55,6 @@ export function useContentAnchors(opts: {
   const [selection, setSelection] = useState<ContentSelection | null>(null);
   const [activeConversationId, setActive] = useState<string | null>(null);
   const [anchorOffsets, setAnchorOffsets] = useState<Record<string, number>>({});
-  const [unresolvedAnchors, setUnresolvedAnchors] = useState<Set<string>>(() => new Set());
 
   // Watch the reader's selection over the content.
   useEffect(() => {
@@ -112,27 +101,31 @@ export function useContentAnchors(opts: {
     };
   }, [content, contentKey]);
 
-  // (Re)resolve every anchored Conversation against the rendered text. An Anchor
-  // that no longer matches is reported as unresolved, which is what the rail
-  // renders as Outdated — with its original quote intact, because the Anchor is
-  // never rewritten (CONTEXT "Outdated"). Sharing one matcher with hosted, and
-  // re-resolving on every read rather than at write time, is issue #30.
+  // Paint every live Anchor onto the passage it belongs to.
+  //
+  // *Whether* an Anchor still resolves is the server's answer, not this one: it
+  // re-resolves against the rendered text on every read, through the same
+  // `migrateAnchor` the hosted path runs, so both paths call one Conversation
+  // Outdated on exactly the same evidence (ADR-0029, issue #30). Deciding it a
+  // second time here — against a tolerant DOM matcher, on markup that may be a
+  // render behind what the server just read — would be a second answer to a
+  // question that already has one, and the rail would show whichever arrived last.
+  //
+  // So an Outdated Conversation is left unpainted, and the highlight is what a
+  // live one gets. A quote that fails to resolve in the DOM despite the server
+  // finding it simply has no offset, and its card keeps its place at the end.
   useEffect(() => {
     const highlights = highlightsRef.current;
     if (!highlights) return;
     highlights.clear();
     const offsets: Record<string, number> = {};
-    const unresolved = new Set<string>();
     for (const conversation of conversations) {
-      if (!conversation.anchor) continue;
+      if (!conversation.anchor || conversation.anchorStatus !== "live") continue;
       if (highlights.resolve(conversation.id, conversation.anchor.textQuote)) {
         offsets[conversation.id] = highlights.offsetTop(conversation.id);
-      } else {
-        unresolved.add(conversation.id);
       }
     }
     setAnchorOffsets(offsets);
-    setUnresolvedAnchors(unresolved);
   }, [conversations, content, contentKey]);
 
   // Clicking a painted Anchor focuses its card, the same gesture the hosted
@@ -159,6 +152,5 @@ export function useContentAnchors(opts: {
     activeConversationId,
     activate,
     anchorOffsets,
-    unresolvedAnchors,
   };
 }

@@ -36,7 +36,10 @@ const SEED = {
   "restore.md": "# Restore\n\nA passage worth returning to.\n",
   "resume.md": "# Resume\n\nA passage let go of again.\n",
   "drift.md": "# Drift\n\nA passage that will not survive the edit.\n",
+  "hold-status.md":
+    "# Hold Status\n\nA passage that is about to be deleted.\n\nA passage that stays put.\n",
   "server-rendered.md": "# Server Rendered\n\nReadable with JavaScript off.\n",
+  "outdated-ssr.md": "# Outdated SSR\n\nNothing here says what the Anchor quotes.\n",
   "capabilities.md": "# Capabilities\n\nOnly what the Sidecar can do.\n",
   "resolve.md": "# Resolve\n\nSomething to settle.\n",
   "react.md": "# React\n\nSomething to react to.\n",
@@ -231,7 +234,8 @@ test("select text, comment, reload — the Conversation is still anchored", asyn
 // render — with its original quote, which is what an Outdated Conversation is
 // for (CONTEXT "Outdated") — rather than vanish. Locally the file is live, so
 // Outdated is not a stored status but the answer to "does this quote still match
-// the text as it now stands", decided in the browser against what is on screen.
+// the text as it now stands", recomputed by the server on every read through the
+// same matcher the hosted path uses (ADR-0029, issue #30).
 test("a Conversation whose passage is gone renders as Outdated, unpainted", async ({
   page,
   request,
@@ -263,6 +267,18 @@ test.describe("without JavaScript", () => {
     await expect(page.locator(".comment-rail")).toBeVisible();
     await expect(page.locator(".comment-rail")).toContainText("Readable before any JS runs.");
     await expect(page.locator(".thread-anchor-quote")).toHaveText("“JavaScript off”");
+  });
+
+  // Anchors are re-resolved on the server now (issue #30), so Outdated is a fact
+  // about the first response rather than something the rail works out once it
+  // hydrates. With JavaScript off there is no second chance to say so.
+  test("an Outdated Conversation is Outdated in the first response", async ({ page, request }) => {
+    await seedComment(request, "outdated-ssr.md", "About a passage since rewritten.", "long gone");
+    await page.goto(`${preview.url}/outdated-ssr.md`);
+
+    await expect(page.locator(".rail-section--outdated .thread-card")).toHaveCount(1);
+    await expect(page.locator(".thread-anchor-quote")).toHaveText("“long gone”");
+    await expect(page.locator(".comment-rail")).toContainText("About a passage since rewritten.");
   });
 });
 
@@ -478,6 +494,53 @@ test("a Comment posted after its passage vanished is kept, as Outdated", async (
     "“A passage that will not survive”",
   );
   expect(await stored(request, "drift.md")).toHaveLength(1);
+});
+
+// Where holding the ground still (issue #29) meets re-resolving on read (#30).
+//
+// Every response the server sends describes the file as it stands on disk, and
+// that includes each Anchor's status. While an update is held, what is on screen
+// is an earlier render — so applying those statuses would move cards into
+// Outdated and take highlights off passages the reader can still see, which is
+// the ground moving under someone mid-sentence. The statuses wait for the
+// content they are about.
+test("statuses wait for the content they describe while a reader is composing", async ({
+  page,
+  request,
+}) => {
+  await seedComment(request, "hold-status.md", "About a doomed passage.", "about to be deleted");
+  await page.goto(`${preview.url}/hold-status.md`);
+
+  await expect(page.locator(".rail-section-title").first()).toHaveText("Anchored (1)");
+  await expect.poll(() => paintedAnchors(page)).toBe(1);
+
+  // Composing holds the swap — and the reader is looking at the passage.
+  await selectForComment(page, "A passage that stays put", 0);
+  await page.locator("#scholia-comment-selection").click();
+  await composer(page).fill("Still writing this.");
+
+  await preview.write("hold-status.md", "# Hold Status\n\nA passage that stays put.\n");
+  await expect(page.locator("#scholia-content-changed")).toBeVisible();
+
+  // A write of their own, mid-sentence: the reply comes back resolved against
+  // the file on disk, where the quoted passage is already gone.
+  await page.locator(".thread-card .reaction-chip").filter({ hasText: "👍" }).click();
+  await expect(page.locator(".thread-card .reaction-chip--mine")).toContainText("1");
+
+  // The card has not moved, and its passage is still painted where the reader
+  // can see it.
+  await expect(page.locator(".rail-section--outdated")).toHaveCount(0);
+  await expect(page.locator("article.markdown-body")).toContainText("about to be deleted");
+  expect(await paintedAnchors(page)).toBe(1);
+
+  // Taking the update brings the content and the verdict about it together.
+  await page.locator(".content-changed-btn").click();
+  await expect(page.locator("article.markdown-body")).not.toContainText("about to be deleted");
+  await expect(page.locator(".rail-section--outdated .thread-card")).toHaveCount(1);
+  await expect(page.locator(".rail-section--outdated .thread-anchor-quote")).toHaveText(
+    "“about to be deleted”",
+  );
+  await expect.poll(() => paintedAnchors(page)).toBe(0);
 });
 
 // ---------------------------------------------------------------------------

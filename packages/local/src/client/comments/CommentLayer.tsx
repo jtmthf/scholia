@@ -48,14 +48,38 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
   // when the page first loaded while the content changed around it.
   useEffect(() => setConversations(data.conversations), [data.conversations]);
 
-  const {
-    selection,
-    clearSelection,
-    activeConversationId,
-    activate,
-    anchorOffsets,
-    unresolvedAnchors,
-  } = useContentAnchors({ content, contentKey: data.contentHash, conversations });
+  /**
+   * Take what the server just answered a write with.
+   *
+   * Every `anchorStatus` in that answer is about the Page *as it stands on disk*
+   * (issue #30), which is not always the Page on screen: while the reader is
+   * composing, a content update is held for them (issue #29). Applying those
+   * statuses then would move a card into Outdated and take its highlight off a
+   * passage still in front of the reader — the ground moving under someone
+   * mid-sentence, which is the thing the hold exists to prevent.
+   *
+   * So while an update is waiting, a Conversation already in the rail keeps the
+   * status it had. Nothing is decided here and nothing is re-resolved — the
+   * answer is deferred, and lands with the content it is about the moment the
+   * reader takes the update.
+   *
+   * A Conversation arriving for the first time has no earlier status to keep and
+   * takes the one it came with. That is usually the Comment just submitted, and
+   * showing it where it is going to stay beats moving it a moment later.
+   */
+  const receive = useCallback((next: ConversationDTO[]): void => {
+    setConversations((prev) => {
+      if (!liveReloadGate()?.pending()) return next;
+      const held = new Map(prev.map((c) => [c.id, c.anchorStatus]));
+      return next.map((c) => {
+        const status = held.get(c.id);
+        return status ? { ...c, anchorStatus: status } : c;
+      });
+    });
+  }, []);
+
+  const { selection, clearSelection, activeConversationId, activate, anchorOffsets } =
+    useContentAnchors({ content, contentKey: data.contentHash, conversations });
 
   // ---- Composing holds the ground still (issue #29) --------------------------
   //
@@ -155,7 +179,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
       // Owner, a Tunnel guest is not (CONTEXT "Owner", ADR-0022).
       canModerate: data.canModerate,
       async addComment(conversationId, { body }) {
-        setConversations(await api.addComment({ pagePath: data.pagePath, conversationId, body }));
+        receive(await api.addComment({ pagePath: data.pagePath, conversationId, body }));
       },
       // Editing and deleting a Comment are the Owner's alone here, and so are
       // absent for anyone else rather than present and refused (ADR-0030,
@@ -167,7 +191,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
       ...(data.canModerate
         ? {
             async editComment(commentId: string, { body }: { body: string }) {
-              setConversations(
+              receive(
                 await api.editComment({
                   pagePath: data.pagePath,
                   conversationId: conversationOf(commentId),
@@ -177,7 +201,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
               );
             },
             async deleteComment(commentId: string) {
-              setConversations(
+              receive(
                 await api.deleteComment({
                   pagePath: data.pagePath,
                   conversationId: conversationOf(commentId),
@@ -188,7 +212,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
           }
         : {}),
       async toggleReaction(commentId, emoji) {
-        setConversations(
+        receive(
           await api.toggleReaction({
             pagePath: data.pagePath,
             conversationId: conversationOf(commentId),
@@ -198,12 +222,10 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
         );
       },
       async setResolved(conversationId, resolved) {
-        setConversations(
-          await api.setResolved({ pagePath: data.pagePath, conversationId, resolved }),
-        );
+        receive(await api.setResolved({ pagePath: data.pagePath, conversationId, resolved }));
       },
       async deleteConversation(conversationId) {
-        setConversations(await api.deleteConversation({ pagePath: data.pagePath, conversationId }));
+        receive(await api.deleteConversation({ pagePath: data.pagePath, conversationId }));
       },
       // `promote` stays absent, and @scholia/ui reads that as "this surface
       // doesn't have it": there is nothing to promote to until Chats exist
@@ -222,7 +244,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
   // lose it in the one moment the reader had something worth saying, and could
   // not be made correct anyway, since the file can change between check and write.
   async function submitDraft(body: string): Promise<void> {
-    setConversations(
+    receive(
       await api.createConversation({
         pagePath: data.pagePath,
         body,
@@ -239,23 +261,23 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
   }
 
   // A Conversation sits beside the passage it is about: anchored cards follow
-  // the order their Anchors resolved to in the document, and one whose Anchor
-  // did not resolve keeps its place at the end rather than jumping to the top.
+  // the order their Anchors resolved to in the document, and one that was not
+  // painted — Outdated, or a quote the DOM did not find — keeps its place at the
+  // end rather than jumping to the top.
   //
-  // That same failure to resolve is what makes a Conversation Outdated: locally
-  // the file is live, so there is no stored status to read — Outdated is the
-  // answer to "does this quote still match the text as it now stands" (ADR-0018,
-  // CONTEXT "Outdated"). The stored Anchor is never rewritten, which is what
-  // lets the card go on showing what the passage used to say.
+  // Which of them are Outdated arrived with the data: locally the file is live,
+  // so it is not a stored status but the answer to "does this quote still match
+  // the text as it now stands", recomputed by the server on every read through
+  // the hosted matcher (ADR-0018, ADR-0029, CONTEXT "Outdated"). The stored
+  // Anchor is never rewritten, which is what lets the card go on showing what
+  // the passage used to say.
   const ordered = useMemo(() => {
-    return [...conversations]
-      .sort((a, b) => {
-        const av = anchorOffsets[a.id] ?? Number.POSITIVE_INFINITY;
-        const bv = anchorOffsets[b.id] ?? Number.POSITIVE_INFINITY;
-        return av - bv || a.id.localeCompare(b.id);
-      })
-      .map((c) => (unresolvedAnchors.has(c.id) ? { ...c, anchorStatus: "outdated" as const } : c));
-  }, [conversations, anchorOffsets, unresolvedAnchors]);
+    return [...conversations].sort((a, b) => {
+      const av = anchorOffsets[a.id] ?? Number.POSITIVE_INFINITY;
+      const bv = anchorOffsets[b.id] ?? Number.POSITIVE_INFINITY;
+      return av - bv || a.id.localeCompare(b.id);
+    });
+  }, [conversations, anchorOffsets]);
 
   return (
     <CommentsProvider value={port}>

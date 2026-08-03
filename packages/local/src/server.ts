@@ -342,6 +342,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // guest can leave one (CONTEXT "Tunnel") — see checkWriteRequest.
   // ---------------------------------------------------------------------------
 
+  // A Page path as it currently renders, or null when there is nothing behind it
+  // — a path with no file, one that is not a Page, or a render that threw. The
+  // render is cached by path + mtime, so asking is cheap after the first ask.
+  async function renderPagePath(pagePath: string): Promise<RenderedPage | null> {
+    const fsPath = dirMode ? resolveWithinRoot(opts.rootDir, pagePath) : opts.singleFile!;
+    if (!fsPath || !isDoc(fsPath) || !(await exists(fsPath))) return null;
+    return pages.render(fsPath).catch(() => null);
+  }
+
   // Where a Page's Source Map comes from at write time. Rendering is cached, so
   // The Source Map of the render the *reader* was looking at, or null.
   //
@@ -353,18 +362,28 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // text-quote — the primary locator (ADR-0002) — exactly as captured.
   async function sourceMapAsRendered(pagePath: string, contentHash: string | null) {
     if (!contentHash) return null;
-    const fsPath = dirMode ? resolveWithinRoot(opts.rootDir, pagePath) : opts.singleFile!;
-    if (!fsPath || !isDoc(fsPath) || !(await exists(fsPath))) return null;
-    const page = await pages.render(fsPath).catch(() => null);
+    const page = await renderPagePath(pagePath);
     return page?.contentHash === contentHash ? page.sourceMap : null;
   }
 
   // Every route answers with the Page's whole Conversation list, including the
   // ones that changed it — so the client never has to merge a mutation into what
   // it already had (the CommentsPort contract, ADR-0030).
+  //
+  // The list is answered against the Page as it stands *now*, not as the reader
+  // last saw it: locally the file is live, and an Anchor's status is the answer
+  // to a question about the current text (issue #30). A file that moved on while
+  // a Comment was being written is the normal case here, and saying so is the
+  // honest answer — the Conversation is kept either way, with its quote intact.
   async function respondWithConversations(c: Context, pagePath: string) {
     const conversations = await listConversations(sidecar, pagePath);
-    return c.json({ conversations: toConversationDTOs(conversations, author) });
+    // Nothing to resolve, so nothing to resolve against: a Page with no
+    // Conversations never pays for its rendered text.
+    if (conversations.length === 0) return c.json({ conversations: [] });
+    const page = await renderPagePath(pagePath);
+    return c.json({
+      conversations: toConversationDTOs(conversations, author, page?.text() ?? null),
+    });
   }
 
   interface PageWrite {
@@ -709,9 +728,14 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     // Conversations are fetched and rendered server-side so the comment rail is
     // in the first response like every other piece of chrome (ADR-0011). The
     // client hydrates that markup rather than fetching it back.
-    const conversations = page
-      ? toConversationDTOs(await listConversations(sidecar, pagePath), author)
-      : [];
+    // Anchors are re-resolved here, against the render this response carries, so
+    // an Outdated Conversation is Outdated in the first response rather than
+    // after the rail hydrates (ADR-0011, issue #30). The rendered text that
+    // costs is asked for only when there is an Anchor to put against it, so a
+    // Page nobody has commented on renders exactly as it did before.
+    const stored = page ? await listConversations(sidecar, pagePath) : [];
+    const conversations =
+      page && stored.length > 0 ? toConversationDTOs(stored, author, page.text()) : [];
 
     const html = renderPage({
       title: page?.title ?? "Render error",
