@@ -49,6 +49,7 @@ function conversationAnchoredTo(quote: {
       author: READER,
       timestamp: "2026-01-01T00:00:00.000Z",
     },
+    visibility: "public",
     comments: [],
     resolved: false,
     resolvedBy: null,
