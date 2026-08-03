@@ -25,6 +25,7 @@ import {
   ingestHtml,
   ingestMarkdown,
   isMdx,
+  renderedText,
   renderMdx,
   type Heading,
   type SourceMap,
@@ -50,6 +51,17 @@ export interface RenderedPage {
   sourceMap: SourceMap | null;
   /** sha256 of `source` — the same hash a hosted Version records for this Page. */
   contentHash: string;
+  /**
+   * The Page's rendered text — the layer an Anchor is captured from and the only
+   * one it can be re-resolved against (ADR-0029).
+   *
+   * A function, and memoised, because it costs a parse of the rendered HTML and
+   * only a Page with Conversations on it has anything to resolve — so the callers
+   * ask only when the Page has some, and a Page with none never pays. Asking
+   * repeatedly is free: the answer is cached with the render, so a Page that does
+   * have Conversations pays once however many times it is read.
+   */
+  text(): string;
 }
 
 interface CacheEntry extends RenderedPage {
@@ -57,6 +69,14 @@ interface CacheEntry extends RenderedPage {
 }
 
 const encoder = new TextEncoder();
+
+// `RenderedPage.text`, deferred until something asks and then kept. The closure
+// is shared by every copy of the page object (the cache entry spreads it), so a
+// cached render answers from the parse the first reader paid for.
+function lazyText(contentHtml: string): () => string {
+  let text: string | null = null;
+  return () => (text ??= renderedText(contentHtml));
+}
 
 function pageKind(fsPath: string, mdxEnabled: boolean): PageKind {
   if (mdxEnabled && isMdx(fsPath)) return "mdx";
@@ -90,7 +110,7 @@ export class PageRenderer {
     const kind = pageKind(fsPath, this.mdxEnabled);
     const contentHash = hashBytes(encoder.encode(source));
 
-    let page: RenderedPage;
+    let page: Omit<RenderedPage, "text">;
     if (kind === "html") {
       // An HTML Page is trusted here in a way a hosted one is not: locally the
       // files are the reader's own, and Local Preview is already the surface
@@ -133,7 +153,8 @@ export class PageRenderer {
       };
     }
 
-    if (info) this.cache.set(fsPath, { ...page, mtimeMs: info.mtimeMs });
-    return page;
+    const rendered: RenderedPage = { ...page, text: lazyText(page.contentHtml) };
+    if (info) this.cache.set(fsPath, { ...rendered, mtimeMs: info.mtimeMs });
+    return rendered;
   }
 }
