@@ -23,6 +23,7 @@ import type {
   ConversationEvent,
   ConversationHeader,
   Reaction,
+  Visibility,
 } from "./types.js";
 
 /**
@@ -83,6 +84,7 @@ function recordReaction(
 export function foldConversation(
   header: ConversationHeader,
   events: ConversationEvent[],
+  visibility: Visibility = "public",
 ): Conversation {
   // Dedup by id first, then order. Doing it in this order means a duplicate can
   // never displace its original, whichever copy the merge put first.
@@ -105,6 +107,9 @@ export function foldConversation(
           id: event.id,
           conversationId: header.id,
           author: event.author,
+          // An event that says nothing about its author is a person's — the
+          // field is only ever written when an agent signed the document.
+          authorKind: event.authorKind ?? "human",
           body: event.body,
           timestamp: event.timestamp,
           editedAt: null,
@@ -180,6 +185,7 @@ export function foldConversation(
 
   return {
     header,
+    visibility,
     comments: folded,
     resolved: resolution?.resolved ?? false,
     // Only a `resolved` event names anyone: a reopened Conversation has nobody

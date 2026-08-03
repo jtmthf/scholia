@@ -14,13 +14,23 @@ import {
   type ConversationHeader,
   type ConversationRepository,
   type CreateConversationInput,
+  type Visibility,
 } from "@scholia/core";
 
 export interface StubRepo extends ConversationRepository {
   /** Every event appended since construction, in call order. */
   readonly appended: ConversationEvent[];
-  /** Seed a stream directly, bypassing the commands. */
-  seed(header: ConversationHeader, events: ConversationEvent[]): void;
+  /**
+   * Every `createConversation` call, in order. Recorded alongside `appended` so
+   * a test can say what landed in the *initial* write versus what was appended
+   * afterwards — which is the difference Promotion's atomicity turns on.
+   */
+  readonly created: CreateConversationInput[];
+  /**
+   * Seed a stream directly, bypassing the commands. `visibility` stands in for
+   * the directory the Sidecar would have found it in (ADR-0019).
+   */
+  seed(header: ConversationHeader, events: ConversationEvent[], visibility?: Visibility): void;
 }
 
 export function makeHeader(overrides: Partial<ConversationHeader> = {}): ConversationHeader {
@@ -43,18 +53,37 @@ export function comment(
   return { id, type: "comment", timestamp, author, body };
 }
 
+interface Stream {
+  header: ConversationHeader;
+  events: ConversationEvent[];
+  visibility: Visibility;
+}
+
 export function stubRepo(): StubRepo {
-  const streams = new Map<string, { header: ConversationHeader; events: ConversationEvent[] }>();
+  const streams = new Map<string, Stream>();
   const appended: ConversationEvent[] = [];
+  const created: CreateConversationInput[] = [];
+
+  const fold = (stream: Stream): Conversation =>
+    foldConversation(stream.header, stream.events, stream.visibility);
 
   const repo: StubRepo = {
     appended,
-    seed(header, events) {
-      streams.set(header.id, { header, events: [...events] });
+    created,
+    seed(header, events, visibility = "public") {
+      streams.set(header.id, { header, events: [...events], visibility });
     },
     createConversation: vi.fn((input: CreateConversationInput): Promise<Conversation> => {
-      streams.set(input.header.id, { header: input.header, events: [input.firstComment] });
-      return Promise.resolve(foldConversation(input.header, [input.firstComment]));
+      created.push(input);
+      const stream: Stream = {
+        header: input.header,
+        // The whole initial stream, not just the first Comment — Promotion
+        // creates a Conversation that already has a history.
+        events: [input.firstComment, ...(input.events ?? [])],
+        visibility: input.visibility ?? "public",
+      };
+      streams.set(input.header.id, stream);
+      return Promise.resolve(fold(stream));
     }),
     appendEvent: vi.fn((conversationId: string, event: ConversationEvent): Promise<void> => {
       const stream = streams.get(conversationId);
@@ -65,15 +94,11 @@ export function stubRepo(): StubRepo {
     }),
     getConversation: vi.fn((conversationId: string): Promise<Conversation | null> => {
       const stream = streams.get(conversationId);
-      return Promise.resolve(stream ? foldConversation(stream.header, stream.events) : null);
+      return Promise.resolve(stream ? fold(stream) : null);
     }),
     listConversations: vi.fn(
       (pagePath: string): Promise<Conversation[]> =>
-        Promise.resolve(
-          [...streams.values()]
-            .filter((s) => s.header.page === pagePath)
-            .map((s) => foldConversation(s.header, s.events)),
-        ),
+        Promise.resolve([...streams.values()].filter((s) => s.header.page === pagePath).map(fold)),
     ),
   };
 

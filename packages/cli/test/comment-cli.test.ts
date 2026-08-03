@@ -17,8 +17,10 @@ import {
   commentDelete,
   commentEdit,
   commentList,
+  commentReply,
   commentReact,
   conversationDelete,
+  conversationPromote,
   conversationResolve,
 } from "../src/comment-cli.js";
 
@@ -38,6 +40,8 @@ afterEach(() => {
 interface JsonComment {
   id: string;
   body: string;
+  author: string;
+  author_kind: "human" | "agent";
   deleted: boolean;
   edited_at: string | null;
   reactions: Array<{ emoji: string; authors: string[] }>;
@@ -45,6 +49,7 @@ interface JsonComment {
 
 interface JsonConversation {
   id: string;
+  visibility: "public" | "private";
   resolved: boolean;
   resolved_by: string | null;
   comments: JsonComment[];
@@ -232,4 +237,119 @@ test("the human listing shows resolve state, edits, tombstones and tallies", asy
   expect(output).toContain("keep this one, edited");
   expect(output).toContain("(edited)");
   expect(output).toContain("👍 1");
+});
+
+// ---- Private Chats and Promotion (issue #31) ----
+
+test("`--chat` puts the Conversation in .scholia/chats", async ({ tmp }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  await commentCreate({ page: "guide.md", body: "private thought", root: tmp.root, chat: true });
+
+  const [conversation] = await listJson(tmp.root, "guide.md");
+  expect(conversation!.visibility).toBe("private");
+  expect(conversation!.comments[0]!.body).toBe("private thought");
+
+  // The human listing shows a lock for private Chats.
+  logged = [];
+  await commentList({ page: "guide.md", root: tmp.root });
+  expect(logged.join("\n")).toContain("🔒");
+});
+
+test("`--agent` marks the Comment with an agent badge", async ({ tmp }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  await commentCreate({
+    page: "guide.md",
+    body: "agent analysis",
+    root: tmp.root,
+    agent: "Claude Code",
+  });
+
+  const [conversation] = await listJson(tmp.root, "guide.md");
+  expect(conversation!.comments[0]!.author).toBe("Claude Code");
+  expect(conversation!.comments[0]!.author_kind).toBe("agent");
+
+  // The human listing shows "(agent)" next to the author.
+  logged = [];
+  await commentList({ page: "guide.md", root: tmp.root });
+  expect(logged.join("\n")).toContain("(agent)");
+});
+
+test("`--agent` combined with `--chat` marks a private Chat comment as from an agent", async ({
+  tmp,
+}) => {
+  await tmp.write("guide.md", "# Guide\n");
+  await commentCreate({
+    page: "guide.md",
+    body: "private agent reply",
+    root: tmp.root,
+    chat: true,
+    agent: "Claude Code",
+  });
+
+  const [conversation] = await listJson(tmp.root, "guide.md");
+  expect(conversation!.visibility).toBe("private");
+  expect(conversation!.comments[0]!.author_kind).toBe("agent");
+});
+
+test("an agent can reply to a Chat", async ({ tmp }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  await commentCreate({
+    page: "guide.md",
+    body: "question for my agent",
+    root: tmp.root,
+    chat: true,
+  });
+
+  const [chat] = await listJson(tmp.root, "guide.md");
+  await commentReply({
+    conversation: chat!.id,
+    body: "here is the answer",
+    root: tmp.root,
+    agent: "Claude Code",
+  });
+
+  const [updated] = await listJson(tmp.root, "guide.md");
+  expect(updated!.comments).toHaveLength(2);
+  expect(updated!.comments[1]!.body).toBe("here is the answer");
+  expect(updated!.comments[1]!.author_kind).toBe("agent");
+});
+
+test("promote writes a public Thread from a Chat without touching it", async ({ tmp }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  await commentCreate({ page: "guide.md", body: "first message", root: tmp.root, chat: true });
+  await commentCreate({ page: "guide.md", body: "unrelated public", root: tmp.root });
+
+  let conversations = await listJson(tmp.root, "guide.md");
+  const chat = conversations.find((c) => c.visibility === "private")!;
+
+  await conversationPromote({
+    conversation: chat.id,
+    comments: [chat.comments[0]!.id],
+    summary: "Worth raising.",
+    root: tmp.root,
+  });
+
+  conversations = await listJson(tmp.root, "guide.md");
+  // Original Chat still there, still private.
+  const stillChat = conversations.find((c) => c.visibility === "private")!;
+  expect(stillChat.id).toBe(chat.id);
+  expect(stillChat.comments).toHaveLength(1);
+
+  // A new public Thread appeared.
+  const threads = conversations.filter((c) => c.visibility === "public");
+  expect(threads).toHaveLength(2); // original unrelated + promoted
+  const promoted = threads.find((c) => c.id !== chat.id && c.id !== conversations[0]!.id)!;
+  expect(promoted.comments.map((c) => c.body)).toEqual(["first message", "Worth raising."]);
+});
+
+test("refuses to promote something that does not exist", async ({ tmp }) => {
+  await tmp.write("guide.md", "# Guide\n");
+
+  await expect(
+    conversationPromote({
+      conversation: "00000000-0000-7000-8000-0000000000ff",
+      comments: [],
+      root: tmp.root,
+    }),
+  ).rejects.toMatchObject({ code: "not-found" });
 });

@@ -10,17 +10,19 @@
 // to decide what to do with a 🦖 it was never designed to render.
 
 import { v7 as uuidv7 } from "uuid";
+import { signedBy } from "./author.js";
 import { ConversationError } from "./errors.js";
 import { requireComment, requireConversation } from "./guards.js";
 import { isReactionEmoji, REACTION_PALETTE } from "./reactions.js";
 import type { ConversationRepository } from "./repository.js";
-import type { ReactedEvent, UnreactedEvent } from "./types.js";
+import type { AuthorKind, ReactedEvent, UnreactedEvent } from "./types.js";
 
 export interface SetReactionParams {
   conversationId: string;
   commentId: string;
   emoji: string;
   author: string;
+  authorKind?: AuthorKind;
   /**
    * Whether the author should end up reacting. Omit to toggle — which is what a
    * click on a chip means, and what an agent calling this twice should expect.
@@ -60,7 +62,7 @@ export async function setReaction(
     id: uuidv7(),
     type: on ? "reacted" : "unreacted",
     timestamp: new Date().toISOString(),
-    author: params.author,
+    ...signedBy(params.author, params.authorKind),
     target: params.commentId,
     emoji: params.emoji,
   };

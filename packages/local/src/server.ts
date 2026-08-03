@@ -28,6 +28,7 @@ import {
   deleteConversation,
   editComment,
   listConversations,
+  promoteConversation,
   setReaction,
   setResolved,
   htmlToDerivedText,
@@ -398,6 +399,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     selection: SelectionInput | null;
   }
 
+  // A Chat only when the caller asked for one in as many words. Anything else —
+  // a missing field, a typo, a string — is a public Thread, which is the safe
+  // default in the one direction that matters: a Thread mistakenly kept private
+  // is a nuisance, a Chat mistakenly made public is the thing this whole feature
+  // exists to prevent (CONTEXT "Chat").
+  function visibilityOf(input: Record<string, unknown>): "public" | "private" {
+    return input.visibility === "private" ? "private" : "public";
+  }
+
   // Every write route is guarded, parsed and scoped to a Page the same way, so
   // that part lives here rather than once per verb.
   async function readPageWrite(c: Context): Promise<PageWrite | Response> {
@@ -507,6 +517,10 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       body: write.body,
       anchor,
       author,
+      // Which directory the Sidecar files it under, and the whole of what makes
+      // it private (ADR-0019). The browser reader is always a person: agents
+      // reach the Sidecar through the CLI, not through this server.
+      visibility: visibilityOf(write.input),
       // The hash the browser was given when the Page was rendered, handed back
       // rather than recomputed — that is what makes it the state the reader
       // actually commented on. Provenance is read live, as it is everywhere else
@@ -613,6 +627,37 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       isOwner: isOwner(c),
     }),
   );
+
+  // Promotion (CONTEXT "Promotion"). The one route that *creates* a Conversation
+  // out of another: a new public Thread carrying the messages the human chose,
+  // with the Chat left exactly where it was.
+  //
+  // Owner-only, and for a different reason than editing is. Editing is gated
+  // because every writer here shares one name; this is gated because a Chat
+  // belongs to the person at this machine, and a Tunnel guest deciding what
+  // their host's private conversation says in public is not a thing to allow.
+  writeRoute("/__conversations/:id/promote", (c, write) => {
+    if (!isOwner(c)) {
+      throw new ConversationError(
+        "forbidden",
+        "only the reader at this machine can promote their own Chat",
+      );
+    }
+
+    const ids: unknown = write.input.commentIds;
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {
+      throw new ConversationError("invalid", "commentIds must be a list of Comment ids");
+    }
+
+    const summary = typeof write.input.summary === "string" ? write.input.summary : "";
+
+    return promoteConversation(sidecar, {
+      conversationId: c.req.param("id"),
+      commentIds: ids as string[],
+      ...(summary.trim() ? { summary } : {}),
+      author,
+    });
+  });
 
   app.get("*", async (c) => {
     const urlPath = c.req.path;

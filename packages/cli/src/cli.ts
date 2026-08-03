@@ -20,6 +20,8 @@ import {
   commentEdit,
   commentList,
   commentReact,
+  commentReply,
+  conversationPromote,
   conversationDelete,
   conversationResolve,
 } from "./comment-cli.js";
@@ -74,13 +76,19 @@ interface PreviewOptions {
   editor?: string;
 }
 
-interface CommentOptions {
+/** `--agent <name>`: the caller declaring itself an agent (CONTEXT "Identity"). */
+interface ActingAsOptions {
+  agent?: string;
+}
+
+interface CommentOptions extends ActingAsOptions {
   page?: string;
   body?: string;
   anchor?: string;
   prefix?: string;
   suffix?: string;
   root?: string;
+  chat?: boolean;
 }
 
 interface CommentsOptions {
@@ -89,8 +97,19 @@ interface CommentsOptions {
   json?: boolean;
 }
 
-interface ConversationOptions {
+interface ConversationOptions extends ActingAsOptions {
   conversation?: string;
+  root?: string;
+}
+
+interface ReplyCliOptions extends ConversationOptions {
+  body?: string;
+}
+
+interface PromoteCliOptions {
+  conversation?: string;
+  comment?: string | string[];
+  summary?: string;
   root?: string;
 }
 
@@ -314,6 +333,8 @@ cli
   .option("--anchor <text>", "Exact text to anchor the comment to")
   .option("--prefix <text>", "Leading context for the anchor quote")
   .option("--suffix <text>", "Trailing context for the anchor quote")
+  .option("--chat", "Start a private Chat instead of a public Thread — never committed to git")
+  .option("--agent <name>", "Write as this named agent rather than as yourself")
   .option("--root <dir>", "Project root directory (default: cwd)")
   .action(async (options: CommentOptions) => {
     try {
@@ -323,6 +344,8 @@ cli
         anchor: options.anchor,
         prefix: options.prefix,
         suffix: options.suffix,
+        chat: options.chat ?? false,
+        agent: options.agent,
         root: options.root,
       });
     } catch (err) {
@@ -373,6 +396,53 @@ function registerConversationCommands(cli: CAC): void {
     return value;
   };
 
+  // Reply — the verb an agent needs to join a Conversation someone else started,
+  // and the one that makes a Chat a conversation rather than a note. It names no
+  // visibility: the event goes wherever its Conversation already is, so a reply
+  // to a Chat cannot land anywhere shareable (ADR-0019).
+  cli
+    .command("reply", "Add a Comment to an existing local Conversation or Chat")
+    .option("--conversation <id>", "Conversation id")
+    .option("--body <text>", "The comment body")
+    .option("--agent <name>", "Write as this named agent rather than as yourself")
+    .option("--root <dir>", "Project root directory (default: cwd)")
+    .action((options: ReplyCliOptions) =>
+      run(() =>
+        commentReply({
+          conversation: required(options.conversation, "--conversation"),
+          body: required(options.body, "--body"),
+          agent: options.agent,
+          root: options.root,
+        }),
+      ),
+    );
+
+  // Promotion (CONTEXT "Promotion"). No `--agent`: choosing what the team gets
+  // to read is the human's call, not their agent's.
+  cli
+    .command("promote", "Write a Chat's chosen messages into a new public Thread")
+    .option("--conversation <id>", "The Chat's id")
+    .option("--comment <id>", "A Comment to make public (repeat for several)")
+    .option("--summary <text>", "A closing note added to the new Thread")
+    .option("--root <dir>", "Project root directory (default: cwd)")
+    .action((options: PromoteCliOptions) =>
+      run(() =>
+        conversationPromote({
+          conversation: required(options.conversation, "--conversation"),
+          // cac hands back a bare string for one `--comment` and an array for
+          // several, so both shapes have to arrive as a list.
+          comments:
+            options.comment === undefined
+              ? []
+              : Array.isArray(options.comment)
+                ? options.comment
+                : [options.comment],
+          summary: options.summary,
+          root: options.root,
+        }),
+      ),
+    );
+
   for (const [name, resolved] of [
     ["resolve", true],
     ["reopen", false],
@@ -380,12 +450,14 @@ function registerConversationCommands(cli: CAC): void {
     cli
       .command(name, `Mark a local Conversation as ${resolved ? "resolved" : "reopened"}`)
       .option("--conversation <id>", "Conversation id")
+      .option("--agent <name>", "Act as this named agent rather than as yourself")
       .option("--root <dir>", "Project root directory (default: cwd)")
       .action((options: ConversationOptions) =>
         run(() =>
           conversationResolve(
             {
               conversation: required(options.conversation, "--conversation"),
+              agent: options.agent,
               root: options.root,
             },
             resolved,
@@ -400,6 +472,7 @@ function registerConversationCommands(cli: CAC): void {
     .option("--comment <id>", "Comment id")
     .option("--emoji <emoji>", "One of 👍 👎 ✅ 👀 🎉 ❤️")
     .option("--remove", "Take the reaction back instead of adding it")
+    .option("--agent <name>", "React as this named agent rather than as yourself")
     .option("--root <dir>", "Project root directory (default: cwd)")
     .action((options: ReactCliOptions) =>
       run(() =>
@@ -408,6 +481,7 @@ function registerConversationCommands(cli: CAC): void {
           comment: required(options.comment, "--comment"),
           emoji: required(options.emoji, "--emoji"),
           remove: options.remove ?? false,
+          agent: options.agent,
           root: options.root,
         }),
       ),
@@ -418,6 +492,7 @@ function registerConversationCommands(cli: CAC): void {
     .option("--conversation <id>", "Conversation id")
     .option("--comment <id>", "Comment id")
     .option("--body <text>", "The new comment body")
+    .option("--agent <name>", "Act as this named agent rather than as yourself")
     .option("--root <dir>", "Project root directory (default: cwd)")
     .action((options: CommentTargetOptions) =>
       run(() =>
@@ -425,6 +500,7 @@ function registerConversationCommands(cli: CAC): void {
           conversation: required(options.conversation, "--conversation"),
           comment: required(options.comment, "--comment"),
           body: required(options.body, "--body"),
+          agent: options.agent,
           root: options.root,
         }),
       ),
@@ -434,12 +510,14 @@ function registerConversationCommands(cli: CAC): void {
     .command("delete-comment", "Leave a tombstone over a Comment")
     .option("--conversation <id>", "Conversation id")
     .option("--comment <id>", "Comment id")
+    .option("--agent <name>", "Act as this named agent rather than as yourself")
     .option("--root <dir>", "Project root directory (default: cwd)")
     .action((options: CommentTargetOptions) =>
       run(() =>
         commentDelete({
           conversation: required(options.conversation, "--conversation"),
           comment: required(options.comment, "--comment"),
+          agent: options.agent,
           root: options.root,
         }),
       ),
@@ -448,11 +526,13 @@ function registerConversationCommands(cli: CAC): void {
   cli
     .command("delete-conversation", "Leave a tombstone over a whole Conversation")
     .option("--conversation <id>", "Conversation id")
+    .option("--agent <name>", "Act as this named agent rather than as yourself")
     .option("--root <dir>", "Project root directory (default: cwd)")
     .action((options: ConversationOptions) =>
       run(() =>
         conversationDelete({
           conversation: required(options.conversation, "--conversation"),
+          agent: options.agent,
           root: options.root,
         }),
       ),

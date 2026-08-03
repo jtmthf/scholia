@@ -9,16 +9,18 @@
 // A whole Conversation is the Owner's alone — it holds other people's words.
 
 import { v7 as uuidv7 } from "uuid";
+import { signedBy } from "./author.js";
 import { ConversationError } from "./errors.js";
 import { requireComment, requireConversation } from "./guards.js";
 import type { ConversationRepository } from "./repository.js";
-import type { DeletedEvent } from "./types.js";
+import type { AuthorKind, DeletedEvent } from "./types.js";
 
 export interface DeleteCommentParams {
   conversationId: string;
   commentId: string;
   /** The acting author. */
   author: string;
+  authorKind?: AuthorKind;
   /** Whether this actor may moderate — locally, the reader at this machine. */
   isOwner?: boolean;
 }
@@ -26,6 +28,7 @@ export interface DeleteCommentParams {
 export interface DeleteConversationParams {
   conversationId: string;
   author: string;
+  authorKind?: AuthorKind;
   isOwner?: boolean;
 }
 
@@ -51,7 +54,10 @@ export async function deleteComment(
   // only thing another event buys is noise in a file people read in diffs.
   if (comment.deleted) return;
 
-  await repo.appendEvent(params.conversationId, tombstone(params.author, params.commentId));
+  await repo.appendEvent(
+    params.conversationId,
+    tombstone(params.author, params.authorKind, params.commentId),
+  );
 }
 
 export async function deleteConversation(
@@ -66,15 +72,22 @@ export async function deleteConversation(
 
   // The Conversation's own id as the target is what makes this the whole
   // aggregate rather than one Comment inside it.
-  await repo.appendEvent(params.conversationId, tombstone(params.author, conversation.header.id));
+  await repo.appendEvent(
+    params.conversationId,
+    tombstone(params.author, params.authorKind, conversation.header.id),
+  );
 }
 
-function tombstone(author: string, target: string): DeletedEvent {
+function tombstone(
+  author: string,
+  authorKind: AuthorKind | undefined,
+  target: string,
+): DeletedEvent {
   return {
     id: uuidv7(),
     type: "deleted",
     timestamp: new Date().toISOString(),
-    author,
+    ...signedBy(author, authorKind),
     target,
   };
 }

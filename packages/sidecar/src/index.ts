@@ -5,5 +5,5 @@
 // need it: `@scholia/local` serves it to a browser and `@scholia/cli` drives it
 // from `scholia comment` (ADR-0020).
 
-export { SidecarStore, SIDECAR_DIR, CONVERSATIONS_DIR } from "./store.js";
+export { SidecarStore, SIDECAR_DIR, CONVERSATIONS_DIR, CHATS_DIR } from "./store.js";
 export { resolveAuthor } from "./author.js";

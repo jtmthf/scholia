@@ -6,15 +6,21 @@
 // document to the stream rather than editing anything (ADR-0019).
 
 import { v7 as uuidv7 } from "uuid";
+import { signedBy } from "./author.js";
 import { ConversationError } from "./errors.js";
 import { requireConversation } from "./guards.js";
 import type { ConversationRepository } from "./repository.js";
-import type { Comment, CommentEvent } from "./types.js";
+import type { AuthorKind, Comment, CommentEvent } from "./types.js";
 
 export interface AppendCommentParams {
   conversationId: string;
   body: string;
   author: string;
+  /**
+   * Omit for a person. An agent replying in a Chat declares itself here, which
+   * is what puts the agent badge on its Comment (CONTEXT "Identity").
+   */
+  authorKind?: AuthorKind;
 }
 
 /**
@@ -38,7 +44,7 @@ export async function appendComment(
     id: uuidv7(),
     type: "comment",
     timestamp: new Date().toISOString(),
-    author: params.author,
+    ...signedBy(params.author, params.authorKind),
     body,
   };
 
@@ -48,6 +54,7 @@ export async function appendComment(
     id: event.id,
     conversationId: params.conversationId,
     author: event.author,
+    authorKind: event.authorKind ?? "human",
     body: event.body,
     timestamp: event.timestamp,
     editedAt: null,

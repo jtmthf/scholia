@@ -9,10 +9,11 @@
 // mouth.
 
 import { v7 as uuidv7 } from "uuid";
+import { signedBy } from "./author.js";
 import { ConversationError } from "./errors.js";
 import { requireComment, requireConversation } from "./guards.js";
 import type { ConversationRepository } from "./repository.js";
-import type { Comment, EditedEvent } from "./types.js";
+import type { AuthorKind, Comment, EditedEvent } from "./types.js";
 
 export interface EditCommentParams {
   conversationId: string;
@@ -20,6 +21,7 @@ export interface EditCommentParams {
   body: string;
   /** The acting author — must be the one who wrote the Comment. */
   author: string;
+  authorKind?: AuthorKind;
 }
 
 export async function editComment(
@@ -43,7 +45,7 @@ export async function editComment(
     id: uuidv7(),
     type: "edited",
     timestamp: new Date().toISOString(),
-    author: params.author,
+    ...signedBy(params.author, params.authorKind),
     target: params.commentId,
     body,
   };

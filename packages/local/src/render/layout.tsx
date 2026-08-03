@@ -2,7 +2,8 @@ import type { VNode } from "preact";
 import { render } from "preact-render-to-string";
 import type { Heading, NavNode, Provenance } from "@scholia/core";
 import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
-import { EMPTY_NOTE, OUTDATED_NOTE } from "./comment-copy.js";
+import { CHATS_NOTE, EMPTY_NOTE, OUTDATED_NOTE, PROMOTE_NOTE } from "./comment-copy.js";
+import { splitByVisibility } from "../client/comments/visibility.js";
 
 export interface CommentsInfo {
   /** Repo-relative path of the Page these Conversations are on. */
@@ -234,7 +235,7 @@ function portFor(comments: CommentsInfo): CommentsPort {
     ...SSR_PORT,
     displayName: comments.displayName,
     canModerate: comments.canModerate,
-    ...(comments.canModerate ? { editComment: inert, deleteComment: inert } : {}),
+    ...(comments.canModerate ? { editComment: inert, deleteComment: inert, promote: inert } : {}),
   };
 }
 
@@ -243,17 +244,23 @@ function portFor(comments: CommentsInfo): CommentsPort {
 // shared with the client, which hydrates this markup — a string that differed
 // between the two would be a correction the reader can see.
 function CommentRail({ comments }: { comments: CommentsInfo }) {
+  // The same split the hydrated island makes, from the same function: a rail
+  // that divided Threads from Chats differently on the two sides would be a
+  // correction the reader can see.
+  const { threads, chats } = splitByVisibility(comments.conversations);
   return (
     <div id="scholia-comments">
       <CommentsProvider value={portFor(comments)}>
         <Rail
-          conversations={comments.conversations}
-          chats={[]}
+          conversations={threads}
+          chats={chats}
           activeConversationId={null}
           onActivate={() => {}}
           onNewPageComment={() => {}}
           outdatedNote={OUTDATED_NOTE}
           emptyNote={EMPTY_NOTE}
+          chatsNote={CHATS_NOTE}
+          promoteNote={PROMOTE_NOTE}
         />
       </CommentsProvider>
     </div>

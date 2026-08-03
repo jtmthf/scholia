@@ -439,6 +439,7 @@ describe("foldConversation", () => {
     const conversation = foldConversation(header, []);
     expect(conversation).toEqual({
       header,
+      visibility: "public",
       comments: [],
       resolved: false,
       resolvedBy: null,

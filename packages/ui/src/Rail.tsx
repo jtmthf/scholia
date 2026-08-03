@@ -36,6 +36,17 @@ interface RailProps {
    * Chats must not offer (CONTEXT "Chat").
    */
   emptyNote?: string;
+  /**
+   * What the Promote dialog says promoting will do. The consumer's words again,
+   * because the two surfaces genuinely differ — see PromoteDialog's `note`.
+   */
+  promoteNote?: string;
+  /**
+   * What the Chats section says keeps a Chat private. The default is true
+   * everywhere; a consumer whose privacy rests on something more concrete than a
+   * token — a directory git is told never to track — can say so.
+   */
+  chatsNote?: string;
 }
 
 // The right-hand comment rail: the reader's private Chats first, then anchored
@@ -54,6 +65,8 @@ export function Rail({
   outdatedOrigin,
   outdatedNote = "These Threads no longer match the current text.",
   emptyNote = "No comments yet. Select text in the page to start a Thread or a private Chat, or comment on the whole page.",
+  promoteNote,
+  chatsNote = "Visible only to you and your agents.",
 }: RailProps) {
   // Outdated Threads (anchor no longer matches the current text, CONTEXT
   // "Outdated") are pulled out of the live sections into their own collapsed rail,
@@ -82,6 +95,7 @@ export function Rail({
       onActivate={() => onActivate(c.id)}
       isPrivate
       promotable
+      {...(promoteNote ? { promoteNote } : {})}
     />
   );
 
@@ -109,7 +123,7 @@ export function Rail({
       {chats.length > 0 && (
         <div class="rail-section rail-section--chats">
           <h3 class="rail-section-title">🔒 Chats (private) ({chats.length})</h3>
-          <p class="rail-chats-note">Visible only to you and your agents.</p>
+          <p class="rail-chats-note">{chatsNote}</p>
           {chats.map(renderChat)}
         </div>
       )}
