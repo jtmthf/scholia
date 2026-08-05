@@ -66,6 +66,16 @@ export { toText, escapeHtml, humanize, htmlToDerivedText, acceptsMarkdown } from
 export { getProvenance, type Provenance } from "./util/provenance.js";
 // @-mention parsing + matching for the agent routing filter (M7, CONTEXT "Mention").
 export { parseMentions, mentionsMatch } from "./util/mentions.js";
+// Safe regex wrappers with input-length guards against polynomial ReDoS (ADR-0032).
+export {
+  MAX_REGEX_INPUT,
+  guardRegexInput,
+  safeTest,
+  safeExec,
+  safeMatch,
+  safeReplace,
+  safeSplit,
+} from "./util/safe-regex.js";
 
 // Types
 export type { Heading, NavNode, DocRecord, RenderResult } from "./types.js";
