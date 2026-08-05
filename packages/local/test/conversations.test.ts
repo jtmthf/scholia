@@ -144,6 +144,20 @@ async function sidecarFiles(root: string, dir = "conversations"): Promise<string
   return Promise.all(names.map((n) => readFile(join(path, n), "utf8")));
 }
 
+/**
+ * Just the header document of a Sidecar stream — everything before the first
+ * event.
+ *
+ * Split on the id-tagged document marker rather than a bare `---`, which the
+ * format no longer contains: the ids are what stop git splicing two events into
+ * one under `merge=union` (ADR-0019). Splitting on something absent would hand
+ * every assertion below the whole file, and they would pass without testing
+ * that a field is in the *header*.
+ */
+function headerOf(file: string): string {
+  return file.split(/^--- # /m)[1]!;
+}
+
 test("a comment on a selection persists to the Sidecar and comes back on the Page", async ({
   tmp,
   serve,
@@ -252,7 +266,7 @@ test("a contentHash that is not a hash is refused rather than stored", async ({ 
 
   await comment(url, { page: "guide.md", body: "nonsense binding", contentHash: "not-a-hash" });
 
-  const header = (await sidecarFiles(tmp.root))[0]!.split("---\n")[0]!;
+  const header = headerOf((await sidecarFiles(tmp.root))[0]!);
   expect(header).not.toContain("contentHash");
   expect(header).not.toContain("not-a-hash");
 });
@@ -274,7 +288,7 @@ test("the header records the content hash the browser was given, not one re-read
   // Asserted against the bytes on disk: this file is the artifact a teammate
   // meets in a PR diff, and the header is written once and never rewritten.
   const [file] = await sidecarFiles(tmp.root);
-  const header = file!.split("---\n")[0]!;
+  const header = headerOf(file!);
   expect(header).toContain(`contentHash: ${rendered}`);
 });
 
@@ -294,7 +308,7 @@ test("Provenance is recorded where the served root is a git repository", async (
   const { url } = await serve();
   await comment(url, { page: "guide.md", body: "on uncommitted work" });
 
-  const header = (await sidecarFiles(tmp.root))[0]!.split("---\n")[0]!;
+  const header = headerOf((await sidecarFiles(tmp.root))[0]!);
   expect(header).toMatch(/sha: [0-9a-f]{40}/);
   expect(header).toContain("branch: main");
   expect(header).toContain("dirty: true");
@@ -310,7 +324,7 @@ test("a Conversation outside a git repository is stored with no Provenance", asy
   const { url } = await serve();
   await comment(url, { page: "guide.md", body: "no repo here" });
 
-  const header = (await sidecarFiles(tmp.root))[0]!.split("---\n")[0]!;
+  const header = headerOf((await sidecarFiles(tmp.root))[0]!);
   expect(header).not.toContain("provenance");
 });
 

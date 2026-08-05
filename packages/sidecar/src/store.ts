@@ -17,8 +17,12 @@
 // string that a single `git add` blows straight through, and one that could
 // disagree with where the file actually is. A Conversation read back is private
 // because of the directory it was found in, and for no other reason.
+//
+// The directories themselves, and the two git-facing files that decide whether
+// any of this is tracked, are `layout.ts` — shared with `tracking.ts`, which is
+// the only thing that ever changes the answer.
 
-import { appendFile, readFile, writeFile, mkdir, readdir, rename, unlink } from "node:fs/promises";
+import { appendFile, readFile, writeFile, readdir, rename, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { parseAllDocuments, stringify } from "yaml";
 import {
@@ -33,10 +37,7 @@ import {
   type Visibility,
 } from "@scholia/core";
 import type { Anchor } from "@scholia/core";
-
-export const SIDECAR_DIR = ".scholia";
-export const CONVERSATIONS_DIR = "conversations";
-export const CHATS_DIR = "chats";
+import { CHATS_DIR, CONVERSATIONS_DIR, ensureSidecarLayout, sidecarDir } from "./layout.js";
 
 /** Which directory a Conversation of each visibility lives in. */
 const DIR_FOR: Record<Visibility, string> = {
@@ -53,41 +54,31 @@ const DIR_FOR: Record<Visibility, string> = {
  */
 const ALL_VISIBILITIES: Visibility[] = ["public", "private"];
 
-// What the Chats directory's own `.gitignore` says, and all it ever says.
-const IGNORE_EVERYTHING = "*\n";
-
-// The Sidecar's top-level `.gitignore`. Same rule, but with the opt-in written
-// down, because ADR-0018 says committing the Sidecar "must be documented loudly;
-// nobody will stumble into it" — and because the obvious incantation is wrong.
-//
-// `!conversations/` does nothing: `*` has no slash in it, so it matches
-// `thread.yaml` at any depth, not merely the directory. Re-including the
-// directory leaves every file in it still excluded on its own account. The form
-// below is the one that actually works, verified against git rather than
-// reasoned about.
-const SIDECAR_GITIGNORE = `# Scholia's Sidecar: Conversations stored beside the content (ADR-0018).
-# Untracked by default, so a repository shared with people who don't use Scholia
-# carries no trace of it.
-#
-# To commit Threads — so Conversations travel with the content and git becomes
-# the review channel — add these three lines below the \`*\`:
-#
-#   !.gitignore
-#   !*/
-#   !conversations/**
-#
-# (\`!conversations/\` on its own does nothing: \`*\` matches the files, not just
-# the directory.)
-#
-# Chats are never shareable, whatever this file says. chats/.gitignore ignores
-# them unconditionally and git reads it last.
-*
-`;
-
-// The YAML multi-document separator. Every document the store writes is
-// stringified on its own and prefixed with this, which is what makes an append a
-// byte-level concatenation rather than a re-serialization of the whole stream.
-const DOC_SEPARATOR = "---\n";
+/**
+ * One YAML document, opened and closed by markers carrying its own id.
+ *
+ * Every document the store writes is stringified on its own and wrapped by this,
+ * which is what makes an append a byte-level concatenation rather than a
+ * re-serialization of the whole stream.
+ *
+ * The ids in the markers are what makes union merge safe, and they are not
+ * decoration. `merge=union` (ADR-0019) resolves two appends by keeping both
+ * sides' lines — but before it does, git trims whatever leading and trailing
+ * lines the two sides have in common. With a bare `---` separator both sides
+ * open with the same line, so git emits it once and splices two events into one
+ * document, where the later keys win and an event is silently lost. Concurrent
+ * `resolved` events, identical but for their ids, lose their trailing lines the
+ * same way.
+ *
+ * Tagging both markers with the event id makes every appended block differ from
+ * every other at its first and last line, so there is nothing for git to trim
+ * and each document survives a merge whole. `... ` is YAML's document-end
+ * marker, so this is structure rather than a comment convention — it says the
+ * document is closed, which is exactly the append-only invariant.
+ */
+function wrapDocument(id: string, yaml: string): string {
+  return `--- # ${id}\n${yaml}... # ${id}\n`;
+}
 
 // A Conversation's id is also its filename, so it has to be constrained before
 // it reaches `join`. UUIDv7 (ADR-0019) is the only shape we ever write; anything
@@ -137,7 +128,7 @@ export class SidecarStore implements ConversationRepository {
   }
 
   private dirFor(visibility: Visibility): string {
-    return join(this.rootDir, SIDECAR_DIR, DIR_FOR[visibility]);
+    return join(sidecarDir(this.rootDir), DIR_FOR[visibility]);
   }
 
   private filePathFor(conversationId: string, visibility: Visibility): string {
@@ -169,47 +160,8 @@ export class SidecarStore implements ConversationRepository {
     return null;
   }
 
-  /**
-   * Ensure the Sidecar's directories exist, each ignored as it should be.
-   *
-   * Two different guarantees, which is why the two writes differ:
-   *
-   * - `.scholia/.gitignore` is written **once**, with `wx`. Nothing in the
-   *   Sidecar is tracked by default, but committing Threads so they travel with
-   *   the content is a deliberate per-repo opt-in (ADR-0018) — and that opt-in
-   *   is made by editing this file, so we must never write over it.
-   * - `.scholia/chats/.gitignore` is **re-asserted every time**, because a Chat
-   *   is private by construction rather than by policy. It is also the file git
-   *   consults last for anything under `chats/`, so it wins over any `!chats/`
-   *   someone puts in the parent: a Chat cannot be opted into sharing.
-   */
-  private async ensureDir(): Promise<void> {
-    await mkdir(this.dirFor("public"), { recursive: true });
-    await mkdir(this.dirFor("private"), { recursive: true });
-
-    try {
-      await writeFile(join(this.rootDir, SIDECAR_DIR, ".gitignore"), SIDECAR_GITIGNORE, {
-        flag: "wx",
-      });
-    } catch {
-      // Already there, quite possibly with a repo's opt-in in it. Leave it alone.
-    }
-
-    // Written only when it doesn't already say the right thing, so the common
-    // case is a read rather than a write — but written unconditionally when it
-    // does not, including over an edit that tried to weaken it.
-    const chatsIgnore = join(this.dirFor("private"), ".gitignore");
-    const current = await readFile(chatsIgnore, "utf8").catch(() => null);
-    if (current !== IGNORE_EVERYTHING) {
-      await writeFile(chatsIgnore, IGNORE_EVERYTHING).catch(() => {
-        // A Sidecar on a read-only tree can still be read. Failing the whole
-        // operation over the ignore file would make that impossible.
-      });
-    }
-  }
-
   async createConversation(input: CreateConversationInput): Promise<Conversation> {
-    await this.ensureDir();
+    await ensureSidecarLayout(this.rootDir);
 
     const { header, firstComment } = input;
     // Public unless told otherwise — a Thread is the default for review comments.
@@ -223,23 +175,26 @@ export class SidecarStore implements ConversationRepository {
     // bodies, so no body content — including `---`, YAML syntax, or markdown —
     // can escape its field or corrupt the document structure.
     const docs = [
-      stringify({
-        id: header.id,
-        page: header.page,
-        anchor: header.anchor,
-        // Omitted rather than written as `null` when absent, so a header carries
-        // no field it has nothing to say about.
-        ...(header.contentHash ? { contentHash: header.contentHash } : {}),
-        ...(header.provenance ? { provenance: header.provenance } : {}),
-        author: header.author,
-        ...(header.authorKind === "agent" ? { authorKind: header.authorKind } : {}),
-        timestamp: header.timestamp,
-        // No `visibility` — that is the directory this file is about to go in.
-      }),
+      wrapDocument(
+        header.id,
+        stringify({
+          id: header.id,
+          page: header.page,
+          anchor: header.anchor,
+          // Omitted rather than written as `null` when absent, so a header
+          // carries no field it has nothing to say about.
+          ...(header.contentHash ? { contentHash: header.contentHash } : {}),
+          ...(header.provenance ? { provenance: header.provenance } : {}),
+          author: header.author,
+          ...(header.authorKind === "agent" ? { authorKind: header.authorKind } : {}),
+          timestamp: header.timestamp,
+          // No `visibility` — that is the directory this file is about to go in.
+        }),
+      ),
       ...events.map(stringifyEvent),
     ];
 
-    const yamlStream = docs.join(DOC_SEPARATOR);
+    const yamlStream = docs.join("");
 
     // Atomic write: write to a temp file, then rename onto the final path.
     // rename(2) is atomic on the same filesystem, so a reader never sees a
@@ -277,7 +232,7 @@ export class SidecarStore implements ConversationRepository {
     // agent driving the CLI in-process, ADR-0020) can be appending to the same
     // Conversation, and every document the store writes ends in a newline, so
     // concurrent appends interleave whole documents rather than corrupting one.
-    await appendFile(found.filePath, DOC_SEPARATOR + stringifyEvent(event), { flag: "a" });
+    await appendFile(found.filePath, stringifyEvent(event), { flag: "a" });
   }
 
   async getConversation(conversationId: string): Promise<Conversation | null> {
@@ -295,7 +250,7 @@ export class SidecarStore implements ConversationRepository {
   }
 
   async listConversations(pagePath: string): Promise<Conversation[]> {
-    await this.ensureDir();
+    await ensureSidecarLayout(this.rootDir);
 
     const conversations: Conversation[] = [];
 
@@ -405,16 +360,19 @@ function readEvent(doc: YamlEvent | null): ConversationEvent | null {
 // as `null`, so an event carries nothing it has no meaning for — these files are
 // read by people, in PR diffs.
 function stringifyEvent(event: ConversationEvent): string {
-  return stringify({
-    id: event.id,
-    type: event.type,
-    timestamp: event.timestamp,
-    author: event.author,
-    // Only ever present for an agent, so a person's document is byte-identical
-    // to what this store has always written (see `AuthorKind` in core).
-    ...(event.authorKind === "agent" ? { authorKind: event.authorKind } : {}),
-    ...("target" in event ? { target: event.target } : {}),
-    ...("emoji" in event ? { emoji: event.emoji } : {}),
-    ...("body" in event ? { body: event.body } : {}),
-  });
+  return wrapDocument(
+    event.id,
+    stringify({
+      id: event.id,
+      type: event.type,
+      timestamp: event.timestamp,
+      author: event.author,
+      // Only ever present for an agent, so a person's document is byte-identical
+      // to what this store has always written (see `AuthorKind` in core).
+      ...(event.authorKind === "agent" ? { authorKind: event.authorKind } : {}),
+      ...("target" in event ? { target: event.target } : {}),
+      ...("emoji" in event ? { emoji: event.emoji } : {}),
+      ...("body" in event ? { body: event.body } : {}),
+    }),
+  );
 }
