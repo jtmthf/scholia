@@ -14,6 +14,7 @@ import {
 } from "@scholia/client";
 import { share } from "./share.js";
 import { resolveEditorPreference } from "./editor-preference.js";
+import { sidecarCommit, sidecarUncommit } from "./sidecar-cli.js";
 import {
   commentCreate,
   commentDelete,
@@ -540,6 +541,23 @@ function registerConversationCommands(cli: CAC): void {
 }
 
 registerConversationCommands(cli);
+
+// The team workflow, in one command (ADR-0018). Conversations are untracked by
+// default — a repository shared with people who have never heard of Scholia
+// carries no trace of it — and this is the deliberate choice to commit them, so
+// they travel with the content and git becomes the review channel.
+cli
+  .command("commit-sidecar", "Commit this repository's Threads, so they travel with the content")
+  .option("--undo", "Put the Sidecar back to untracked")
+  .option("--root <dir>", "Project root directory (default: cwd)")
+  .action(async (options: { undo?: boolean; root?: string }) => {
+    try {
+      await (options.undo ? sidecarUncommit : sidecarCommit)({ root: options.root });
+    } catch (err) {
+      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
 
 // Local Preview (ADR-0010): `scholia <path>` renders a local file or folder in
 // the browser — no account, no token, no network. The default entry point.

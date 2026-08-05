@@ -33,6 +33,40 @@ boundary: [`packages/cli/README.md`](./packages/cli/README.md).
 > `.mdx` files are **evaluated** as code on your machine. Only preview files you
 > trust, or pass `--no-mdx`.
 
+## Working as a team, through git
+
+Comments you leave in Local Preview are kept **beside the content, in your own
+repository** — the Sidecar, in `.scholia/`. By default it is invisible to git:
+the directory carries an ignore file matching everything in it, itself included,
+so `git status` stays clean and your root `.gitignore` is never touched. A
+teammate who has never heard of Scholia sees no trace of it.
+
+Committing it is one deliberate command:
+
+```sh
+scholia commit-sidecar
+```
+
+That removes the ignore file, writes `.scholia/.gitattributes`, and stages the
+Sidecar; you make the commit. From then on Conversations travel with the content,
+and **git is the review channel** — a teammate clones, runs `scholia .`, and sees
+your anchored comments with no account, no server and no permissions model. The
+permissions are the repository's.
+
+It survives normal branching. Different Conversations are different files, so
+they never collide. Concurrent replies to the _same_ Conversation are appends
+that `merge=union` keeps both of, ordered by their timestamps when read rather
+than by where they landed in the file, and an event delivered twice by a rebase
+or cherry-pick is deduplicated by id instead of double-posting.
+
+**Chats are never committed**, opted in or not — `.scholia/chats/` ignores itself
+unconditionally and git reads that file last, so no opt-in and no `git add -A`
+can reach it. To make something from a Chat public, promote it
+(`scholia promote`), a choice you make message by message.
+
+Changed your mind: `scholia commit-sidecar --undo` puts the Sidecar back to
+untracked. Your Conversations stay on disk either way.
+
 ## Hosted mode (not shipped yet)
 
 The rest of this repo is a zero-config service for hosting markdown and HTML

@@ -4,6 +4,11 @@
 
 accepted
 
+> **Update (2026-08-05, issue #33):** union merge turned out not to be safe with a bare
+> `---` separator, and the format now carries **id-tagged document markers** — `--- # <id>`
+> to open and `... # <id>` to close. See the last consequence below; the decision is
+> unchanged, its bytes are.
+
 ## Context & Decision
 
 The Sidecar (ADR-0018) can be committed to git, which makes **merge behaviour a data-model
@@ -77,3 +82,15 @@ at the Conversation. That is why this shape was chosen over anything finer or co
   Scholia rendering its own conversation files, or a CLI printer — not the raw file.
 - Comment _edits_ and deletes are events, not rewrites, so "append-only" is a real
   invariant rather than a convention — but it is one the writer must enforce.
+- **Every document must be delimited by a line unique to it**, which a bare `---`
+  separator is not. Before `merge=union` keeps both sides of a conflicting region, git
+  trims the leading and trailing lines the two sides have in common — so two concurrent
+  appends, each opening with `---`, have that line emitted once and their two documents
+  spliced into one, where the later keys win and an event is lost outright. Two events
+  identical but for their ids (concurrent `resolved`s, say) lose their trailing lines the
+  same way. No fold can recover from either, because the damage is done before the parser
+  sees the file. The format therefore writes `--- # <id>` to open a document and YAML's
+  explicit document-end marker `... # <id>` to close it, so no two blocks share a first or
+  last line and there is nothing for git to trim. This is what actually makes union merge
+  correct; the immutable header is necessary but was not sufficient. Streams written
+  before this still parse — the markers are the writer's contract, not the reader's.

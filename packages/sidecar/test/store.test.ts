@@ -88,10 +88,44 @@ describe("SidecarStore", () => {
     });
 
     const gitignore = await readFile(join(rootDir, ".scholia", ".gitignore"), "utf8");
-    // Nothing in .scholia/ is tracked by default; the rest of the file is the
-    // opt-in, written down because the obvious incantation for it is wrong.
+    // `*` has no slash in it, so it matches everything under .scholia/ at any
+    // depth — this file included. Committing the store is a command, not an
+    // edit to this file (ADR-0018), so all it says is the default.
     expect(gitignore).toMatch(/^\*$/m);
-    expect(gitignore).toContain("!conversations/**");
+    expect(gitignore).toContain("scholia commit-sidecar");
+  });
+
+  // The property `merge=union` depends on (ADR-0019): git trims the leading and
+  // trailing lines two appended blocks have in common before it keeps both, so
+  // a bare `---` separator lets it splice two events into one document. Tagging
+  // both markers with the event id makes every block differ at its first and
+  // last line, and there is then nothing to trim. `test/tracking.test.ts` proves
+  // it against real merges; this pins the bytes that make it work.
+  test("every document is opened and closed by markers carrying its own id", async () => {
+    const conversationId = "00000000-0000-7000-8000-000000000050";
+    const commentId = "00000000-0000-7000-8000-000000000051";
+    const replyId = "00000000-0000-7000-8000-000000000052";
+
+    await seedConversation(conversationId, commentId);
+    await store.appendEvent(conversationId, {
+      id: replyId,
+      type: "comment",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "trent",
+      body: "a reply",
+    });
+
+    const raw = await readFile(
+      join(rootDir, ".scholia", "conversations", `${conversationId}.yaml`),
+      "utf8",
+    );
+    for (const id of [conversationId, commentId, replyId]) {
+      expect(raw).toContain(`--- # ${id}\n`);
+      expect(raw).toContain(`... # ${id}\n`);
+    }
+    // No two documents share an opening or closing line.
+    const markers = raw.match(/^(---|\.\.\.) # .*$/gm)!;
+    expect(new Set(markers).size).toBe(markers.length);
   });
 
   test("bodies containing YAML special characters round-trip exactly", async () => {
@@ -647,7 +681,7 @@ describe("SidecarStore", () => {
     });
 
     const raw = await readFile(join(rootDir, ".scholia", "conversations", `${id}.yaml`), "utf8");
-    const last = raw.split("---\n").at(-1)!;
+    const last = raw.split(/^--- # /m).at(-1)!;
     expect(last).toContain("emoji: 🎉");
     expect(last).not.toContain("body:");
 
@@ -847,21 +881,29 @@ describe("SidecarStore", () => {
     expect((await readFile(ignorePath, "utf8")).trim()).toBe("*");
   });
 
-  test("a repo's opt-in to committing Threads is left alone", async () => {
+  test("a repo that has opted in keeps its store visible to git", async () => {
+    // What `scholia commit-sidecar` leaves behind: no .gitignore, and a
+    // .gitattributes that is both the merge config and the record of the
+    // opt-in (ADR-0018). Writing the ignore file back here would un-commit the
+    // store on the next Comment — on this machine and on every clone of it.
+    await mkdir(join(rootDir, ".scholia"), { recursive: true });
+    await writeFile(
+      join(rootDir, ".scholia", ".gitattributes"),
+      "conversations/*.yaml merge=union\n",
+    );
+
     await seedOf(
       "public",
       "00000000-0000-7000-8000-0000000000cb",
       "00000000-0000-7000-8000-0000000000cc",
     );
-
-    // Committing the Sidecar is an explicit per-repo choice (ADR-0018), made by
-    // editing this file — so the store must never write over it.
-    const ignorePath = join(rootDir, ".scholia", ".gitignore");
-    const optedIn = "*\n!.gitignore\n!*/\n!conversations/**\n";
-    await writeFile(ignorePath, optedIn);
-
     await store.listConversations("readme.md");
-    expect(await readFile(ignorePath, "utf8")).toBe(optedIn);
+
+    await expect(readFile(join(rootDir, ".scholia", ".gitignore"), "utf8")).rejects.toThrow();
+    // Chats stay unconditionally ignored either way.
+    expect((await readFile(join(rootDir, ".scholia", "chats", ".gitignore"), "utf8")).trim()).toBe(
+      "*",
+    );
   });
 
   test("listConversations returns both kinds, each carrying where it was found", async () => {
@@ -975,7 +1017,7 @@ describe("SidecarStore", () => {
     });
 
     const raw = await readFile(join(rootDir, ".scholia", "chats", `${id}.yaml`), "utf8");
-    const [, human, agent] = raw.split("---\n");
+    const [, , human, agent] = raw.split(/^--- # /m);
     // Absent means human, so nothing is written for the person's Comment.
     expect(human).not.toContain("authorKind");
     expect(agent).toContain("authorKind: agent");

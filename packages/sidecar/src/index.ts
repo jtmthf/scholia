@@ -5,5 +5,12 @@
 // need it: `@scholia/local` serves it to a browser and `@scholia/cli` drives it
 // from `scholia comment` (ADR-0020).
 
-export { SidecarStore, SIDECAR_DIR, CONVERSATIONS_DIR, CHATS_DIR } from "./store.js";
+export { SidecarStore } from "./store.js";
+export { SIDECAR_DIR, CONVERSATIONS_DIR, CHATS_DIR, isCommitted } from "./layout.js";
+export {
+  commitSidecar,
+  uncommitSidecar,
+  type CommitSidecarResult,
+  type UncommitSidecarResult,
+} from "./tracking.js";
 export { resolveAuthor } from "./author.js";
