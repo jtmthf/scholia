@@ -53,7 +53,7 @@ export function Composer({
     if (!trimmedBody) return;
     if (needsName && !trimmedName) return;
     await onSubmit(trimmedBody, trimmedName || currentName);
-    changeBody("");
+    setBody("");
   }
 
   const canSubmit = body.trim().length > 0 && (!needsName || name.trim().length > 0);
