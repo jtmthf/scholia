@@ -51,7 +51,7 @@ imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp
 
 ## Changesets
 
-A PR touching `packages/cli` (package `scholia`) needs a changeset — `@scholia/*` internals don't; agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
+A PR that touches runtime code bundled into the release needs a changeset. Pure-test/doc/config changes don't. When in doubt, add one; `pnpm changeset --empty` is the escape hatch for no-op releases. Agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
 
 ## Running the hosted-path tests (the trap)
 

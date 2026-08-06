@@ -5,11 +5,16 @@
 //
 // Grammar: `@` followed by one or more of [A-Za-z0-9_-], not immediately preceded
 // by a word character (so emails like `a@b` don't produce a spurious `@b`).
+
+import { guardRegexInput } from "./safe-regex.js";
+
 const MENTION_RE = /(^|[^\w@/])@([A-Za-z0-9][A-Za-z0-9_-]*)/g;
 
 // Extract the ordered, de-duplicated list of mention targets from a comment body.
 // De-duplication is case-insensitive but preserves the first-seen original casing.
 export function parseMentions(body: string): string[] {
+  // Input-length guard: a single comment body should never exceed 50 KB.
+  guardRegexInput(body);
   const seen = new Set<string>();
   const out: string[] = [];
   for (const m of body.matchAll(MENTION_RE)) {

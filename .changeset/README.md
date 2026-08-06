@@ -4,12 +4,10 @@ This folder holds pending changesets — one Markdown file per change, written b
 `pnpm changeset` and consumed by the release workflow on the next push to
 `main`.
 
-A changeset is **required for any user-facing change to the published CLI**
-(`packages/cli`, package name `scholia`). The internal `@scholia/*` workspace
-packages are private and unpublished (`private: true`, `version: 0.0.0`), so
-`.changeset/config.json` opts them out of versioning with
-`privatePackages: { version: false, tag: false }`. A change confined to an
-internal package does not need a changeset.
+A changeset is **required for any PR that touches runtime code bundled into the
+release** — which means most changes under `packages/`. Pure test, doc, and
+config changes don't need one. When in doubt, add one; `pnpm changeset --empty`
+is the escape hatch for changes that genuinely don't affect the release.
 
 ## Adding one
 
@@ -32,7 +30,7 @@ only one changeset per change.
 
 Humans can run `pnpm changeset` and pick `scholia` → `patch` / `minor` / `major`
 interactively. Either way, the CI `changeset` job runs
-`pnpm changeset status --since=origin/main` and fails a PR that touches the CLI
+`pnpm changeset status --since=origin/main` and fails a PR that has code changes
 without a changeset.
 
 ## Releasing

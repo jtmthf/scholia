@@ -26,7 +26,10 @@ export interface OwnerAuthErr {
 function bearer(c: Context): string | null {
   const h = c.req.header("authorization") ?? c.req.header("Authorization");
   if (!h) return null;
-  const m = /^Bearer\s+(.+)$/i.exec(h.trim());
+  const trimmed = h.trim();
+  // Input-length guard: Authorization header should never exceed 4 KB.
+  if (trimmed.length > 4_096) return null;
+  const m = /^Bearer\s+(.+)$/i.exec(trimmed);
   return m ? m[1]!.trim() : null;
 }
 

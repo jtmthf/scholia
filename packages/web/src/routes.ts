@@ -2,6 +2,8 @@
 // a URL), and reading the `?v=` pin out of a query. Both the client router and the
 // SSR route match against these, so they can't drift apart.
 
+import { guardRegexInput } from "@scholia/core";
+
 /**
  * `/s/:slug` or `/s/:slug/<path>`. The Page path is a rest parameter because it
  * carries slashes (`guide/intro.md`) and the router decodes each segment.
@@ -24,6 +26,8 @@ export interface SiteRouteParams {
  * three are read — and tested — together.
  */
 export function matchSiteRoute(pathname: string): SiteRouteParams | null {
+  // Input-length guard: URL pathnames are bounded by HTTP specs (typically < 2 KB).
+  guardRegexInput(pathname, 8_192);
   const m = pathname.match(/^\/s\/([^/]+)(?:\/(.*))?$/);
   if (!m) return null;
   const rest = m[2];

@@ -10,6 +10,8 @@
 // Links to Assets (images, etc.) and external/absolute/in-page links are left
 // untouched so they resolve relative to the content origin as before.
 
+import { guardRegexInput } from "../util/safe-regex.js";
+
 export interface RewriteLinkOptions {
   /** Site-relative path of the Page being served, e.g. "guide/intro.md". */
   pagePath: string;
@@ -24,6 +26,8 @@ export interface RewriteLinkOptions {
 const ANCHOR_RE = /<a\b([^>]*?)\shref="([^"]*)"([^>]*)>/gi;
 
 export function rewriteInterPageLinks(html: string, opts: RewriteLinkOptions): string {
+  // Input-length guard: rendered HTML for a single Page should not exceed 1 MB.
+  guardRegexInput(html, 1_000_000);
   const slash = opts.pagePath.lastIndexOf("/");
   const dir = slash === -1 ? "" : opts.pagePath.slice(0, slash);
 
