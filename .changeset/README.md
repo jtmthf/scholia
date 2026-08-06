@@ -30,7 +30,7 @@ only one changeset per change.
 
 Humans can run `pnpm changeset` and pick `scholia` → `patch` / `minor` / `major`
 interactively. Either way, the CI `changeset` job runs
-`pnpm changeset status --since=origin/main` and fails a PR that touches the CLI
+`pnpm changeset status --since=origin/main` and fails a PR that has code changes
 without a changeset.
 
 ## Releasing
