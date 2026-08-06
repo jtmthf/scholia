@@ -4,12 +4,10 @@ This folder holds pending changesets — one Markdown file per change, written b
 `pnpm changeset` and consumed by the release workflow on the next push to
 `main`.
 
-A changeset is **required for any user-facing change to the published CLI**
-(`packages/cli`, package name `scholia`). The internal `@scholia/*` workspace
-packages are private and unpublished (`private: true`, `version: 0.0.0`), so
-`.changeset/config.json` opts them out of versioning with
-`privatePackages: { version: false, tag: false }`. A change confined to an
-internal package does not need a changeset.
+A changeset is **required for every PR**. The `scholia` CLI package carries the
+user-facing changelog; internal `@scholia/*` changes ride along under the same
+version bump. `.changeset/config.json` opts internal packages out of independent
+versioning with `privatePackages: { version: false, tag: false }`.
 
 ## Adding one
 

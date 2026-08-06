@@ -51,7 +51,7 @@ imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp
 
 ## Changesets
 
-A PR touching `packages/cli` (package `scholia`) needs a changeset — `@scholia/*` internals don't; agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
+Every PR needs a changeset; agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
 
 ## Running the hosted-path tests (the trap)
 
