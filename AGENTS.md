@@ -17,17 +17,17 @@ duplicate them here:
 
 ## Packages (`packages/*`, all `@scholia/*`)
 
-| Package                             | Role                                                                                                            |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `core`                              | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs. **No HTTP/db** — keep it that way. |
-| `db`                                | Drizzle schema + client + repositories (Postgres).                                                              |
-| `sidecar`                           | The Sidecar: one append-only YAML stream per Conversation, beside the content (ADR-0018/0019).                  |
-| `server`                            | Hono REST API + content origin.                                                                                 |
-| `ui`                                | Shared comment layer (rail, Conversations, Composer). **Preact only** — no bundler/server dep (ADR-0030).       |
-| `web`                               | Preact + Vite viewer, SSR'd by its own Hono route (ADR-0011).                                                   |
-| `local`                             | Local Preview server (Hono), ex-mdttp.                                                                          |
-| `cli`                               | The `scholia` command (`scholia <path>` previews, `scholia share` publishes).                                   |
-| `client`, `mcp`, `github`, `bridge` | Thin clients / integrations over the above. `bridge` also owns the DOM half of anchoring, shared with `local`.  |
+| Package                      | Role                                                                                                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core`                       | Pure domain logic: render, Nav, search, Entry Page, content-addressed blobs, plus the application layer's verb set (ADR-0020/0021). **No HTTP/db** — keep it that way. |
+| `db`                         | Drizzle schema + client + repositories (Postgres).                                                                                                                     |
+| `sidecar`                    | The Sidecar: one append-only YAML stream per Conversation, beside the content (ADR-0018/0019).                                                                         |
+| `server`                     | Hono REST API + content origin.                                                                                                                                        |
+| `ui`                         | Shared comment layer (rail, Conversations, Composer). **Preact only** — no bundler/server dep (ADR-0030).                                                              |
+| `web`                        | Preact + Vite viewer, SSR'd by its own Hono route (ADR-0011).                                                                                                          |
+| `local`                      | Local Preview server (Hono), ex-mdttp.                                                                                                                                 |
+| `cli`                        | The `scholia` command (`scholia <path>` previews, `scholia share` publishes, `scholia mcp` serves MCP).                                                                |
+| `client`, `github`, `bridge` | Thin clients / integrations over the above. `bridge` also owns the DOM half of anchoring, shared with `local`.                                                         |
 
 ## Commands
 
@@ -42,6 +42,7 @@ pnpm e2e:local                          # Playwright, Local Preview only — no 
 pnpm dev:server                         # REST API + content origin on :8787
 pnpm dev:web                            # viewer (Vite + the Hono SSR route) on :5173
 pnpm scholia <path>                      # Local Preview
+pnpm scholia mcp                        # the same verbs over MCP (stdio; --http for HTTP)
 ```
 
 oxlint (`pnpm lint`) + oxfmt (`pnpm format`) from the oxc project (ADR-0024).
@@ -103,6 +104,28 @@ ADR-0031:
   `#scholia-comments-data` and re-render instead.
 - **A Comment binds to the content hash captured at render**, written onto the article as
   `data-content-hash` and handed back on submit, never re-read from disk.
+
+## The agent surfaces
+
+The CLI and MCP are **both** agent surfaces and neither is primary (ADR-0021). They render
+one command and query set — `packages/core/src/app/verbs.ts`, the application layer of
+ADR-0020 — so adding a verb lights it up on both and drift is unrepresentable. Four rules
+follow:
+
+- **A verb is declared once**, with the prose an LLM reads and the CLI hints (positional
+  order, aliases) that keep the command pleasant to type. `packages/cli/test/parity.test.ts`
+  asserts the two surfaces expose the same set, reading the real cac commands and a real
+  MCP `tools/list`.
+- **MCP is `scholia mcp`, not a package** — the CLI is already the install. In stdio mode
+  **stdout belongs to the protocol**: nothing on that path may `console.log`.
+- **The target is local by default.** `createLocalApi` (`@scholia/sidecar`) invokes the
+  application in-process against the Sidecar; `createRemoteApi` (`@scholia/client`)
+  implements the same interface over HTTP, and `--server`/`SCHOLIA_SERVER` picks it. An
+  agent must be able to comment with no server running — from CI, from a git hook.
+- **Two writers is normal**, so a preview server and an agent write the same files at once.
+  That is safe because every write is one atomic append (ADR-0019), and it is _useful_
+  because the watcher looks inside `.scholia` — an agent's Comment reaches an open preview
+  over the existing live-reload channel.
 
 ## The hosted viewer
 

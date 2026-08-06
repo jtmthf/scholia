@@ -6,7 +6,14 @@
 // from `scholia comment` (ADR-0020).
 
 export { SidecarStore } from "./store.js";
-export { SIDECAR_DIR, CONVERSATIONS_DIR, CHATS_DIR, isCommitted } from "./layout.js";
+export {
+  SIDECAR_DIR,
+  CONVERSATIONS_DIR,
+  CHATS_DIR,
+  ensureSidecarLayout,
+  isCommitted,
+  sidecarDir,
+} from "./layout.js";
 export {
   commitSidecar,
   uncommitSidecar,
@@ -14,3 +21,6 @@ export {
   type UncommitSidecarResult,
 } from "./tracking.js";
 export { resolveAuthor } from "./author.js";
+// The local target for the agent verb set: the application layer invoked
+// in-process against this Sidecar, with no server running (ADR-0020).
+export { createLocalApi, type LocalApiOptions } from "./local-api.js";

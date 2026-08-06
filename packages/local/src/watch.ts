@@ -1,17 +1,29 @@
 import { watch as chokidarWatch, type FSWatcher } from "chokidar";
 
+const HIDDEN_OR_VENDORED = /(^|[\\/])(\.[^\\/]|node_modules([\\/]|$))/;
+
+/**
+ * The Sidecar, which is a dotfile directory we very much do want to watch.
+ *
+ * An agent writing a Comment writes `.scholia/conversations/<id>.yaml`
+ * in-process, with no server involved (ADR-0020) — so the only way a reader
+ * with a preview open sees it is if the same watch channel that notices an
+ * edited Page notices this too. Under the blanket dotfile rule it never would.
+ */
+const SIDECAR = /(^|[\\/])\.scholia([\\/]|$)/;
+
 // Watch a path (file or directory) and invoke `onChange` with the batch of
 // changed paths. chokidar 5 is glob-free, so we filter dotfiles / node_modules
 // ourselves. Rapid bursts (e.g. an editor's atomic save = unlink+add) are
 // coalesced into a single debounced callback so we rescan/reload only once.
 export function watchPath(
-  target: string,
+  target: string | string[],
   onChange: (paths: string[]) => void,
   delay = 80,
 ): FSWatcher {
   const watcher = chokidarWatch(target, {
     ignoreInitial: true,
-    ignored: (p: string) => /(^|[\\/])(\.[^\\/]|node_modules([\\/]|$))/.test(p),
+    ignored: (p: string) => !SIDECAR.test(p) && HIDDEN_OR_VENDORED.test(p),
   });
 
   const pending = new Set<string>();

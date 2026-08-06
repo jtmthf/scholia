@@ -84,4 +84,123 @@ describe("listConversations", () => {
     );
     expect(conversation!.resolvedBy).toBe("bob");
   });
+
+  // The filters an agent carries on both surfaces (ADR-0021). They live here,
+  // over the fold, because what "unresolved" and "mentions Jane" mean is a
+  // domain question — the store's job is to report what the streams say.
+  describe("filters", () => {
+    /** Two Conversations on one Page: one resolved, one mentioning an agent. */
+    function seeded() {
+      const repo = stubRepo();
+      const settled = makeHeader({ id: "00000000-0000-7000-8000-00000000c0a1", page: "guide.md" });
+      const open = makeHeader({ id: "00000000-0000-7000-8000-00000000c0b1", page: "guide.md" });
+      const elsewhere = makeHeader({
+        id: "00000000-0000-7000-8000-00000000c0c1",
+        page: "other.md",
+      });
+
+      repo.seed(settled, [
+        comment("00000000-0000-7000-8000-000000000001", "alice", "@claude-code done?"),
+        {
+          id: "00000000-0000-7000-8000-000000000002",
+          type: "resolved",
+          timestamp: "2025-01-15T13:00:00.000Z",
+          author: "alice",
+        },
+      ]);
+      repo.seed(open, [
+        comment(
+          "00000000-0000-7000-8000-000000000003",
+          "bob",
+          "still open",
+          "2025-02-01T09:00:00.000Z",
+        ),
+      ]);
+      repo.seed(elsewhere, [comment("00000000-0000-7000-8000-000000000004", "carol", "different")]);
+
+      return repo;
+    }
+
+    test("no page asks the port for every Page", async () => {
+      expect(await listConversations(seeded(), {})).toHaveLength(3);
+    });
+
+    test("unresolved drops the settled ones", async () => {
+      const listed = await listConversations(seeded(), { pagePath: "guide.md", unresolved: true });
+      expect(listed.map((c) => c.comments[0]!.body)).toEqual(["still open"]);
+    });
+
+    test("since is measured on the Comments, not the header", async () => {
+      const listed = await listConversations(seeded(), { since: "2025-01-20T00:00:00.000Z" });
+      expect(listed.map((c) => c.comments[0]!.body)).toEqual(["still open"]);
+    });
+
+    test("an edit counts as activity, so a correction resurfaces", async () => {
+      const repo = stubRepo();
+      const header = makeHeader({ page: "guide.md" });
+      repo.seed(header, [
+        comment("00000000-0000-7000-8000-000000000001", "alice", "frist"),
+        {
+          id: "00000000-0000-7000-8000-000000000002",
+          type: "edited",
+          timestamp: "2025-02-01T09:00:00.000Z",
+          author: "alice",
+          target: "00000000-0000-7000-8000-000000000001",
+          body: "first",
+        },
+      ]);
+
+      expect(await listConversations(repo, { since: "2025-01-20T00:00:00.000Z" })).toHaveLength(1);
+    });
+
+    test("mentions matches the identity, slug-tolerantly", async () => {
+      const listed = await listConversations(seeded(), { mentions: "Claude Code" });
+      expect(listed).toHaveLength(1);
+      expect(listed[0]!.comments[0]!.body).toContain("@claude-code");
+    });
+
+    test("a mention inside a tombstoned Comment does not count", async () => {
+      const repo = stubRepo();
+      const header = makeHeader({ page: "guide.md" });
+      repo.seed(header, [
+        comment("00000000-0000-7000-8000-000000000001", "alice", "@claude-code ignore that"),
+        {
+          id: "00000000-0000-7000-8000-000000000002",
+          type: "deleted",
+          timestamp: "2025-01-15T13:00:00.000Z",
+          author: "alice",
+          target: "00000000-0000-7000-8000-000000000001",
+        },
+      ]);
+
+      expect(await listConversations(repo, { mentions: "claude-code" })).toEqual([]);
+    });
+
+    test("visibility narrows to Chats — what list_chats asks for", async () => {
+      const repo = stubRepo();
+      repo.seed(
+        makeHeader({ id: "00000000-0000-7000-8000-00000000c0a1", page: "guide.md" }),
+        [comment("00000000-0000-7000-8000-000000000001", "alice", "public")],
+        "public",
+      );
+      repo.seed(
+        makeHeader({ id: "00000000-0000-7000-8000-00000000c0b1", page: "guide.md" }),
+        [comment("00000000-0000-7000-8000-000000000002", "alice", "private")],
+        "private",
+      );
+
+      const chats = await listConversations(repo, { visibility: "private" });
+      expect(chats.map((c) => c.comments[0]!.body)).toEqual(["private"]);
+    });
+
+    test("the filters compose", async () => {
+      const listed = await listConversations(seeded(), {
+        pagePath: "guide.md",
+        unresolved: true,
+        since: "2025-01-20T00:00:00.000Z",
+      });
+      expect(listed).toHaveLength(1);
+      expect(listed[0]!.comments[0]!.body).toBe("still open");
+    });
+  });
 });

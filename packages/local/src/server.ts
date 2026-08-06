@@ -37,7 +37,7 @@ import {
   type DocRecord,
   type ManifestEntry,
 } from "@scholia/core";
-import { SidecarStore, resolveAuthor } from "@scholia/sidecar";
+import { SidecarStore, ensureSidecarLayout, resolveAuthor, sidecarDir } from "@scholia/sidecar";
 import { renderPage } from "./render/layout.js";
 import { PageRenderer, type RenderedPage } from "./render/page.js";
 import {
@@ -204,6 +204,13 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // while a preview is open, and asking git per keystroke would be silly.
   const sidecar = new SidecarStore(opts.rootDir);
   const author = await resolveAuthor(opts.rootDir);
+
+  // Created up front rather than on the first Conversation, so the watcher
+  // below has something to watch: an agent writing a Comment in-process
+  // (ADR-0020) is how a Conversation most often appears while a preview is
+  // open, and in single-file mode nothing else would be watching that
+  // directory. Idempotent — the store calls it on every read anyway.
+  await ensureSidecarLayout(opts.rootDir);
 
   // Project identity for the topbar (ADR-0016/0017 furniture) — the served
   // root's own directory name, not the current Page's title.
@@ -824,7 +831,10 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // A change that affects the doc set or nav (a .md/.mdx file, or a _meta.json)
   // triggers a rescan + incremental re-index; other changes (e.g. an image a
   // doc links to) just invalidate caches and reload.
-  const watchTarget = opts.singleFile ?? opts.rootDir;
+  // In directory mode the root covers the Sidecar; previewing a single file
+  // watches that file alone, so the Sidecar is named separately — otherwise a
+  // Comment an agent writes while the preview is open would never show up.
+  const watchTarget = opts.singleFile ? [opts.singleFile, sidecarDir(opts.rootDir)] : opts.rootDir;
   const watcher = watchPath(watchTarget, (paths) => {
     for (const p of paths) pages.invalidate(p);
     const structural = paths.some((p) => isDoc(p) || /(^|[\\/])_?meta\.json$/i.test(p));

@@ -15,17 +15,8 @@ import {
 import { share } from "./share.js";
 import { resolveEditorPreference } from "./editor-preference.js";
 import { sidecarCommit, sidecarUncommit } from "./sidecar-cli.js";
-import {
-  commentCreate,
-  commentDelete,
-  commentEdit,
-  commentList,
-  commentReact,
-  commentReply,
-  conversationPromote,
-  conversationDelete,
-  conversationResolve,
-} from "./comment-cli.js";
+import { registerVerbCommands } from "./verb-cli.js";
+import { serveMcp } from "./mcp.js";
 
 const cli = cac("scholia");
 
@@ -60,14 +51,26 @@ interface ShareOptions {
   ref?: string;
 }
 
-interface ChatsOptions extends OwnerOptions {
-  since?: string;
-  path?: string;
-}
-
 interface DeleteSiteOptions extends OwnerOptions {
   yes?: boolean;
 }
+
+/**
+ * `scholia mcp` flags. `--http` is cac's optional-value shape: absent is
+ * `false`, bare `--http` is `true` (take the default port), `--http 9000` is
+ * the string.
+ */
+interface McpCliOptions {
+  http?: boolean | string;
+  root?: string;
+  server?: string;
+  site?: string;
+  token?: string;
+  viewer?: string;
+}
+
+/** Where `scholia mcp --http` listens when no port is given. */
+const DEFAULT_MCP_PORT = 8888;
 
 interface PreviewOptions {
   port?: string | number;
@@ -75,54 +78,6 @@ interface PreviewOptions {
   open: boolean;
   mdx: boolean;
   editor?: string;
-}
-
-/** `--agent <name>`: the caller declaring itself an agent (CONTEXT "Identity"). */
-interface ActingAsOptions {
-  agent?: string;
-}
-
-interface CommentOptions extends ActingAsOptions {
-  page?: string;
-  body?: string;
-  anchor?: string;
-  prefix?: string;
-  suffix?: string;
-  root?: string;
-  chat?: boolean;
-}
-
-interface CommentsOptions {
-  page?: string;
-  root?: string;
-  json?: boolean;
-}
-
-interface ConversationOptions extends ActingAsOptions {
-  conversation?: string;
-  root?: string;
-}
-
-interface ReplyCliOptions extends ConversationOptions {
-  body?: string;
-}
-
-interface PromoteCliOptions {
-  conversation?: string;
-  comment?: string | string[];
-  summary?: string;
-  root?: string;
-}
-
-interface ReactCliOptions extends ConversationOptions {
-  comment?: string;
-  emoji?: string;
-  remove?: boolean;
-}
-
-interface CommentTargetOptions extends ConversationOptions {
-  comment?: string;
-  body?: string;
 }
 
 // Resolve the owner credential for an ops command the same way `share`/`chats` do:
@@ -182,49 +137,9 @@ function registerHostedCommands(cli: CAC): void {
       }
     });
 
-  // Chats (M8): `scholia chats` prints the viewer's own private Chats as JSON, using
-  // a viewer-scoped token. Resolves the credential the same way `share` does — an
-  // explicit --site, else the newest stored credential. Owner tokens get a 403 from
-  // the endpoint (acceptable — Chats are a viewer-tier surface).
-  cli
-    .command("chats", "List your viewer's private Chats as JSON")
-    .option("--server <url>", "Scholia server base URL", {
-      default: process.env.SCHOLIA_SERVER ?? "http://localhost:8787",
-    })
-    .option("--site <slug>", "Site slug to query (defaults to the newest stored credential)")
-    .option(
-      "--token <token>",
-      "Viewer-scoped token (defaults to SCHOLIA_TOKEN or the stored credential)",
-    )
-    .option("--since <iso>", "ISO 8601 timestamp; only Chats with a comment newer than this")
-    .option("--path <p>", "Filter to Chats anchored to this page path")
-    .action(async (options: ChatsOptions) => {
-      try {
-        const server = options.server.replace(/\/+$/, "");
-        const store = await loadCredentials();
-        const entries = Object.values(store);
-        const cred = options.site
-          ? entries.find((e) => e.slug === options.site)
-          : entries.length
-            ? entries.reduce((a, b) => (a.createdAt > b.createdAt ? a : b))
-            : undefined;
-
-        const slug: string | undefined = options.site ?? cred?.slug ?? process.env.SCHOLIA_SITE;
-        const token: string | undefined = options.token ?? process.env.SCHOLIA_TOKEN ?? cred?.token;
-        if (!slug) throw new Error("no site — pass --site <slug> or run `scholia share` first");
-        if (!token)
-          throw new Error(
-            "no token — pass --token, set SCHOLIA_TOKEN, or run `scholia share` first",
-          );
-
-        const client = new ScholiaClient({ server, token, slug });
-        const { chats } = await client.listChats({ since: options.since, path: options.path });
-        console.log(JSON.stringify(chats, null, 2));
-      } catch (err) {
-        console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
-        process.exit(1);
-      }
-    });
+  // `scholia chats` is not here: it is a verb now (ADR-0021), registered
+  // unconditionally below and pointed at a hosted Site with `--server`. One
+  // command listing Chats, whichever application holds them.
 
   // ---- M9: Owner moderation & ops ----
 
@@ -324,223 +239,54 @@ function registerHostedCommands(cli: CAC): void {
 
 if (HOSTED_ENABLED) registerHostedCommands(cli);
 
-// Local Conversations (ADR-0018, ADR-0019): `scholia comment` creates a
-// Conversation with its first Comment on a Page; `scholia comments` lists
-// them. No server, no token, no network — stored in .scholia/ beside the content.
-cli
-  .command("comment", "Create an anchored Comment on a local Page")
-  .option("--page <path>", "Page path (relative to project root)", { default: "." })
-  .option("--body <text>", "Comment body text", { default: "" })
-  .option("--anchor <text>", "Exact text to anchor the comment to")
-  .option("--prefix <text>", "Leading context for the anchor quote")
-  .option("--suffix <text>", "Trailing context for the anchor quote")
-  .option("--chat", "Start a private Chat instead of a public Thread — never committed to git")
-  .option("--agent <name>", "Write as this named agent rather than as yourself")
-  .option("--root <dir>", "Project root directory (default: cwd)")
-  .action(async (options: CommentOptions) => {
-    try {
-      await commentCreate({
-        page: options.page ?? ".",
-        body: options.body ?? "",
-        anchor: options.anchor,
-        prefix: options.prefix,
-        suffix: options.suffix,
-        chat: options.chat ?? false,
-        agent: options.agent,
-        root: options.root,
-      });
-    } catch (err) {
-      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
-      process.exit(1);
-    }
-  });
-
-cli
-  .command("comments", "List Conversations on a local Page")
-  .option("--page <path>", "Page path (relative to project root)", { default: "." })
-  .option("--root <dir>", "Project root directory (default: cwd)")
-  .option("--json", "Output as JSON")
-  .action(async (options: CommentsOptions) => {
-    try {
-      await commentList({
-        page: options.page ?? ".",
-        root: options.root,
-        json: options.json ?? false,
-      });
-    } catch (err) {
-      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
-      process.exit(1);
-    }
-  });
-
-// The rest of the Conversation verb set (ADR-0032), at parity with what the
-// browser can do (ADR-0021) — this is how an agent resolves, reacts, edits and
-// deletes. Every one is an event appended to the Sidecar; nothing rewrites or
-// removes a document, including the deletes, which leave tombstones.
+// The Conversation verb set (ADR-0018, ADR-0019, ADR-0021, ADR-0032): comment,
+// reply, react, resolve, reopen, edit, delete, promote, and the two listings.
 //
-// Each names both ids because the Sidecar is keyed by Conversation, one file per
-// aggregate. `scholia comments --json` prints both.
-function registerConversationCommands(cli: CAC): void {
-  // One shape for every command below: report what happened, or fail with the
-  // reason `core` gave — which is written to be read by whoever ran it.
-  const run = async (action: () => Promise<void>) => {
+// Every one of them is rendered from the application layer's registry, which
+// `scholia mcp` renders too — so a verb exists on both surfaces or on neither.
+// They default to the Sidecar in the tree you are standing in: no server, no
+// token, no network. `--server` points the same command at a hosted Site.
+registerVerbCommands(cli);
+
+// MCP as a subcommand rather than a second package (ADR-0021): the CLI is
+// already the install. stdio by default, streamable HTTP for the clients that
+// cannot spawn a process.
+cli
+  .command("mcp", "Serve the same verbs over MCP (stdio, or --http for streamable HTTP)")
+  .option("--http [port]", "Serve streamable HTTP on this port instead of stdio", {
+    default: false,
+  })
+  .option("--root <dir>", "Project root directory (default: cwd)")
+  .option("--server <url>", "Serve a hosted Site rather than the local Sidecar")
+  .option("--site <slug>", "Hosted Site slug (defaults to the newest stored credential)")
+  .option("--token <token>", "Hosted Site token (defaults to SCHOLIA_TOKEN or the credential)")
+  .option("--viewer <id>", "Acting Viewer id, for hosted verbs that check ownership")
+  .action(async (options: McpCliOptions) => {
     try {
-      await action();
+      const http =
+        options.http === false || options.http === undefined
+          ? undefined
+          : Number(options.http === true ? DEFAULT_MCP_PORT : options.http);
+      if (http !== undefined && !Number.isInteger(http)) {
+        throw new Error(`invalid --http ${String(options.http)} — expected a port number`);
+      }
+      await serveMcp(
+        {
+          ...(http === undefined ? {} : { http }),
+          root: options.root,
+          server: options.server,
+          site: options.site,
+          token: options.token,
+          viewer: options.viewer,
+        },
+        version,
+      );
     } catch (err) {
-      console.error(`[scholia] ${err instanceof Error ? err.message : String(err)}`);
+      // stdout belongs to the protocol, so a startup failure goes to stderr.
+      process.stderr.write(`[scholia] ${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);
     }
-  };
-
-  const required = (value: string | undefined, flag: string): string => {
-    if (!value) throw new Error(`${flag} is required`);
-    return value;
-  };
-
-  // Reply — the verb an agent needs to join a Conversation someone else started,
-  // and the one that makes a Chat a conversation rather than a note. It names no
-  // visibility: the event goes wherever its Conversation already is, so a reply
-  // to a Chat cannot land anywhere shareable (ADR-0019).
-  cli
-    .command("reply", "Add a Comment to an existing local Conversation or Chat")
-    .option("--conversation <id>", "Conversation id")
-    .option("--body <text>", "The comment body")
-    .option("--agent <name>", "Write as this named agent rather than as yourself")
-    .option("--root <dir>", "Project root directory (default: cwd)")
-    .action((options: ReplyCliOptions) =>
-      run(() =>
-        commentReply({
-          conversation: required(options.conversation, "--conversation"),
-          body: required(options.body, "--body"),
-          agent: options.agent,
-          root: options.root,
-        }),
-      ),
-    );
-
-  // Promotion (CONTEXT "Promotion"). No `--agent`: choosing what the team gets
-  // to read is the human's call, not their agent's.
-  cli
-    .command("promote", "Write a Chat's chosen messages into a new public Thread")
-    .option("--conversation <id>", "The Chat's id")
-    .option("--comment <id>", "A Comment to make public (repeat for several)")
-    .option("--summary <text>", "A closing note added to the new Thread")
-    .option("--root <dir>", "Project root directory (default: cwd)")
-    .action((options: PromoteCliOptions) =>
-      run(() =>
-        conversationPromote({
-          conversation: required(options.conversation, "--conversation"),
-          // cac hands back a bare string for one `--comment` and an array for
-          // several, so both shapes have to arrive as a list.
-          comments:
-            options.comment === undefined
-              ? []
-              : Array.isArray(options.comment)
-                ? options.comment
-                : [options.comment],
-          summary: options.summary,
-          root: options.root,
-        }),
-      ),
-    );
-
-  for (const [name, resolved] of [
-    ["resolve", true],
-    ["reopen", false],
-  ] as const) {
-    cli
-      .command(name, `Mark a local Conversation as ${resolved ? "resolved" : "reopened"}`)
-      .option("--conversation <id>", "Conversation id")
-      .option("--agent <name>", "Act as this named agent rather than as yourself")
-      .option("--root <dir>", "Project root directory (default: cwd)")
-      .action((options: ConversationOptions) =>
-        run(() =>
-          conversationResolve(
-            {
-              conversation: required(options.conversation, "--conversation"),
-              agent: options.agent,
-              root: options.root,
-            },
-            resolved,
-          ),
-        ),
-      );
-  }
-
-  cli
-    .command("react", "Add or remove a Reaction on a local Comment")
-    .option("--conversation <id>", "Conversation id")
-    .option("--comment <id>", "Comment id")
-    .option("--emoji <emoji>", "One of 👍 👎 ✅ 👀 🎉 ❤️")
-    .option("--remove", "Take the reaction back instead of adding it")
-    .option("--agent <name>", "React as this named agent rather than as yourself")
-    .option("--root <dir>", "Project root directory (default: cwd)")
-    .action((options: ReactCliOptions) =>
-      run(() =>
-        commentReact({
-          conversation: required(options.conversation, "--conversation"),
-          comment: required(options.comment, "--comment"),
-          emoji: required(options.emoji, "--emoji"),
-          remove: options.remove ?? false,
-          agent: options.agent,
-          root: options.root,
-        }),
-      ),
-    );
-
-  cli
-    .command("edit-comment", "Rewrite your own Comment (the original stays in the stream)")
-    .option("--conversation <id>", "Conversation id")
-    .option("--comment <id>", "Comment id")
-    .option("--body <text>", "The new comment body")
-    .option("--agent <name>", "Act as this named agent rather than as yourself")
-    .option("--root <dir>", "Project root directory (default: cwd)")
-    .action((options: CommentTargetOptions) =>
-      run(() =>
-        commentEdit({
-          conversation: required(options.conversation, "--conversation"),
-          comment: required(options.comment, "--comment"),
-          body: required(options.body, "--body"),
-          agent: options.agent,
-          root: options.root,
-        }),
-      ),
-    );
-
-  cli
-    .command("delete-comment", "Leave a tombstone over a Comment")
-    .option("--conversation <id>", "Conversation id")
-    .option("--comment <id>", "Comment id")
-    .option("--agent <name>", "Act as this named agent rather than as yourself")
-    .option("--root <dir>", "Project root directory (default: cwd)")
-    .action((options: CommentTargetOptions) =>
-      run(() =>
-        commentDelete({
-          conversation: required(options.conversation, "--conversation"),
-          comment: required(options.comment, "--comment"),
-          agent: options.agent,
-          root: options.root,
-        }),
-      ),
-    );
-
-  cli
-    .command("delete-conversation", "Leave a tombstone over a whole Conversation")
-    .option("--conversation <id>", "Conversation id")
-    .option("--agent <name>", "Act as this named agent rather than as yourself")
-    .option("--root <dir>", "Project root directory (default: cwd)")
-    .action((options: ConversationOptions) =>
-      run(() =>
-        conversationDelete({
-          conversation: required(options.conversation, "--conversation"),
-          agent: options.agent,
-          root: options.root,
-        }),
-      ),
-    );
-}
-
-registerConversationCommands(cli);
+  });
 
 // The team workflow, in one command (ADR-0018). Conversations are untracked by
 // default — a repository shared with people who have never heard of Scholia

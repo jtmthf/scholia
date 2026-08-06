@@ -52,6 +52,11 @@ export interface ConversationRepository {
    * "already gone" from "never existed". Null when nothing carries that id.
    */
   getConversation(conversationId: string): Promise<Conversation | null>;
-  /** List the Conversations attached to the given Page path. */
-  listConversations(pagePath: string): Promise<Conversation[]>;
+  /**
+   * The Conversations attached to the given Page path, or — when no path is
+   * given — every Conversation the store holds. Agents ask the second question
+   * ("what is outstanding anywhere?") as often as the first, and a store that
+   * could only answer per-Page would make that N calls (ADR-0021).
+   */
+  listConversations(pagePath?: string): Promise<Conversation[]>;
 }
