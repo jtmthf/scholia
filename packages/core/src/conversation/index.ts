@@ -28,7 +28,7 @@ export { foldConversation } from "./fold.js";
 
 export { createConversation, type CreateConversationParams } from "./create.js";
 export { appendComment, type AppendCommentParams } from "./append.js";
-export { listConversations } from "./list.js";
+export { listConversations, type ConversationFilter } from "./list.js";
 export { editComment, type EditCommentParams } from "./edit.js";
 export {
   deleteComment,

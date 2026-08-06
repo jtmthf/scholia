@@ -118,6 +118,21 @@ export interface DeleteCommentOptions {
   commentId: string;
 }
 
+export interface EditCommentOptions {
+  commentId: string;
+  body: string;
+  /** The Viewer the Comment must belong to — the server checks authorship. */
+  viewerId: string;
+}
+
+export interface PromoteOptions {
+  conversationId: string;
+  commentIds: string[];
+  summary?: string;
+  /** The Viewer that owns the Chat. Omitted when a viewer-scoped token says so. */
+  viewerId?: string;
+}
+
 export interface DiffOptions {
   from: number;
   to?: number;
@@ -439,6 +454,47 @@ export class ScholiaClient {
       throw new Error(
         `DELETE /sites/${slug}/comments/${opts.commentId} failed (${res.status}): ${await res.text()}`,
       );
+  }
+
+  // PATCH /sites/:slug/comments/:id — rewrite your own Comment. The server
+  // checks authorship against the Viewer, so this one needs a viewer identity
+  // rather than just a token (unlike delete, which is owner-level).
+  async editComment(opts: EditCommentOptions): Promise<unknown> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(`${this.server}/sites/${slug}/comments/${opts.commentId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify({ body: opts.body, viewerId: opts.viewerId }),
+    });
+    if (!res.ok)
+      throw new Error(
+        `PATCH /sites/${slug}/comments/${opts.commentId} failed (${res.status}): ${await res.text()}`,
+      );
+    return res.json();
+  }
+
+  // POST /sites/:slug/conversations/:id/promote — write a Chat's chosen
+  // messages into a new public Thread (CONTEXT "Promotion"). Owning viewer
+  // only: an owner token is refused, because owners do not have Chats.
+  async promote(opts: PromoteOptions): Promise<unknown> {
+    const slug = this.requireSlug();
+    const res = await this.apiFetch(
+      `${this.server}/sites/${slug}/conversations/${opts.conversationId}/promote`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({
+          commentIds: opts.commentIds,
+          summary: opts.summary,
+          viewerId: opts.viewerId,
+        }),
+      },
+    );
+    if (!res.ok)
+      throw new Error(
+        `POST /sites/${slug}/conversations/${opts.conversationId}/promote failed (${res.status}): ${await res.text()}`,
+      );
+    return res.json();
   }
 
   // GET /sites/:slug/versions — all versions, newest first.

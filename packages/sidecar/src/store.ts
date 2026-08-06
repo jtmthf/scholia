@@ -249,7 +249,7 @@ export class SidecarStore implements ConversationRepository {
     return parseStream(raw, found.visibility);
   }
 
-  async listConversations(pagePath: string): Promise<Conversation[]> {
+  async listConversations(pagePath?: string): Promise<Conversation[]> {
     await ensureSidecarLayout(this.rootDir);
 
     const conversations: Conversation[] = [];
@@ -267,8 +267,10 @@ export class SidecarStore implements ConversationRepository {
         const raw = await readFile(join(dir, entry), "utf8").catch(() => null);
         if (raw === null) continue;
         const conversation = parseStream(raw, visibility);
-        // Filter by page — a Conversation is on exactly one Page (CONTEXT "Page").
-        if (!conversation || conversation.header.page !== pagePath) continue;
+        // Filter by page — a Conversation is on exactly one Page (CONTEXT
+        // "Page"). No path asked for means every Page.
+        if (!conversation) continue;
+        if (pagePath !== undefined && conversation.header.page !== pagePath) continue;
 
         conversations.push(conversation);
       }

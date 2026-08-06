@@ -97,8 +97,12 @@ export function stubRepo(): StubRepo {
       return Promise.resolve(stream ? fold(stream) : null);
     }),
     listConversations: vi.fn(
-      (pagePath: string): Promise<Conversation[]> =>
-        Promise.resolve([...streams.values()].filter((s) => s.header.page === pagePath).map(fold)),
+      (pagePath?: string): Promise<Conversation[]> =>
+        Promise.resolve(
+          [...streams.values()]
+            .filter((s) => pagePath === undefined || s.header.page === pagePath)
+            .map(fold),
+        ),
     ),
   };
 

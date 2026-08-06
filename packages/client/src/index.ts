@@ -27,7 +27,12 @@ export {
   type ReactOptions,
   type ResolveOptions,
   type DeleteCommentOptions,
+  type EditCommentOptions,
+  type PromoteOptions,
   type DiffOptions,
   type SiteState,
   type TokenSummary,
 } from "./client.js";
+// The remote target for the agent verb set: the same application interface,
+// over HTTP (ADR-0020).
+export { createRemoteApi, type RemoteApiOptions } from "./remote-api.js";

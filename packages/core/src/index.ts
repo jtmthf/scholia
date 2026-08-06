@@ -81,3 +81,7 @@ export * from "./mirror/index.js";
 // ConversationRepository port, domain types, createConversation and
 // listConversations use cases. Pure domain — no HTTP, no db.
 export * from "./conversation/index.js";
+
+// The application layer's command and query set (ADR-0020) and the verb
+// registry every inbound adapter renders (ADR-0021).
+export * from "./app/index.js";
