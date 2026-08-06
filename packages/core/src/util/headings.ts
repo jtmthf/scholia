@@ -1,5 +1,6 @@
 import GithubSlugger from "github-slugger";
 import type { Heading } from "../types.js";
+import { guardRegexInput } from "./safe-regex.js";
 
 // Strip the common inline markdown markers so a heading's slug matches the text
 // content rehype-slug sees after parsing (e.g. "Use `foo`" -> "Use foo").
@@ -19,6 +20,10 @@ function stripInline(s: string): string {
 // document, walked in document order, mirrors rehype-slug's de-duplication.
 // Fenced code blocks are skipped so `# comment` lines inside ``` are ignored.
 export function extractHeadings(markdown: string): Heading[] {
+  // Input-length guard: a single Page's markdown should never exceed 500 KB.
+  // The guard prevents a maliciously large document from tying up the regex
+  // engine during line-by-line heading extraction.
+  guardRegexInput(markdown, 500_000);
   const slugger = new GithubSlugger();
   const headings: Heading[] = [];
   let fence: string | null = null;

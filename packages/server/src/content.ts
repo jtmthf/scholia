@@ -1,4 +1,4 @@
-import { escapeHtml } from "@scholia/core";
+import { escapeHtml, guardRegexInput } from "@scholia/core";
 import { iframeBridgeScript } from "@scholia/bridge";
 
 // Styles for the content document served into the sandboxed iframe. A trimmed
@@ -98,6 +98,8 @@ export function renderContentDocument(fragmentHtml: string, title: string): stri
 // script. parse5's serialized output is always a full document, so the
 // `</head>`/`</body>` anchors exist; the fallbacks cover hand-rolled fragments.
 export function prepareHtmlDocument(servedHtml: string): string {
+  // Input-length guard: a single HTML Page's served document should not exceed 1 MB.
+  guardRegexInput(servedHtml, 1_000_000);
   let html = servedHtml;
   const meta = `<meta name="robots" content="noindex" />`;
   const script = `<script>${iframeBridgeScript()}</script>`;

@@ -291,8 +291,16 @@ function escapeRegExp(value: string): string {
 
 // Escape first, then wrap query-term occurrences in <mark>.
 function highlight(text: string, query: string): string {
-  const escaped = escapeHtml(text);
+  // Guard: limit the number of search terms (prevents an overly large regex
+  // alternation from a crafted query) and the text length (prevents a
+  // maliciously large DOM text node from tying up the regex engine).
+  // Check raw text length before escaping — escaping can expand the string
+  // (~5× worst-case for &-heavy content), so we guard on the pre-escape
+  // length to avoid spurious degrades on legitimate search results.
   const terms = query.trim().split(/\s+/).filter(Boolean).map(escapeRegExp);
+  if (terms.length > 100) return escapeHtml(text);
+  if (text.length > 500_000) return escapeHtml(text);
+  const escaped = escapeHtml(text);
   if (terms.length === 0) return escaped;
   return escaped.replace(new RegExp(`(${terms.join("|")})`, "gi"), "<mark>$1</mark>");
 }
