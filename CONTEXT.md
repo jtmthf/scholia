@@ -73,7 +73,7 @@ _Avoid_: DM, private comment, assistant session
 A **Public** Conversation, visible to everyone with the Share URL. The default for review comments.
 
 **Promotion**:
-Flipping a Chat to a Thread (private → public). The promoting human selects which messages become public (a summary or chosen messages), rather than dumping the raw Chat transcript.
+Deriving a public Thread from a Chat. The promoting human selects which messages become public (chosen messages, or a summary), rather than dumping the raw transcript. What becomes of the Chat afterwards depends on where it lives: hosted, a Conversation's visibility is its own and can change, so the Chat becomes the Thread; locally a Chat is private by never leaving the machine, and there is nothing to flip — the Thread is written beside it and the Chat stays private and in place. A Promotion is recorded at both ends regardless: the Chat carries what it published and where, and the Thread names the Chat it came from. Promoting the same messages a second time is refused rather than duplicated; promoting a _different_ selection is a further Promotion, not a duplicate.
 _Avoid_: publish, share (verb), expose
 
 **Comment**:

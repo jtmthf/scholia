@@ -10,6 +10,10 @@ Conversations) on the delivery side, and is scoped by
 and [ADR-0030](./0030-shared-comment-layer-as-its-own-package.md). Does **not** settle the
 question [ADR-0029](./0029-local-preview-content-origin-on-a-localhost-subdomain.md) opens.
 
+Amended twice since — see [Amendments](#amendments). Hoisted stylesheets are now scoped to
+the article, and [ADR-0034](./0034-local-preview-writes-without-javascript.md) replaces the
+reasoning behind the inert SSR port.
+
 ## Context & Decision
 
 Issue #28 makes Local Preview the comment surface: select text, write a comment, and it
@@ -37,6 +41,9 @@ acceptable _here specifically_, because local content is the reader's own — AD
 makes Local Preview the surface that executes MDX, which is a strictly larger grant than
 running a script the reader wrote in a file they opened.
 
+_(Amended: the styling half of that grant was narrowed — see [Amendments](#amendments).
+Scripts still run in the chrome's document.)_
+
 Issue #28 says isolation is deliberately not settled by it, and this ADR does not settle it.
 ADR-0029 decided Local Preview _should_ have a genuine cross-origin content origin at
 `content.localhost`, probed at runtime; that work is not done, and when it is, this decision
@@ -60,7 +67,8 @@ absent rather than hidden.
 Two consequences fall out and are load-bearing:
 
 - **A reader with JavaScript disabled still sees every Conversation on the Page.** That is
-  the test that keeps this honest, and it is in the e2e suite.
+  the test that keeps this honest, and it is in the e2e suite. _(Amended: they can now act
+  on them too — [ADR-0034](./0034-local-preview-writes-without-javascript.md).)_
 - **The Comment's binding is captured server-side, at render.** The Page's content hash is
   computed when the Page is rendered and written onto the article element; the client hands
   it back on submit rather than the server re-reading the file. A Comment therefore binds to
@@ -117,3 +125,41 @@ those remain absent from the local rail and unchanged in the hosted viewer.
   Local Preview's dark mode is a class the reader toggles rather than a media query — so the
   layer's own `prefers-color-scheme` block does not fire, and the values it would have set
   are restated under `html.dark`. Issue #75 is where that contract gets a shared source.
+
+## Amendments
+
+### Hoisted stylesheets are scoped to the article
+
+QA against 0.2 found that the accepted cost above is worse in degree than it is in kind. An
+HTML Page carrying `body { font-family: system-ui; max-width: 40rem }` — ordinary output
+from Pandoc, an exported Notion page, a design spec — hoisted verbatim and collapsed the
+chrome's own `<body>` to a 640px column, two-thirds of the viewport blank and the editorial
+typography gone. This ADR accepted that an HTML Page **can restyle the chrome**. It did not
+intend that opening a file can make the application unusable.
+
+Hoisted rules are therefore rewritten into `@scope (article) { … }` — or an equivalent
+selector-prefixing pass where `@scope` is unavailable — so a Page's styling reaches its own
+content and stops there.
+
+This narrows the grant without reversing the reasoning that made it. The same-origin frame
+was rejected for giving Local Preview two content surfaces and therefore two of everything
+that touches content: two selection paths, two highlight paths, two live-reload paths, a
+second Outline and scrollspy. A rewrite pass over hoisted CSS builds none of those. Real
+isolation — scripts included, which still run in the chrome's document — remains ADR-0029's
+job and is untouched here.
+
+The cost of the narrowing, stated as plainly as the one it replaces: an HTML Page's `body`
+and `html` rules now land on the article element, which is not the same box. A Page that
+leans on `body { margin: … }` for its outer spacing reads differently inside Local Preview
+than it does standalone. That is a smaller and more local surprise than the chrome
+collapsing.
+
+### The inert SSR port is replaced by a working one
+
+The reasoning above — controls rendered but rejecting, because a control the server left
+out would have to appear at hydration — is superseded by
+[ADR-0034](./0034-local-preview-writes-without-javascript.md). The constraint it was
+protecting stands: the island's first render is still identical to the server's output, and
+the rail still does not change shape under the reader. What changed is that the server's
+output is now honest — the controls are backed by form posts and work before any JavaScript
+runs, rather than keeping their shape by rejecting.
