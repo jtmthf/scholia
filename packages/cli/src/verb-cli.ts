@@ -11,6 +11,8 @@ import type { CAC } from "cac";
 import {
   toFlagName,
   VERBS,
+  verbPositionals,
+  verbSignature,
   type ConversationApi,
   type Verb,
   type VerbInput,
@@ -21,26 +23,6 @@ import { resolveTarget, type TargetOptions } from "./target.js";
 /** The flags every verb carries: which application, and how to print. */
 interface CommonOptions extends TargetOptions {
   json?: boolean;
-}
-
-/** Positional params in signature order — `[conversation] [body]`. */
-function positionals(verb: Verb): VerbParam[] {
-  return verb.params
-    .filter((param) => param.cli?.positional !== undefined)
-    .sort((a, b) => (a.cli!.positional ?? 0) - (b.cli!.positional ?? 0));
-}
-
-/**
- * The cac command signature.
- *
- * Every positional is optional in cac's sense even when the verb requires it:
- * the same value may arrive as `--conversation`, and a missing required param
- * should be reported by the verb ("--conversation is required") rather than by
- * cac's own arity check, which cannot know that.
- */
-function signature(verb: Verb): string {
-  const args = positionals(verb).map((param) => `[${param.name}]`);
-  return [verb.command, ...args].join(" ");
 }
 
 function help(param: VerbParam): string {
@@ -67,7 +49,7 @@ function flag(param: VerbParam): string {
  */
 function collectInput(verb: Verb, args: unknown[], options: Record<string, unknown>): VerbInput {
   const input: VerbInput = { ...options };
-  positionals(verb).forEach((param, index) => {
+  verbPositionals(verb).forEach((param, index) => {
     const value = args[index];
     if (value !== undefined && value !== null && value !== "") input[param.name] = value;
   });
@@ -96,7 +78,11 @@ async function runVerb(
  */
 export function registerVerbCommands(cli: CAC, api?: ConversationApi): void {
   for (const verb of VERBS) {
-    const command = cli.command(signature(verb), verb.summary);
+    // Every positional is optional in cac's sense even when the verb requires
+    // it: the same value may arrive as `--conversation`, and a missing required
+    // param should be reported by the verb ("--conversation is required")
+    // rather than by cac's own arity check, which cannot know that.
+    const command = cli.command(verbSignature(verb), verb.summary);
 
     for (const param of verb.params) command.option(flag(param), help(param));
 
