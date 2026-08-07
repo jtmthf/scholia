@@ -834,6 +834,7 @@ export async function createConversation(
     if (input.mirror) {
       await tx.insert(commentMirrors).values({
         commentId: firstComment!.id,
+        siteId: input.siteId,
         provider: input.mirror.provider,
         externalId: input.mirror.externalId,
         externalUrl: input.mirror.externalUrl,
@@ -1610,6 +1611,19 @@ export interface PendingMirrorRow extends MirrorRow {
   attempts: number;
 }
 
+// Resolve the siteId for a comment by joining through comments → conversations.
+// Used by touchMirrorRow to populate the denormalised site_id column when the
+// caller doesn't already have it.
+export async function resolveCommentSiteId(db: Db, commentId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ siteId: conversations.siteId })
+    .from(comments)
+    .innerJoin(conversations, eq(comments.conversationId, conversations.id))
+    .where(eq(comments.id, commentId))
+    .limit(1);
+  return row?.siteId ?? null;
+}
+
 // Upsert a mirror row. Used by:
 //  - emit (status="pending") when an outbound event is first scheduled;
 //  - dispatch success (status="synced", externalId/url set, lastSyncedAt=now);
@@ -1627,10 +1641,13 @@ export async function touchMirrorRow(
     payload?: unknown;
   },
 ): Promise<void> {
+  const siteId = await resolveCommentSiteId(db, input.commentId);
+  if (!siteId) throw new Error(`Cannot resolve site_id for comment ${input.commentId}`);
   await db
     .insert(commentMirrors)
     .values({
       commentId: input.commentId,
+      siteId,
       provider: input.provider,
       externalId: input.externalId,
       externalUrl: input.externalUrl ?? null,
@@ -1730,26 +1747,38 @@ export async function pendingMirrorRows(db: Db, provider: string): Promise<Pendi
   }));
 }
 
-// Inbound dedup: a `comment_mirrors` row keyed by `external_id` (provider + id).
+// Inbound dedup: a `comment_mirrors` row keyed by (`site_id`, `provider`, `external_id`).
 // Used by the importer to skip a duplicate inbound review comment (the echo loop).
+// Scoped per-site so the same external comment can be imported for each PR-backed Site
+// independently (issue #40).
 export async function mirrorExistsByExternal(
   db: Db,
+  siteId: string,
   provider: string,
   externalId: string,
 ): Promise<boolean> {
   const [row] = await db
     .select({ commentId: commentMirrors.commentId })
     .from(commentMirrors)
-    .where(and(eq(commentMirrors.provider, provider), eq(commentMirrors.externalId, externalId)))
+    .where(
+      and(
+        eq(commentMirrors.siteId, siteId),
+        eq(commentMirrors.provider, provider),
+        eq(commentMirrors.externalId, externalId),
+      ),
+    )
     .limit(1);
   return row !== undefined;
 }
 
 // Resolve the (commentId, conversationId, commentOrigin) for an externally-known
-// GitHub comment — the importer uses this on `deleted` to decide between tombstone
-// (origin="github") and detach (origin="scholia" — respect the external delete).
+// GitHub comment within a given Site — the importer uses this on `deleted` to
+// decide between tombstone (origin="github") and detach (origin="scholia" —
+// respect the external delete). Scoped per-site for per-Site mirror uniqueness
+// (issue #40).
 export async function getMirrorWithOrigins(
   db: Db,
+  siteId: string,
   provider: string,
   externalId: string,
 ): Promise<{
@@ -1765,7 +1794,13 @@ export async function getMirrorWithOrigins(
     })
     .from(commentMirrors)
     .innerJoin(comments, eq(commentMirrors.commentId, comments.id))
-    .where(and(eq(commentMirrors.provider, provider), eq(commentMirrors.externalId, externalId)))
+    .where(
+      and(
+        eq(commentMirrors.siteId, siteId),
+        eq(commentMirrors.provider, provider),
+        eq(commentMirrors.externalId, externalId),
+      ),
+    )
     .limit(1);
   if (!row) return null;
   return {

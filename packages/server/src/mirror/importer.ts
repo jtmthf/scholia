@@ -120,19 +120,16 @@ async function importCreatedComment(
   // its comment_mirrors row hasn't been marked synced yet (see ImporterDeps.botLogin).
   if (deps.botLogin && event.author.login === deps.botLogin) return false;
 
-  // Fast-path dedup check — skips the common case cheaply. Not sufficient alone:
-  // a concurrent import of the same external id (webhook delivery racing the
-  // reconcile poll, or a webhook retry) would both pass this check. The real
-  // guard is the atomic insert below, backed by the DB's unique
-  // (provider, external_id) index — see CreateConversationInput.mirror.
-  if (await mirrorExistsByExternal(deps.db, "github", event.externalId)) return false;
-
   // Find the PR-backed Site(s) for this repo + prNumber.
   const sites = await findPRBackedSites(deps.db, event.repo, event.prNumber);
   if (sites.length === 0) return false;
 
   let created = false;
   for (const site of sites) {
+    // Per-site dedup check: the same external comment may be imported independently
+    // for each PR-backed Site (issue #40). The real guard is the atomic insert
+    // below, backed by the DB's unique (site_id, provider, external_id) index.
+    if (await mirrorExistsByExternal(deps.db, site.id, "github", event.externalId)) continue;
     // Get the latest Version to bind the comment to.
     const latest = await getLatestVersionId(deps.db, site.id);
     if (!latest) continue;
@@ -186,11 +183,14 @@ async function importCreatedComment(
   return created;
 }
 
-// Detect the comment_mirrors (provider, external_id) unique-violation specifically,
-// so an unrelated DB error during import isn't silently swallowed as a dedup no-op.
+// Detect the comment_mirrors (site_id, provider, external_id) unique-violation
+// specifically, so an unrelated DB error during import isn't silently swallowed
+// as a dedup no-op.
 function isExternalIdConflict(err: unknown): boolean {
   const pgErr = err as { code?: string; constraint_name?: string } | null;
-  return pgErr?.code === "23505" && pgErr.constraint_name === "comment_mirrors_external_id_idx";
+  return (
+    pgErr?.code === "23505" && pgErr.constraint_name === "comment_mirrors_site_external_id_idx"
+  );
 }
 
 // ---- thread_resolved (native GitHub resolve/unresolve) ----
@@ -206,25 +206,32 @@ async function importThreadResolved(
   event: Extract<InboundEvent, { kind: "thread_resolved" }>,
   deps: ImporterDeps,
 ): Promise<boolean> {
-  const mirror = await getMirrorWithOrigins(deps.db, "github", event.externalId);
-  if (!mirror) return false; // unknown comment — no Conversation to resolve
+  // Fan the resolve/unresolve out to every PR-backed Site that imported this
+  // comment (per-site mirror uniqueness, issue #40).
+  const sites = await findPRBackedSites(deps.db, event.repo, event.prNumber);
+  let changed = false;
+  for (const site of sites) {
+    const mirror = await getMirrorWithOrigins(deps.db, site.id, "github", event.externalId);
+    if (!mirror) continue;
 
-  const [conv] = await deps.db
-    .select({ resolvedAt: schema.conversations.resolvedAt })
-    .from(schema.conversations)
-    .where(eq(schema.conversations.id, mirror.conversationId))
-    .limit(1);
-  if (!conv) return false;
+    const [conv] = await deps.db
+      .select({ resolvedAt: schema.conversations.resolvedAt })
+      .from(schema.conversations)
+      .where(eq(schema.conversations.id, mirror.conversationId))
+      .limit(1);
+    if (!conv) continue;
 
-  const currentlyResolved = conv.resolvedAt !== null;
-  if (currentlyResolved === event.resolved) return false; // already in sync
+    const currentlyResolved = conv.resolvedAt !== null;
+    if (currentlyResolved === event.resolved) continue; // already in sync
 
-  await setResolved(deps.db, {
-    conversationId: mirror.conversationId,
-    resolved: event.resolved,
-    resolvedBy: event.resolvedBy,
-  });
-  return true;
+    await setResolved(deps.db, {
+      conversationId: mirror.conversationId,
+      resolved: event.resolved,
+      resolvedBy: event.resolvedBy,
+    });
+    changed = true;
+  }
+  return changed;
 }
 
 // ---- shared: handle a deleted GitHub comment ----
@@ -235,19 +242,22 @@ async function handleDeleted(
   externalId: string,
   deps: ImporterDeps,
 ): Promise<boolean> {
-  // Look up the mirror row to determine the origin.
-  const mirror = await getMirrorWithOrigins(deps.db, "github", externalId);
-  if (!mirror) return false; // unknown comment — nothing to delete
+  // Fan the deletion out to every PR-backed Site that imported this external
+  // comment (per-site mirror uniqueness, issue #40).
+  const sites = await findPRBackedSites(deps.db, repo, prNumber);
+  let changed = false;
+  for (const site of sites) {
+    const mirror = await getMirrorWithOrigins(deps.db, site.id, "github", externalId);
+    if (!mirror) continue;
 
-  if (mirror.commentOrigin === "github") {
-    // The comment was authored on GitHub → tombstone it in Scholia.
-    await tombstoneComment(deps.db, mirror.commentId);
-  } else {
-    // The comment was authored in Scholia (our bot pushed it) → detach the mirror.
-    // The Scholia comment stays intact; we just stop tracking the external link.
-    await detachMirror(deps.db, { commentId: mirror.commentId, provider: "github" });
+    if (mirror.commentOrigin === "github") {
+      await tombstoneComment(deps.db, mirror.commentId);
+    } else {
+      await detachMirror(deps.db, { commentId: mirror.commentId, provider: "github" });
+    }
+    changed = true;
   }
-  return true;
+  return changed;
 }
 
 // ---- line → Anchor helper ----
