@@ -193,6 +193,9 @@ export const commentMirrors = pgTable(
     commentId: uuid("comment_id")
       .notNull()
       .references(() => comments.id, { onDelete: "cascade" }),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
     provider: text("provider").notNull(),
     externalId: text("external_id").notNull(),
     externalUrl: text("external_url"),
@@ -213,8 +216,10 @@ export const commentMirrors = pgTable(
     // real external id is recorded — this closes the race where a webhook
     // delivery and the reconcile poll (or a webhook retry) both process the same
     // GitHub comment concurrently and would otherwise create two Threads for it.
-    uniqueIndex("comment_mirrors_external_id_idx")
-      .on(t.provider, t.externalId)
+    // Scoped per-site so the same external comment can be imported independently
+    // for each PR-backed Site that matches (issue #40).
+    uniqueIndex("comment_mirrors_site_external_id_idx")
+      .on(t.siteId, t.provider, t.externalId)
       .where(sql`${t.externalId} <> ''`),
   ],
 );
