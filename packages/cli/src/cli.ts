@@ -372,7 +372,10 @@ cli
     }
 
     console.log(`\n  scholia preview — ${isFile ? "file" : "directory"}: ${input}`);
-    console.log(`  ➜  ${server.url}\n`);
+    console.log(`  ➜  ${server.url}`);
+    // What this preview can do, in this preview's own words (issue #35) — the
+    // address to hand an agent, so it reads the docs rather than guessing.
+    console.log(`  agent docs: ${server.url}/__agent-docs\n`);
 
     if (options.open !== false) {
       await open(server.url).catch(() => {

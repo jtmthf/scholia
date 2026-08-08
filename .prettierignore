@@ -9,3 +9,7 @@ CHANGELOG.md
 e2e/fixtures/
 packages/*/test/fixtures/
 packages/*/tests/fixtures/
+
+# Written by `pnpm --filter scholia skill`, byte-compared against the generator
+# by packages/cli/test/skill.test.ts — formatting it would only ever make it stale.
+packages/cli/skills/

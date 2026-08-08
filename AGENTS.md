@@ -109,13 +109,20 @@ ADR-0031:
 
 The CLI and MCP are **both** agent surfaces and neither is primary (ADR-0021). They render
 one command and query set — `packages/core/src/app/verbs.ts`, the application layer of
-ADR-0020 — so adding a verb lights it up on both and drift is unrepresentable. Four rules
+ADR-0020 — so adding a verb lights it up on both and drift is unrepresentable. Five rules
 follow:
 
 - **A verb is declared once**, with the prose an LLM reads and the CLI hints (positional
   order, aliases) that keep the command pleasant to type. `packages/cli/test/parity.test.ts`
   asserts the two surfaces expose the same set, reading the real cac commands and a real
   MCP `tools/list`.
+- **The Agent Docs are generated from that registry**, never written beside it
+  (`packages/core/src/app/docs.ts`): every instance serves its own, so a Local Preview
+  (`/__agent-docs`) documents no accounts and a hosted server (`/agent-docs`) documents its
+  tiers. A verb's `description` must stay true of both targets — anything true of only one
+  goes in its `notes.local` / `notes.hosted`. The packaged copy at
+  `packages/cli/skills/scholia/SKILL.md` is generated too: change the generator, then run
+  `pnpm --filter scholia skill`.
 - **MCP is `scholia mcp`, not a package** — the CLI is already the install. In stdio mode
   **stdout belongs to the protocol**: nothing on that path may `console.log`.
 - **The target is local by default.** `createLocalApi` (`@scholia/sidecar`) invokes the

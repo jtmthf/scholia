@@ -25,7 +25,8 @@
     "scholia": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "type": "module",
   "publishConfig": {
@@ -36,6 +37,7 @@
   "scripts": {
     "start": "tsx src/cli.ts",
     "build": "pnpm --filter @scholia/local build && tsup && node scripts/copy-assets.mjs",
+    "skill": "tsx scripts/write-skill.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

@@ -86,7 +86,7 @@ export function createApp(deps?: InputDeps) {
   app.route("/", contentRoutes(getDeps));
   app.route("/", blobsRoutes(getDeps));
   app.route("/", conversationsRoutes(getDeps));
-  app.route("/", agentDocsRoutes());
+  app.route("/", agentDocsRoutes(getDeps));
   app.route("/", webhooksRoutes(getDeps));
   app.route("/", githubInstallRoutes(getDeps));
   app.route("/", internalRoutes(getDeps));

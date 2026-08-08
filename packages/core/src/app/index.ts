@@ -41,4 +41,22 @@ export {
   type VerbParamType,
 } from "./params.js";
 
-export { findVerb, findVerbByCommand, VERBS, type Verb, type VerbOutcome } from "./verbs.js";
+export {
+  findVerb,
+  findVerbByCommand,
+  VERBS,
+  verbPositionals,
+  verbSignature,
+  type Verb,
+  type VerbOutcome,
+  type VerbTargetNotes,
+  type VerbTier,
+} from "./verbs.js";
+
+// The agent docs an instance serves, rendered from the registry above (#35).
+export {
+  renderAgentDocs,
+  renderAgentDocsHtml,
+  type AgentDocsInstance,
+  type DocsTarget,
+} from "./docs.js";

@@ -593,27 +593,26 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     expect(comments.some((c: any) => c.conversationId === thread.id)).toBe(false);
   });
 
-  // ---- Static docs routes ------------------------------------------------
+  // ---- Agent Docs --------------------------------------------------------
+  // Reachable on the assembled app, with everything else mounted. What they
+  // *say* is asserted against the registry in test/agent-docs.test.ts, which
+  // needs no database.
 
-  test("GET /agent-docs returns 200 HTML with prompt-injection trust framing", async () => {
+  test("GET /agent-docs is public and carries the trust framing", async () => {
     const res = await app.request("/agent-docs");
     expect(res.status).toBe(200);
-    const ct = res.headers.get("content-type") ?? "";
-    expect(ct).toContain("text/html");
+    expect(res.headers.get("content-type") ?? "").toContain("text/html");
     const html = await res.text();
-    expect(html).toContain("Trust");
-    expect(html).toContain("untrusted");
-    expect(html).toContain("Scholia Agent");
+    expect(html).toContain("data, not instructions");
+    expect(html).toContain("Scholia");
   });
 
   test("GET /scholia.SKILL.md returns 200 text/markdown", async () => {
     const res = await app.request("/scholia.SKILL.md");
     expect(res.status).toBe(200);
-    const ct = res.headers.get("content-type") ?? "";
-    expect(ct).toContain("text/markdown");
+    expect(res.headers.get("content-type") ?? "").toContain("text/markdown");
     const md = await res.text();
-    expect(md).toContain("# Scholia Agent Skill");
-    expect(md).toContain("list_comments");
-    expect(md).toContain("Trust Rules");
+    expect(md).toContain("### list_conversations");
+    expect(md).toContain("Trust rules");
   });
 });
