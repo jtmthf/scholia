@@ -24,9 +24,9 @@ describe("Rail", () => {
   it("splits Conversations into Chats, anchored, page-level and Outdated sections", () => {
     const html = render(full);
 
-    expect(html).toContain("🔒 Chats (private) (1)");
+    expect(html).toContain("🔒 Private Chats (1)");
     expect(html).toContain("Anchored (1)");
-    expect(html).toContain("Page comments (1)");
+    expect(html).toContain("Page Comments (1)");
     expect(html).toContain("Outdated (1)");
     // Four Conversations in, four cards out — an Outdated one is moved, not dropped.
     expect(occurrences(html, 'class="thread-card')).toBe(4);
@@ -43,7 +43,7 @@ describe("Rail", () => {
       />,
     );
 
-    expect(html).toContain("No comments yet.");
+    expect(html).toContain("No Comments yet.");
     expect(html).not.toContain("rail-section");
   });
 

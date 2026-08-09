@@ -63,7 +63,7 @@ export function NewsBanner({ site, viewerId }: { site: SiteMeta; viewerId: strin
           {summary.newVersions > 0 && summary.newComments > 0 && " · "}
           {summary.newComments > 0 && (
             <strong>
-              {summary.newComments} new comment{summary.newComments === 1 ? "" : "s"}
+              {summary.newComments} new Comment{summary.newComments === 1 ? "" : "s"}
             </strong>
           )}{" "}
           since your last visit.

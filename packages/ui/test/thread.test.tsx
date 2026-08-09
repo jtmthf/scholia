@@ -31,7 +31,7 @@ describe("ConversationCard", () => {
       />,
     );
 
-    expect(html).toContain(">Page comment<");
+    expect(html).toContain(">Page Comment<");
     expect(html).not.toContain("thread-anchor-label");
   });
 
@@ -67,7 +67,7 @@ describe("ConversationCard", () => {
 
       expect(html).toContain("thread-card--resolved");
       expect(html).toContain("Resolved");
-      expect(html).toContain("2 comments — show");
+      expect(html).toContain("2 Comments — show");
       expect(html).not.toContain("second");
     });
 
@@ -80,7 +80,7 @@ describe("ConversationCard", () => {
         />,
       );
 
-      expect(html).toContain("1 comment — show");
+      expect(html).toContain("1 Comment — show");
     });
   });
 
@@ -163,7 +163,8 @@ describe("Comment", () => {
       stubPort(),
     );
 
-    expect(html).toContain("comment deleted");
+    expect(html).toContain("Comment by Reviewer Jane,");
+    expect(html).toContain("— deleted");
     expect(html).not.toContain("reactions");
     expect(html).not.toContain("comment-actions");
   });

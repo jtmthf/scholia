@@ -81,6 +81,7 @@ export function NewConversationComposer({
               : "Comment on this page"
         }
         placeholder={isPrivate ? "Ask your agent about this passage…" : "Write a comment…"}
+        submitLabel={isPrivate ? "Ask" : "Comment"}
         // git config already answered this (CONTEXT "Identity"), so the reader is
         // never asked to introduce themselves on their own machine.
         needsName={false}
