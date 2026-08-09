@@ -101,6 +101,6 @@ test("page-level comment (no selection) posts to the Page Thread section", async
 
   const card = page.locator(".comment-rail .thread-card");
   await expect(card).toHaveCount(1);
-  await expect(card.locator(".thread-anchor-quote")).toHaveText("Page comment");
+  await expect(card.locator(".thread-anchor-quote")).toHaveText("Page Comment");
   await expect(card.locator(".comment-body")).toHaveText("General feedback on this page.");
 });

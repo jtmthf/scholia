@@ -340,8 +340,8 @@ test("a Page-level comment needs no selection and shows in its own section", asy
   await page.locator(".floating-composer-panel textarea").fill("About this page as a whole.");
   await page.locator(".floating-composer-panel button[type=submit]").click();
 
-  await expect(page.locator(".rail-section-title")).toHaveText("Page comments (1)");
-  await expect(page.locator(".thread-anchor-quote")).toHaveText("Page comment");
+  await expect(page.locator(".rail-section-title")).toHaveText("Page Comments (1)");
+  await expect(page.locator(".thread-anchor-quote")).toHaveText("Page Comment");
 
   await page.reload();
   await expect(page.locator(".comment-rail")).toContainText("About this page as a whole.");
@@ -716,7 +716,7 @@ test("creates a Chat from a selection and holds it in the Chats section", async 
   // The Chat is in the private Chats section, not the public anchored one.
   const chats = page.locator(".rail-section--chats");
   await expect(chats).toBeVisible();
-  await expect(chats.locator(".rail-section-title")).toHaveText("🔒 Chats (private) (1)");
+  await expect(chats.locator(".rail-section-title")).toHaveText("🔒 Private Chats (1)");
   await expect(chats.locator(".thread-card")).toHaveCount(1);
   await expect(chats.locator(".thread-card")).toContainText("Ask my agent about this.");
 

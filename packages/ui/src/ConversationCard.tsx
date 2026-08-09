@@ -19,7 +19,7 @@ interface ConversationCardProps {
   promoteNote?: string;
 }
 
-// One Conversation card: its anchor quote (or "Page comment"), its flat comment
+// One Conversation card: its anchor quote (or "Page Comment"), its flat comment
 // list, a reply composer, and resolve/reopen — identical for a public Thread and a
 // private Chat (all mutations go through the same port methods). A Chat additionally
 // carries a lock affordance and, for its owning reader, a Promote control. Resolved
@@ -114,7 +114,7 @@ export function ConversationCard({
             </span>
           </>
         ) : (
-          <span class="thread-anchor-quote">Page comment</span>
+          <span class="thread-anchor-quote">Page Comment</span>
         )}
         {conversation.resolved && <span class="thread-resolved-badge">Resolved</span>}
       </div>
@@ -127,7 +127,7 @@ export function ConversationCard({
             setExpanded(true);
           }}
         >
-          {conversation.comments.length} comment
+          {conversation.comments.length} Comment
           {conversation.comments.length === 1 ? "" : "s"} — show
         </div>
       ) : (
@@ -146,6 +146,7 @@ export function ConversationCard({
             <div onClick={(e) => e.stopPropagation()}>
               <Composer
                 placeholder="Reply…"
+                submitLabel="Reply"
                 needsName={!viewerName}
                 currentName={viewerName ?? undefined}
                 isSubmitting={submitting}
