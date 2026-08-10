@@ -64,7 +64,7 @@ export function Rail({
   onBringAgent,
   outdatedOrigin,
   outdatedNote = "These Threads no longer match the current text.",
-  emptyNote = "No comments yet. Select text in the page to start a Thread or a private Chat, or comment on the whole page.",
+  emptyNote = "No Comments yet. Select text in the Page to start a Thread or a private Chat, or comment on the whole Page.",
   promoteNote,
   chatsNote = "Visible only to you and your agents.",
 }: RailProps) {
@@ -122,7 +122,7 @@ export function Rail({
 
       {chats.length > 0 && (
         <div class="rail-section rail-section--chats">
-          <h3 class="rail-section-title">🔒 Chats (private) ({chats.length})</h3>
+          <h3 class="rail-section-title">🔒 Private Chats ({chats.length})</h3>
           <p class="rail-chats-note">{chatsNote}</p>
           {chats.map(renderChat)}
         </div>
@@ -137,7 +137,7 @@ export function Rail({
 
       {pageLevel.length > 0 && (
         <div class="rail-section">
-          <h3 class="rail-section-title">Page comments ({pageLevel.length})</h3>
+          <h3 class="rail-section-title">Page Comments ({pageLevel.length})</h3>
           {pageLevel.map(renderConversation)}
         </div>
       )}
@@ -145,7 +145,7 @@ export function Rail({
       {outdated.length > 0 && (
         <div class="rail-section rail-section--outdated">
           <h3 class="rail-section-title">Outdated ({outdated.length})</h3>
-          <p class="rail-outdated-note">{outdatedNote}</p>
+          <p class="rail-outdated-note rail-chats-note">{outdatedNote}</p>
           {outdated.map((c) => {
             const origin = outdatedOrigin?.(c) ?? null;
             return (

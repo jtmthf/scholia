@@ -80,18 +80,123 @@ export {
 // Types
 export type { Heading, NavNode, DocRecord, RenderResult } from "./types.js";
 
-// Content-addressed blob store
-export * from "./blob/index.js";
+export {
+  CONTENT_HASH_ALGO,
+  hashBytes,
+  FsBlobStore,
+  S3BlobStore,
+  isValidHash,
+  shardedKey,
+} from "./blob/index.js";
+export type { BlobRef, BlobStore, PutResult, S3BlobStoreConfig } from "./blob/index.js";
 
 // MirrorProvider port + outbound domain events (M10, ADR-0008). Pure domain
 // shape; @scholia/github is the v1 impl, server is where HTTP + db meet it.
-export * from "./mirror/index.js";
+export { isGitHubMirror } from "./mirror/index.js";
+export type {
+  MirrorIdentity,
+  MirrorProvenance,
+  MirrorBinding,
+  ContentSourceFetch,
+  FetchedFile,
+  FetchResult,
+  MirrorEventBase,
+  CommentMirrorEvent,
+  ResolveMirrorEvent,
+  PromotionMirrorEvent,
+  MirrorEvent,
+  MirrorContext,
+  MirrorTopic,
+  MirrorProvider,
+} from "./mirror/index.js";
 
 // Conversation port + use cases (ADR-0018, ADR-0019, ADR-0020).
 // ConversationRepository port, domain types, createConversation and
 // listConversations use cases. Pure domain — no HTTP, no db.
-export * from "./conversation/index.js";
+export {
+  REACTION_PALETTE,
+  isReactionEmoji,
+  ConversationError,
+  foldConversation,
+  createConversation,
+  appendComment,
+  listConversations,
+  editComment,
+  deleteComment,
+  deleteConversation,
+  setReaction,
+  setResolved,
+  promoteConversation,
+} from "./conversation/index.js";
+export type {
+  ConversationId,
+  CommentId,
+  Visibility,
+  AuthorKind,
+  ConversationHeader,
+  CommentEvent,
+  EditedEvent,
+  DeletedEvent,
+  ReactedEvent,
+  UnreactedEvent,
+  ResolvedEvent,
+  ReopenedEvent,
+  ConversationEvent,
+  Reaction,
+  Comment,
+  Conversation,
+  ConversationRepository,
+  CreateConversationInput,
+  ReactionEmoji,
+  ConversationErrorCode,
+  CreateConversationParams,
+  AppendCommentParams,
+  ConversationFilter,
+  EditCommentParams,
+  DeleteCommentParams,
+  DeleteConversationParams,
+  SetReactionParams,
+  SetResolvedParams,
+  PromoteConversationParams,
+} from "./conversation/index.js";
 
 // The application layer's command and query set (ADR-0020) and the verb
 // registry every inbound adapter renders (ADR-0021).
-export * from "./app/index.js";
+export {
+  toConversationView,
+  bool,
+  list,
+  optStr,
+  readInput,
+  readParam,
+  str,
+  toFlagName,
+  VerbInputError,
+  findVerb,
+  findVerbByCommand,
+  VERBS,
+} from "./app/index.js";
+export type {
+  ActingAs,
+  CommentInput,
+  CommentRefInput,
+  ConversationApi,
+  ConversationRefInput,
+  DeletedResult,
+  EditCommentInput,
+  ListInput,
+  PromoteInput,
+  ReactInput,
+  ReactionResult,
+  ReplyInput,
+  ResolvedResult,
+  CommentView,
+  ConversationView,
+  ReactionView,
+  VerbInput,
+  VerbParam,
+  VerbParamCli,
+  VerbParamType,
+  Verb,
+  VerbOutcome,
+} from "./app/index.js";

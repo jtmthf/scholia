@@ -4,6 +4,14 @@ A zero-config tool for reading markdown and HTML documents and letting humans an
 
 ## Language
 
+**Capitalization in UI copy** (#77): Code and code comments always Capitalize a term
+from this list. UI prose follows a narrower rule so it still reads as English: capitalize
+a term when it names the entity — a specific reference ("the Page", "delete this
+Comment", "a private Chat") or a count/heading ("3 Comments", "Private Chats (3)") — and
+leave it lower-case for an ordinary verb or an indefinite/generic mention ("write a
+comment", "comment on this page"). When a phrase could read either way, match the nearest
+existing precedent rather than re-deriving the call.
+
 **Site**:
 The unit of upload and sharing: a collection of one or more Pages hosted under a single shareable URL. A single uploaded file is the degenerate one-Page Site. A folder/zip becomes a multi-Page Site with a navigable tree and relative links between Pages rewritten to work. Versioning, ownership, and the access gate all live at the Site level.
 _Avoid_: project, doc set, bundle

@@ -58,7 +58,7 @@ export function Comment({ comment }: CommentProps) {
 
   async function handleDelete() {
     if (!port.deleteComment) return;
-    if (!confirm(moderating ? "Delete this comment as the Owner?" : "Delete this comment?")) return;
+    if (!confirm(moderating ? "Delete this Comment as the Owner?" : "Delete this Comment?")) return;
     try {
       await port.deleteComment(comment.id);
     } catch {
@@ -67,9 +67,16 @@ export function Comment({ comment }: CommentProps) {
   }
 
   if (comment.deleted) {
+    // Whoever actually clicked delete isn't tracked (the Owner can moderate
+    // someone else's Comment away, CONTEXT "Owner") — only the original
+    // Comment's author and timestamp survive a tombstone. Naming the author as
+    // who wrote it, not who deleted it, keeps this true in the moderation case.
     return (
       <div class="comment">
-        <span class="comment-tombstone">comment deleted</span>
+        <span class="comment-tombstone">
+          Comment by {comment.author.name},{" "}
+          <span class="comment-timestamp">{formatTime(comment.createdAt)}</span> — deleted
+        </span>
       </div>
     );
   }

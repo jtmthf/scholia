@@ -834,6 +834,7 @@ export async function createConversation(
     if (input.mirror) {
       await tx.insert(commentMirrors).values({
         commentId: firstComment!.id,
+        siteId: input.siteId,
         provider: input.mirror.provider,
         externalId: input.mirror.externalId,
         externalUrl: input.mirror.externalUrl,
@@ -1479,14 +1480,15 @@ export async function listSiteComments(
     isNull(comments.hiddenAt),
   ];
   if (filter.unresolved) conds.push(isNull(conversations.resolvedAt));
-  // `since` is compared against the *emitted* precision, not the stored one.
-  // Postgres keeps `created_at` to the microsecond, but the DTO serializes it to
-  // an ISO string with millisecond precision — so a plain `created_at > since`
-  // re-returns the boundary comment forever when a client pages by feeding the
-  // last `createdAt` it saw back in as `since` (stored .850400 > emitted .850).
-  // Emitted values are floor-truncated, so "strictly after the emitted value"
-  // is exactly "at or after the next whole millisecond" — and unlike
-  // date_trunc() in the predicate, this stays a plain index-friendly range scan.
+  // `since` is compared against the *emitted* precision, not the stored one
+  // (ADR-0035). Postgres keeps `created_at` to the microsecond, but the DTO
+  // serializes it to an ISO string with millisecond precision — so a plain
+  // `created_at > since` re-returns the boundary comment forever when a client
+  // pages by feeding the last `createdAt` it saw back in as `since`
+  // (stored .850400 > emitted .850). Emitted values are floor-truncated, so
+  // "strictly after the emitted value" is exactly "at or after the next whole
+  // millisecond" — and unlike date_trunc() in the predicate, this stays a plain
+  // index-friendly range scan.
   if (filter.since) {
     conds.push(gte(comments.createdAt, new Date(new Date(filter.since).getTime() + 1)));
   }
@@ -1610,6 +1612,19 @@ export interface PendingMirrorRow extends MirrorRow {
   attempts: number;
 }
 
+// Resolve the siteId for a comment by joining through comments → conversations.
+// Used by touchMirrorRow to populate the denormalised site_id column when the
+// caller doesn't already have it.
+export async function resolveCommentSiteId(db: Db, commentId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ siteId: conversations.siteId })
+    .from(comments)
+    .innerJoin(conversations, eq(comments.conversationId, conversations.id))
+    .where(eq(comments.id, commentId))
+    .limit(1);
+  return row?.siteId ?? null;
+}
+
 // Upsert a mirror row. Used by:
 //  - emit (status="pending") when an outbound event is first scheduled;
 //  - dispatch success (status="synced", externalId/url set, lastSyncedAt=now);
@@ -1627,10 +1642,13 @@ export async function touchMirrorRow(
     payload?: unknown;
   },
 ): Promise<void> {
+  const siteId = await resolveCommentSiteId(db, input.commentId);
+  if (!siteId) throw new Error(`Cannot resolve site_id for comment ${input.commentId}`);
   await db
     .insert(commentMirrors)
     .values({
       commentId: input.commentId,
+      siteId,
       provider: input.provider,
       externalId: input.externalId,
       externalUrl: input.externalUrl ?? null,
@@ -1730,26 +1748,38 @@ export async function pendingMirrorRows(db: Db, provider: string): Promise<Pendi
   }));
 }
 
-// Inbound dedup: a `comment_mirrors` row keyed by `external_id` (provider + id).
+// Inbound dedup: a `comment_mirrors` row keyed by (`site_id`, `provider`, `external_id`).
 // Used by the importer to skip a duplicate inbound review comment (the echo loop).
+// Scoped per-site so the same external comment can be imported for each PR-backed Site
+// independently (issue #40).
 export async function mirrorExistsByExternal(
   db: Db,
+  siteId: string,
   provider: string,
   externalId: string,
 ): Promise<boolean> {
   const [row] = await db
     .select({ commentId: commentMirrors.commentId })
     .from(commentMirrors)
-    .where(and(eq(commentMirrors.provider, provider), eq(commentMirrors.externalId, externalId)))
+    .where(
+      and(
+        eq(commentMirrors.siteId, siteId),
+        eq(commentMirrors.provider, provider),
+        eq(commentMirrors.externalId, externalId),
+      ),
+    )
     .limit(1);
   return row !== undefined;
 }
 
 // Resolve the (commentId, conversationId, commentOrigin) for an externally-known
-// GitHub comment — the importer uses this on `deleted` to decide between tombstone
-// (origin="github") and detach (origin="scholia" — respect the external delete).
+// GitHub comment within a given Site — the importer uses this on `deleted` to
+// decide between tombstone (origin="github") and detach (origin="scholia" —
+// respect the external delete). Scoped per-site for per-Site mirror uniqueness
+// (issue #40).
 export async function getMirrorWithOrigins(
   db: Db,
+  siteId: string,
   provider: string,
   externalId: string,
 ): Promise<{
@@ -1765,7 +1795,13 @@ export async function getMirrorWithOrigins(
     })
     .from(commentMirrors)
     .innerJoin(comments, eq(commentMirrors.commentId, comments.id))
-    .where(and(eq(commentMirrors.provider, provider), eq(commentMirrors.externalId, externalId)))
+    .where(
+      and(
+        eq(commentMirrors.siteId, siteId),
+        eq(commentMirrors.provider, provider),
+        eq(commentMirrors.externalId, externalId),
+      ),
+    )
     .limit(1);
   if (!row) return null;
   return {
@@ -1791,7 +1827,8 @@ export async function upsertGitHubInstallation(
       installationId: input.installationId,
       account: input.account ?? null,
       repos: input.repos ?? [],
-      updatedAt: new Date(),
+      // `updatedAt` is left to `defaultNow()` so it is stamped by the database
+      // clock on insert, matching the `sql`now()` update below (ADR-0035).
     })
     .onConflictDoUpdate({
       target: githubInstallations.installationId,
@@ -1929,13 +1966,13 @@ export interface RateLimitHit {
   resetAt: Date;
   /**
    * Milliseconds until `resetAt`, measured against the *Postgres* clock in the
-   * same statement that read `resetAt`. Callers must use this rather than
-   * subtracting `resetAt` from their own `Date.now()`: the app server and the
-   * database are different machines with independently-drifting clocks, so a
-   * cross-clock subtraction leaks the skew into the retry hint (overstating it
-   * when the DB runs ahead, understating it — and inviting an immediate repeat
-   * 429 — when it runs behind). Single-clock, so `0 <= retryAfterMs <= windowMs`
-   * holds by construction.
+   * same statement that read `resetAt` (ADR-0035). Callers must use this rather
+   * than subtracting `resetAt` from their own `Date.now()`: the app server and
+   * the database are different machines with independently-drifting clocks, so
+   * a cross-clock subtraction leaks the skew into the retry hint (overstating
+   * it when the DB runs ahead, understating it — and inviting an immediate
+   * repeat 429 — when it runs behind). Single-clock, so
+   * `0 <= retryAfterMs <= windowMs` holds by construction.
    */
   retryAfterMs: number;
 }

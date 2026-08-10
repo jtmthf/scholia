@@ -77,6 +77,7 @@ export {
   pendingMirrorRows,
   mirrorExistsByExternal,
   getMirrorWithOrigins,
+  resolveCommentSiteId,
   upsertGitHubInstallation,
   findInstallationForRepo,
   getGitHubSiteState,
