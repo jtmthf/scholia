@@ -92,7 +92,7 @@ export class PostgresRateLimiter implements RateLimiter {
     if (count > this.limit) {
       // `retryAfterMs` comes back measured against the Postgres clock. Do not
       // recompute it from `resetAt` and `Date.now()` — that mixes two machines'
-      // clocks and leaks their skew into the hint (see RateLimitHit).
+      // clocks and leaks their skew into the hint (see RateLimitHit, ADR-0035).
       return { ok: false, retryAfterMs };
     }
     return { ok: true };
