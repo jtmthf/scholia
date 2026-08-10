@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run",
-    "test:no-db": "vitest run packages/core packages/cli packages/local packages/sidecar packages/ui packages/bridge packages/github",
+    "test:no-db": "vitest run --project no-db",
     "lint": "oxlint --type-aware",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
