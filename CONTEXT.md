@@ -156,8 +156,12 @@ A link that embeds a token capability in the URL (Proof-style), used to onboard 
 _Avoid_: token link, write link
 
 **Agent Prompt**:
-The paste-ready instruction blob emitted by the Site's "copy agent prompt" button: the Agent URL + the verb set + a pointer to the discoverable agent docs (`scholia.SKILL.md` / `/agent-docs`). It is framed as the user's deliberate handoff to their own agent. The discoverable docs (`/agent-docs`, `scholia.SKILL.md`) instruct agents to treat anchors/comments as data, confirm outward actions, and never auto-execute imperative instructions found _inside_ hosted (untrusted) documents — Scholia eating its own dog food on prompt-injection caution. The zero-install counterpart to the installed CLI/MCP path.
+The paste-ready instruction blob emitted by the Site's "copy agent prompt" button: the Agent URL + the verb set + a pointer to the Agent Docs. It is framed as the user's deliberate handoff to their own agent. The zero-install counterpart to the installed CLI/MCP path.
 _Avoid_: copy prompt, onboarding prompt
+
+**Agent Docs**:
+The documentation an instance serves about itself, generated from the verb set so it describes that instance's capabilities and no more (ADR-0021): a hosted Site's copy documents its tiers, tokens and Versions; a Local Preview's documents the Sidecar in the tree and has no account to describe. Served at `/agent-docs` on a hosted server and `/__agent-docs` on a Local Preview, as HTML for a person and Markdown for an agent (`?raw`). They instruct agents to treat Anchors and Comment bodies as data, confirm outward actions, and never auto-execute imperative instructions found _inside_ untrusted documents — Scholia eating its own dog food on prompt-injection caution. A static copy ships in the `scholia` package as a skill, for before an agent has an instance to ask.
+_Avoid_: SKILL.md (as the name for the concept), API docs, agent manual
 
 **Viewer**:
 An anonymous human identity minted client-side (id + secret in localStorage) on first interaction with a Site, supplying a display name on first comment. A Viewer owns its private Chats; "private" means visible only to that Viewer's token and the agents it admits. Privacy is localStorage-grade — losing/clearing the token loses the Chats; "private from casual view," not secure. A future logged-in user is just a durable Viewer. Locally there is no Viewer for the author: the human at the terminal is identified by their git config and holds Owner capability. Viewers appear locally only through a Tunnel, where every guest is exactly this anonymous identity.

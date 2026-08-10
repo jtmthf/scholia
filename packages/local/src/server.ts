@@ -33,6 +33,8 @@ import {
   setResolved,
   htmlToDerivedText,
   acceptsMarkdown,
+  renderAgentDocs,
+  renderAgentDocsHtml,
   type NavNode,
   type DocRecord,
   type ManifestEntry,
@@ -287,6 +289,36 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       }
     }),
   );
+
+  // The agent docs for *this* preview (issue #35), generated from the verb
+  // registry rather than written beside it. A preview has no account and no
+  // Versions, so the docs it serves describe neither — an agent pointed here
+  // reads what this instance can actually do.
+  //
+  // Under `/__` like every other internal route, so a Page named `agent-docs`
+  // in the served root still wins its own URL. Two representations of the one
+  // document, the same way a Page serves its Source: HTML by default, Markdown
+  // for `?raw` or `Accept: text/markdown`.
+  // Keyed by origin: the same preview answers on 127.0.0.1, ::1 and any Tunnel
+  // hostname, and the docs name the address they were fetched from.
+  const agentDocsHtml = new Map<string, Promise<string>>();
+  app.get("/__agent-docs", async (c) => {
+    const origin = new URL(c.req.url).origin;
+    const instance = { target: "local" as const, docsUrl: `${origin}/__agent-docs` };
+    if (c.req.query("raw") !== undefined || acceptsMarkdown(c.req.header("Accept") ?? null)) {
+      c.header("Vary", "Accept");
+      c.header("X-Content-Type-Options", "nosniff");
+      return c.body(renderAgentDocs(instance), 200, {
+        "Content-Type": "text/markdown; charset=utf-8",
+      });
+    }
+    let html = agentDocsHtml.get(origin);
+    if (!html) {
+      html = renderAgentDocsHtml(instance);
+      agentDocsHtml.set(origin, html);
+    }
+    return c.html(await html);
+  });
 
   app.get("/search", (c) => {
     const q = c.req.query("q") ?? "";
