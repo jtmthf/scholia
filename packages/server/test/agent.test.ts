@@ -470,12 +470,13 @@ describe.skipIf(!DB_URL)("M7: Agent surface", () => {
     );
 
     // Take the cutoff from the `createdAt` the API itself emitted, not from
-    // `new Date()`. Rows are stamped by the Postgres clock while the test runs
-    // on the Node clock, and the two drift independently — a locally-captured
-    // cutoff can land *before* the timestamp of a comment already written, which
-    // no server-side filter can be expected to fix. Reading it back also makes
-    // this the exact cursor-paging case: feed the last seen `createdAt` in as
-    // `since` and that comment must not come back a second time.
+    // `new Date()` (ADR-0035). Rows are stamped by the Postgres clock while the
+    // test runs on the Node clock, and the two drift independently — a
+    // locally-captured cutoff can land *before* the timestamp of a comment
+    // already written, which no server-side filter can be expected to fix.
+    // Reading it back also makes this the exact cursor-paging case: feed the
+    // last seen `createdAt` in as `since` and that comment must not come back a
+    // second time.
     const beforeRes = await app.request(`/sites/${slug}/comments`);
     const { comments: before } = await beforeRes.json();
     const cutoff = before.find((c: any) => c.body === "Old comment.").createdAt;

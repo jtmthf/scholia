@@ -38,11 +38,12 @@ describe.skipIf(!DB_URL)("PostgresRateLimiter", () => {
     expect(over.retryAfterMs).toBeLessThanOrEqual(60_000);
   });
 
-  // Regression: `retryAfterMs` used to be `resetAt - Date.now()`, mixing the
-  // Postgres clock (which sets resetAt) with the Node clock. Any skew between
-  // the two machines leaked into the hint. A short window makes that sharp —
-  // typical skew is a large fraction of it, so a cross-clock subtraction
-  // overshoots unmistakably, where a 60s window only overshoots marginally.
+  // Regression (ADR-0035): `retryAfterMs` used to be `resetAt - Date.now()`,
+  // mixing the Postgres clock (which sets resetAt) with the Node clock. Any
+  // skew between the two machines leaked into the hint. A short window makes
+  // that sharp — typical skew is a large fraction of it, so a cross-clock
+  // subtraction overshoots unmistakably, where a 60s window only overshoots
+  // marginally.
   test("retry hint never exceeds the window (measured on one clock)", async () => {
     const windowMs = 250;
     const rl = new PostgresRateLimiter(db, 1, windowMs);

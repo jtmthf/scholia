@@ -1480,14 +1480,15 @@ export async function listSiteComments(
     isNull(comments.hiddenAt),
   ];
   if (filter.unresolved) conds.push(isNull(conversations.resolvedAt));
-  // `since` is compared against the *emitted* precision, not the stored one.
-  // Postgres keeps `created_at` to the microsecond, but the DTO serializes it to
-  // an ISO string with millisecond precision — so a plain `created_at > since`
-  // re-returns the boundary comment forever when a client pages by feeding the
-  // last `createdAt` it saw back in as `since` (stored .850400 > emitted .850).
-  // Emitted values are floor-truncated, so "strictly after the emitted value"
-  // is exactly "at or after the next whole millisecond" — and unlike
-  // date_trunc() in the predicate, this stays a plain index-friendly range scan.
+  // `since` is compared against the *emitted* precision, not the stored one
+  // (ADR-0035). Postgres keeps `created_at` to the microsecond, but the DTO
+  // serializes it to an ISO string with millisecond precision — so a plain
+  // `created_at > since` re-returns the boundary comment forever when a client
+  // pages by feeding the last `createdAt` it saw back in as `since`
+  // (stored .850400 > emitted .850). Emitted values are floor-truncated, so
+  // "strictly after the emitted value" is exactly "at or after the next whole
+  // millisecond" — and unlike date_trunc() in the predicate, this stays a plain
+  // index-friendly range scan.
   if (filter.since) {
     conds.push(gte(comments.createdAt, new Date(new Date(filter.since).getTime() + 1)));
   }
@@ -1826,7 +1827,8 @@ export async function upsertGitHubInstallation(
       installationId: input.installationId,
       account: input.account ?? null,
       repos: input.repos ?? [],
-      updatedAt: new Date(),
+      // `updatedAt` is left to `defaultNow()` so it is stamped by the database
+      // clock on insert, matching the `sql`now()` update below (ADR-0035).
     })
     .onConflictDoUpdate({
       target: githubInstallations.installationId,
@@ -1964,13 +1966,13 @@ export interface RateLimitHit {
   resetAt: Date;
   /**
    * Milliseconds until `resetAt`, measured against the *Postgres* clock in the
-   * same statement that read `resetAt`. Callers must use this rather than
-   * subtracting `resetAt` from their own `Date.now()`: the app server and the
-   * database are different machines with independently-drifting clocks, so a
-   * cross-clock subtraction leaks the skew into the retry hint (overstating it
-   * when the DB runs ahead, understating it — and inviting an immediate repeat
-   * 429 — when it runs behind). Single-clock, so `0 <= retryAfterMs <= windowMs`
-   * holds by construction.
+   * same statement that read `resetAt` (ADR-0035). Callers must use this rather
+   * than subtracting `resetAt` from their own `Date.now()`: the app server and
+   * the database are different machines with independently-drifting clocks, so
+   * a cross-clock subtraction leaks the skew into the retry hint (overstating
+   * it when the DB runs ahead, understating it — and inviting an immediate
+   * repeat 429 — when it runs behind). Single-clock, so
+   * `0 <= retryAfterMs <= windowMs` holds by construction.
    */
   retryAfterMs: number;
 }
