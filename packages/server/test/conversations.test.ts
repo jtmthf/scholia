@@ -2,32 +2,28 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
 import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for M5: anchoring + public comment Threads. Mirrors the M3
 // sites.test.ts harness — needs a Postgres (DATABASE_URL); FsBlobStore in a temp
-// dir so MinIO isn't required. Skips when no DATABASE_URL is configured.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// dir so MinIO isn't required. Provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 const README_MD = "# Hello\n\nThis is a paragraph about **anchoring** in scholia.\n";
 
-describe.skipIf(!DB_URL)("M5: Anchoring + public Threads", () => {
+describe("M5: Anchoring + public Threads", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m5-"));
     app = createApp({
       db,

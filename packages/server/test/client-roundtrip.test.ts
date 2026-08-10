@@ -2,20 +2,18 @@ import { describe, test, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
 import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 import { ScholiaClient } from "../../client/src/index.js";
 
 // Integration round-trip tests for @scholia/client via an in-process Hono app.
 // ScholiaClient's fetch calls are intercepted and routed to app.request() so no
-// real network is needed. Requires a Postgres DATABASE_URL; skips without one.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// real network is needed. Requires a Postgres DATABASE_URL; provided by the root
+// globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 
@@ -23,15 +21,14 @@ const enc = new TextEncoder();
 // prefix so app.request() sees only the path+query.
 const FAKE_SERVER = "http://scholia.test";
 
-describe.skipIf(!DB_URL)("M7: ScholiaClient round-trips (in-process)", () => {
+describe("M7: ScholiaClient round-trips (in-process)", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-client-"));
     app = createApp({
       db,

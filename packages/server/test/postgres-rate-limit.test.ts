@@ -1,25 +1,21 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema, type Db } from "@scholia/db";
 import { PostgresRateLimiter } from "../src/rate-limit.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for the M11 Postgres-backed rate limiter (ADR-0015) — the
 // multi-instance-safe alternative to the in-memory FixedWindowRateLimiter.
-// Needs Postgres (DATABASE_URL); skips when unset.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// Needs Postgres (DATABASE_URL), provided and migrated by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
-describe.skipIf(!DB_URL)("PostgresRateLimiter", () => {
+describe("PostgresRateLimiter", () => {
   let sql: ReturnType<typeof postgres>;
   let db: Db;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
   });
 
   afterAll(async () => {

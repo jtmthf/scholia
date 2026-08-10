@@ -8,6 +8,10 @@ export default defineConfig({
     // preact-render-to-string, the same way the Local Preview chrome is.
     environment: "node",
     include: ["packages/*/test/**/*.test.{ts,tsx}"],
+    // Create a fresh Postgres database per test run, migrate it, and point
+    // DATABASE_URL at it. Fails loudly if DATABASE_URL is unset. Teardown
+    // drops the isolated database.
+    globalSetup: ["packages/db/test/setup.ts"],
     // Inlined so the react → preact/compat alias below applies to it: aliases don't
     // reach externalized deps, and an externalized react-query pulls in real React
     // (mirrors `ssr.noExternal` in packages/web/vite.config.ts).

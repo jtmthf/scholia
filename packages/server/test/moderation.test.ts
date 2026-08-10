@@ -2,7 +2,6 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema, type Db } from "@scholia/db";
@@ -10,28 +9,25 @@ import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
 import { FixedWindowRateLimiter, NoopRateLimiter } from "../src/rate-limit.js";
 import type { InputDeps } from "../src/app.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for M9: moderation & ops (Site state, owner delete, Share URL
 // + owner token rotation, token revoke, upload caps, comment rate limiting).
 // Mirrors the M3/M5 harness — needs a Postgres (DATABASE_URL); FsBlobStore in a
-// temp dir. Skips when no DATABASE_URL is configured.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// temp dir. Provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 const README_MD = "# Hello M9\n\nA paragraph about **moderation** in scholia.\n";
 
-describe.skipIf(!DB_URL)("M9: Moderation & ops", () => {
+describe("M9: Moderation & ops", () => {
   let sql: ReturnType<typeof postgres>;
   let db: Db;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m9-"));
     // Default app: no upload caps, a no-op limiter so the moderation tests aren't
     // throttled. Rate limiting + caps are exercised via bespoke apps below.

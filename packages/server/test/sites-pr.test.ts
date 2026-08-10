@@ -2,7 +2,6 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
@@ -11,15 +10,13 @@ import { FsBlobStore } from "@scholia/core";
 import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for M10 PR-backed Sites: `POST /sites` with a `pr` content
 // source → server fetches bytes from GitHub via a FakeGitHubApi → stores them →
 // creates the Site with a mirrorBinding. Also tests `ref` sources, the
 // local-reupload-on-PR-backed rejection, and the no-provider 400 path.
-// Needs a Postgres (DATABASE_URL); skips when unset.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// Needs a Postgres (DATABASE_URL); provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 
@@ -28,16 +25,15 @@ const GUIDE_MD = "# Guide\n\nSome content here.\n";
 const HEAD_SHA = "abc123def456";
 const REPO = "octocat/test-repo";
 
-describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
+describe("M10: PR-backed Sites", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
   let fakeApi: FakeGitHubApi;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m10-"));
 
     // Seed the fake GitHub API with a PR that touches two markdown files.
@@ -70,7 +66,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
 
     // Seed an installation so `findInstallationForRepo` succeeds.
     await upsertGitHubInstallation(db, {
-      installationId: 99,
+      installationId: 55,
       account: "octocat",
       repos: [REPO],
     });
@@ -144,7 +140,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
     // Since FakeGitHubApi.getFileContent searches all repo states by `${ref}:${path}`,
     // and we seeded content at `${HEAD_SHA}:${filename}`, passing ref=HEAD_SHA works.
     // For a named ref, we need a provider with a listTree that returns our paths.
-    const sql2 = postgres(DB_URL!, { max: 1 });
+    const sql2 = postgres(DB_URL, { max: 1 });
     const db2 = drizzle(sql2, { schema });
 
     const provider2 = new GitHubMirrorProvider({
@@ -329,7 +325,7 @@ describe.skipIf(!DB_URL)("M10: PR-backed Sites", () => {
 
   test("POST /sites with pr but no mirror provider configured → 400", async () => {
     // Create an app with no mirror providers (GitHub integration off).
-    const sql2 = postgres(DB_URL!, { max: 1 });
+    const sql2 = postgres(DB_URL, { max: 1 });
     const db2 = drizzle(sql2, { schema });
     const app2 = createApp({
       db: db2,

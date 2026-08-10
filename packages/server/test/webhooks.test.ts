@@ -2,7 +2,6 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createHmac } from "node:crypto";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -12,13 +11,11 @@ import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
 import { reconcileOneSite } from "../src/mirror/reconcile.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for M10 inbound: webhook signature verification, inbound
 // import (Thread creation, dedup, tombstone, detach), and the reconciliation
-// poller. Needs Postgres (DATABASE_URL); skips when unset.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// poller. Needs Postgres (DATABASE_URL); provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 const WEBHOOK_SECRET = "test-webhook-secret";
 
 const enc = new TextEncoder();
@@ -116,7 +113,7 @@ function deletedPayload(commentId: number): string {
   });
 }
 
-describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
+describe("M10: Inbound webhooks + reconciliation", () => {
   let sql: ReturnType<typeof postgres>;
   let db: Db;
   let app: ReturnType<typeof createApp>;
@@ -125,9 +122,8 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
   let siteSlug: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-inbound-"));
 
     // Seed the fake GitHub API.
@@ -405,7 +401,7 @@ describe.skipIf(!DB_URL)("M10: Inbound webhooks + reconciliation", () => {
 
   test("webhook with no GITHUB_WEBHOOK_SECRET configured → 404", async () => {
     // Create an app without github config (no webhook secret).
-    const sql2 = postgres(DB_URL!, { max: 1 });
+    const sql2 = postgres(DB_URL, { max: 1 });
     const db2 = drizzle(sql2, { schema });
     const app2 = createApp({
       db: db2,

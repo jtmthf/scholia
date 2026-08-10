@@ -2,20 +2,17 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
 import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for M6: re-upload → new Version, cross-Version anchor
 // migration (live vs Outdated), per-Version permalinks, source Diff, Last Seen +
 // summary counts. Same harness as M3/M5 — needs Postgres (DATABASE_URL) + an
-// FsBlobStore temp dir; skips when no DATABASE_URL is configured.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// FsBlobStore temp dir. Provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 
@@ -25,15 +22,14 @@ const README_V1 = "# Title\n\nThe quick brown fox jumps.\n\nA line to be deleted
 const README_V2 = "# Title\n\nThe quick brown fox jumps.\n\nA brand new line.\n";
 const EXTRA_V1 = "# Extra\n\nThis page goes away in v2.\n";
 
-describe.skipIf(!DB_URL)("M6: Versioning UX", () => {
+describe("M6: Versioning UX", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m6-"));
     app = createApp({
       db,

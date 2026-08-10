@@ -2,32 +2,28 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
 import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration tests for M8: private Chats + Viewer-scoped agent tokens + three-tier
 // authorization + Promotion (ADR-0006). Same harness as M5/M7 — needs Postgres
-// (DATABASE_URL) + FsBlobStore temp dir; skips when no DATABASE_URL is configured.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// (DATABASE_URL) + FsBlobStore temp dir; provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 const README_MD = "# Hello\n\nThis is a paragraph about **chats** in scholia.\n";
 
-describe.skipIf(!DB_URL)("M8: Private Chats + reviewer agents", () => {
+describe("M8: Private Chats + reviewer agents", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m8-"));
     app = createApp({
       db,
