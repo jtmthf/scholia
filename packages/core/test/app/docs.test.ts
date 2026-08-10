@@ -89,6 +89,36 @@ describe("renderAgentDocs", () => {
     expect(markdown).toContain("scholia comments [page]");
     expect(markdown).toContain("### list_conversations");
   });
+
+  test("escapes pipes and backslashes in param descriptions so the table stays valid", () => {
+    const verb: Verb = {
+      name: "escape_test",
+      command: "escape-test",
+      summary: "test escaping",
+      description: "A verb whose param description needs escaping.",
+      hostedTier: "none",
+      params: [
+        {
+          name: "pattern",
+          type: "string",
+          description: "Use a|b or a\\b, never both|together.",
+          required: true,
+        },
+      ],
+      run: async () => ({ data: null, lines: [] }),
+    };
+
+    const markdown = renderAgentDocs({ target: "local", verbs: [verb] });
+    const tableLine = markdown.split("\n").find((line) => line.includes("--pattern"));
+    expect(tableLine).toBeDefined();
+    // The cell should contain escaped pipes/backslashes, not real delimiters.
+    expect(tableLine).toContain("Use a\\|b or a\\\\b, never both\\|together.");
+    // The row is `| --pattern | string | required | <cell> |` — four cells,
+    // so five unescaped `|` delimiters. Any unescaped pipe inside the cell
+    // would push the count above five.
+    const unescapedPipes = [...tableLine!.matchAll(/(?<!\\)\|/g)];
+    expect(unescapedPipes).toHaveLength(5);
+  });
 });
 
 describe("the registry carries what the docs need", () => {

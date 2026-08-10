@@ -84,7 +84,9 @@ function paramBound(param: VerbParam): string {
 function paramCell(param: VerbParam): string {
   const parts = [param.description];
   if (param.choices) parts.push(`One of: ${param.choices.join(", ")}.`);
-  return parts.join(" ").replace(/\|/g, "\\|");
+  // Escape backslashes first so they cannot turn a later escaped `|` into a
+  // real table delimiter (CodeQL: incomplete string escaping).
+  return parts.join(" ").replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 function paramTable(verb: Verb): string[] {
