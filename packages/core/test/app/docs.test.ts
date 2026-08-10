@@ -109,7 +109,7 @@ describe("renderAgentDocs", () => {
     };
 
     const markdown = renderAgentDocs({ target: "local", verbs: [verb] });
-    const tableLine = markdown.split("\n").find((line) => line.includes("--pattern"));
+    const tableLine = markdown.split("\n").find((line: string) => line.includes("--pattern"));
     expect(tableLine).toBeDefined();
     // The cell should contain escaped pipes/backslashes, not real delimiters.
     expect(tableLine).toContain("Use a\\|b or a\\\\b, never both\\|together.");

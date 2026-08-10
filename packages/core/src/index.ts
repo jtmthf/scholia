@@ -175,6 +175,10 @@ export {
   findVerb,
   findVerbByCommand,
   VERBS,
+  verbPositionals,
+  verbSignature,
+  renderAgentDocs,
+  renderAgentDocsHtml,
 } from "./app/index.js";
 export type {
   ActingAs,
@@ -199,4 +203,8 @@ export type {
   VerbParamType,
   Verb,
   VerbOutcome,
+  VerbTargetNotes,
+  VerbTier,
+  AgentDocsInstance,
+  DocsTarget,
 } from "./app/index.js";
