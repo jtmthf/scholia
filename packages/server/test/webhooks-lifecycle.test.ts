@@ -2,7 +2,6 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createHmac } from "node:crypto";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -12,14 +11,13 @@ import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
 import { handleLifecycle } from "../src/mirror/lifecycle.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for M10 PR lifecycle: synchronize advances the Version;
 // closed+merged only *offers* a freeze per ADR-0008 (v1 has no offer UI, so it's
 // a no-op) — only `locked` auto-freezes the Site. The synchronize path is tested
 // both via the webhook endpoint and directly via handleLifecycle.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// Needs Postgres (DATABASE_URL), provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 const WEBHOOK_SECRET = "lifecycle-secret";
 
 const enc = new TextEncoder();
@@ -49,7 +47,7 @@ function pullRequestPayload(
   });
 }
 
-describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
+describe("M10: PR lifecycle", () => {
   let sql: ReturnType<typeof postgres>;
   let db: Db;
   let app: ReturnType<typeof createApp>;
@@ -59,9 +57,8 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
   let siteSlug: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-life-"));
 
     fakeApi = new FakeGitHubApi();
@@ -80,7 +77,7 @@ describe.skipIf(!DB_URL)("M10: PR lifecycle", () => {
     );
 
     await upsertGitHubInstallation(db, {
-      installationId: 99,
+      installationId: 66,
       account: "octocat",
       repos: [REPO],
     });

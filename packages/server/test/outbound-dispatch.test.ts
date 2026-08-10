@@ -2,7 +2,6 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema, type Db } from "@scholia/db";
@@ -10,14 +9,12 @@ import { hashBytes, type MirrorContext, type MirrorEvent, type Anchor } from "@s
 import { FakeGitHubApi } from "@scholia/github";
 import { createApp } from "../src/app.js";
 import { GitHubMirrorProvider } from "../src/mirror/github-provider.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for the GitHub outbound mirror dispatch (Sub-Task 6, R3/R5).
 // Verifies: in-diff → review comment, out-of-diff → issue comment, resolve →
 // GraphQL, promotion → N comments, dedup → no-op, comment_mirrors rows synced.
-// Needs Postgres (DATABASE_URL); skips when unset.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// Needs Postgres (DATABASE_URL); provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 
@@ -32,7 +29,7 @@ const PAGE_HASH = hashBytes(enc.encode(PAGE_MD));
 const HEAD_SHA = "dispatch-head-1";
 const REPO = "octocat/dispatch-test";
 
-describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
+describe("M10: GitHub outbound dispatch", () => {
   let sql: ReturnType<typeof postgres>;
   let db: Db;
   let blobDir: string;
@@ -44,9 +41,8 @@ describe.skipIf(!DB_URL)("M10: GitHub outbound dispatch", () => {
   let versionId: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-dispatch-"));
 
     // Seed the fake GitHub API with a PR.

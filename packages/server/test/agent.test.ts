@@ -2,32 +2,28 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
 import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration tests for M7: agent REST surface (owner-token writes, list_comments,
 // agent-docs). Same harness as M5/M6 — needs Postgres (DATABASE_URL) + FsBlobStore
-// temp dir. Skips when no DATABASE_URL is configured.
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// temp dir. Provided by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 const README_MD = "# Hello\n\nThis is a **test** page for the agent surface.\n";
 
-describe.skipIf(!DB_URL)("M7: Agent surface", () => {
+describe("M7: Agent surface", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m7-"));
     app = createApp({
       db,

@@ -2,20 +2,17 @@ import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
 import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
-import { migrateWithLock } from "./helpers/migrate.js";
 
 // Integration test for the M3 Sites milestone: blob negotiation + manifest
 // upload + multi-page content serving. Needs a Postgres (DATABASE_URL); the
-// blob store is an FsBlobStore in a temp dir so MinIO isn't required. Skips
-// when no DATABASE_URL is configured (e.g. bare `pnpm test` with no docker).
-const DB_URL = process.env.DATABASE_URL;
-const MIGRATIONS = fileURLToPath(new URL("../../db/drizzle", import.meta.url));
+// blob store is an FsBlobStore in a temp dir so MinIO isn't required. Provided
+// by the root globalSetup.
+const DB_URL = process.env.DATABASE_URL!;
 
 const enc = new TextEncoder();
 
@@ -30,15 +27,14 @@ const LOGO_PNG = new Uint8Array([
   0x42, 0x60, 0x82,
 ]);
 
-describe.skipIf(!DB_URL)("M3: Sites — folders/zips", () => {
+describe("M3: Sites — folders/zips", () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof createApp>;
   let blobDir: string;
 
   beforeAll(async () => {
-    sql = postgres(DB_URL!, { max: 1 });
+    sql = postgres(DB_URL, { max: 1 });
     const db = drizzle(sql, { schema });
-    await migrateWithLock(sql, db, MIGRATIONS);
     blobDir = await mkdtemp(join(tmpdir(), "scholia-blobs-m3-"));
     app = createApp({
       db,

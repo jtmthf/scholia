@@ -54,11 +54,13 @@ imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp
 
 A PR that touches runtime code bundled into the release needs a changeset. Pure-test/doc/config changes don't. When in doubt, add one; `pnpm changeset --empty` is the escape hatch for no-op releases. Agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
 
-## Running the hosted-path tests (the trap)
+## Running the hosted-path tests
 
-Server/db integration tests **silently skip when `DATABASE_URL` is unset** — a green
-`pnpm test` can mean the whole hosted-path suite never ran. `vitest.config.ts` does not
-load `.env.test`, so pass the URL inline:
+Server/db integration tests need a Postgres database. The root `vitest.config.ts`
+runs a `globalSetup` (`packages/db/test/setup.ts`) that creates a fresh isolated
+database for every test run, migrates it, points `DATABASE_URL` at it, and drops it
+on teardown. A missing `DATABASE_URL` now fails loudly instead of silently skipping.
+`vitest.config.ts` does not load `.env.test`, so pass the URL inline:
 
 ```sh
 docker compose up -d        # Postgres (host port 5544) + MinIO
