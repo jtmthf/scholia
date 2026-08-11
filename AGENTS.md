@@ -54,6 +54,30 @@ once at the root; `typecheck` is also what emits each package's `dist/*.d.ts` �
 **relative imports use the `.js` extension** even for `.ts` files (e.g.
 `import { createApp } from "../src/app.js"`).
 
+Every `@scholia/*` package resolves through `dist/` (its `package.json`
+`exports`/`main`), never `src/` — build is load-bearing, not a release-only
+step. `turbo run <task>` chains `dependsOn: ["^build", ...]` so this is
+automatic through turbo, but a handful of commands intentionally run outside
+turbo and need `dist/` built by hand first: `pnpm test:projects` (raw
+`vitest run`, so every project gets one combined JSON report) and Playwright's
+`webServer` (boots `@scholia/server` directly via `tsx`, so it can stay up as
+a long-lived process). Skipping the explicit `pnpm build` before either one
+surfaces as `Failed to resolve entry`/`ERR_MODULE_NOT_FOUND` for some
+workspace package, which reads like a config bug in that package rather than
+a missing build step. If you add another command that imports a workspace
+package at runtime outside of `turbo run`, it needs the same explicit build.
+
+`turbo.json` runs in strict `envMode` (the v2 default): a task's process only
+sees an environment variable if that task's own `env` array names it —
+package/task overrides don't inherit the base task's list, so each override
+restates its own. A task reading `process.env.FOO` without declaring `FOO`
+doesn't error; `FOO` is just silently absent from that process, so the bug
+surfaces as wrong runtime behavior one layer past turbo (e.g. a CLI flag
+silently not registering), not as a turbo failure pointing at the cause.
+Before adding a new `process.env.*` read to code that runs under a turbo
+task, add it to that task's `env` array in `turbo.json` — grep the task's
+package for existing `process.env.` reads to check what's already missing.
+
 ## Changesets
 
 A PR that touches runtime code bundled into the release needs a changeset. Pure-test/doc/config changes don't. When in doubt, add one; `pnpm changeset --empty` is the escape hatch for no-op releases. Agents [write the file directly](.changeset/README.md), releases automate on merge via OIDC (ADR-0026).
@@ -92,7 +116,21 @@ SCHOLIA_HOSTED=1 pnpm --filter @scholia/e2e e2e  # registers `scholia share`, wh
 
 Without `SCHOLIA_HOSTED=1` every hosted spec fails at `runShare` with
 ``CACError: Unknown option `--server` `` — the hosted commands aren't registered, so
-cac never matches `share`. It reads like a CLI bug and isn't.
+cac never matches `share`. It reads like a CLI bug and isn't. Setting it in the
+shell is necessary but not sufficient: `scholia share` inside the e2e helper
+runs through `pnpm scholia` → `turbo run scholia`, so the var also has to be
+in that task's `env` array in `turbo.json` (see the strict-envMode note above)
+or turbo strips it before the CLI process ever sees it, with the same error.
+
+Two more gaps between a local e2e run and CI's, both silent (they don't error,
+they just behave differently): `playwright.config.ts` starts `@scholia/server`
+with `dev` (`tsx watch`) locally but `start` (no watch) under `CI` — running
+locally without `CI=1` leaves the watcher live, and a concurrent `scholia
+share` rebuilding `@scholia/local`'s `dist/` mid-suite can trigger a reload
+that drops other tests' in-flight requests; set `CI=1` locally to match. And
+`.env` is gitignored and hand-maintained per checkout — if blob/S3 calls fail
+with an opaque 403, diff it against `.env.example` before suspecting the code;
+credential drift there produces failures indistinguishable from a real bug.
 
 ## Local Preview
 

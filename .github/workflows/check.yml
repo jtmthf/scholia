@@ -67,6 +67,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @scholia/db migrate
+      # test:projects runs vitest directly, not through turbo, so it doesn't
+      # get turbo's `test` task dependsOn: ["^build", "build"] for free —
+      # build explicitly, or workspace deps' package.json exports point at a
+      # dist/ that was never generated.
+      - run: pnpm build
       # Default reporter for humans; JSON reporter writes the file the
       # no-skipped check reads. No `--` here: pnpm already forwards trailing
       # args to the `vitest run` script — an extra `--` makes vitest treat
@@ -113,6 +118,12 @@ jobs:
       - run: docker compose up -d --wait postgres minio
       - run: docker compose run --rm minio-init
       - run: pnpm --filter @scholia/db migrate
+
+      # Playwright's webServer boots @scholia/server directly via tsx, which
+      # imports workspace deps like @scholia/db through their package.json
+      # exports (dist/index.js) — that dist/ has to exist before the
+      # webServer starts, and nothing else in this job builds it.
+      - run: pnpm build
 
       # Browsers + their OS libs, then the suite. Playwright's webServer boots the
       # API + viewer and reuses them.

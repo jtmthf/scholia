@@ -28,7 +28,12 @@
     },
     "scholia": {
       "dependsOn": ["^build"],
-      "cache": false
+      "cache": false,
+      // Strict envMode (the default) hides everything not declared here from
+      // the CLI process. SCHOLIA_HOSTED gates whether hosted commands (e.g.
+      // `share`) register at all; the rest are the env fallbacks `cli.ts`
+      // reads for options a caller can also pass as flags.
+      "env": ["SCHOLIA_HOSTED", "SCHOLIA_SERVER", "SCHOLIA_SITE", "SCHOLIA_TOKEN", "SCHOLIA_VIEWER"]
     },
     // Package overrides don't inherit unspecified fields from the base task
     // above, so every override below restates `dependsOn` even where the
