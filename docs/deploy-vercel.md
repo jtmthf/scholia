@@ -1,7 +1,7 @@
 # Deploying to Vercel
 
 M11 (ADR-0015) adds Vercel as a second supported hosted target alongside
-self-host (`pnpm dev:server` / a long-running Node process). Self-host defaults
+self-host (`pnpm --filter @scholia/server dev` / a long-running Node process). Self-host defaults
 are unchanged — everything here is opt-in, and only the Vercel adapter
 (`packages/server/src/adapters/vercel.ts`) hardcodes any of it.
 

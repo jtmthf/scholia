@@ -3,20 +3,29 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./comments.css": "./comments.css"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "preact": "^10.29.2"
   },
   "devDependencies": {
+    "@scholia/tsconfig": "workspace:*",
+    "@scholia/vitest-config": "workspace:*",
     "preact-render-to-string": "^6.7.0",
-    "typescript": "^7.0.2"
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   }
 }

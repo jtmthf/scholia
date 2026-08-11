@@ -3,15 +3,20 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
+    "build": "tsup",
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "start": "tsx --env-file-if-exists=../../.env src/index.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.6",
@@ -24,8 +29,13 @@
     "hono-openapi": "^1.3.1"
   },
   "devDependencies": {
+    "@scholia/client": "workspace:*",
+    "@scholia/tsconfig": "workspace:*",
+    "@scholia/vitest-config": "workspace:*",
     "drizzle-orm": "^0.38.2",
     "postgres": "^3.4.5",
-    "tsx": "^4.19.2"
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
+    "vitest": "^4.1.10"
   }
 }

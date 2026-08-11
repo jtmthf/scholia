@@ -32,23 +32,27 @@ duplicate them here:
 ## Commands
 
 ```sh
-pnpm typecheck                          # tsc across the workspace
+pnpm build                              # turbo run build — tsup, every package, dependencies first
+pnpm typecheck                          # turbo run typecheck — tsc per package (also emits dist/*.d.ts)
 pnpm lint                               # oxlint --type-aware (catches what tsc misses)
 pnpm format                             # oxfmt (Prettier-compatible)
-pnpm test                               # vitest — but see the Postgres note below
-pnpm --filter @scholia/server typecheck  # one package
-pnpm e2e                                # Playwright (needs the stack running)
-pnpm e2e:local                          # Playwright, Local Preview only — no stack, no DB
-pnpm dev:server                         # REST API + content origin on :8787
-pnpm dev:web                            # viewer (Vite + the Hono SSR route) on :5173
-pnpm scholia <path>                      # Local Preview
+pnpm test                               # turbo run test, cached per package — but see the Postgres note below
+pnpm test:watch                         # turbo watch test — re-runs affected packages on change
+pnpm test:projects                      # vitest run, every package in one process — local, all-at-once
+pnpm scholia <path>                     # Local Preview — builds its dependencies first
 pnpm scholia mcp                        # the same verbs over MCP (stdio; --http for HTTP)
+pnpm --filter @scholia/server typecheck # one package, no dependency build
+turbo run build --filter=@scholia/server... # one package + the dependencies it actually needs
+pnpm --filter @scholia/e2e e2e          # Playwright (needs the stack running)
 ```
 
 oxlint (`pnpm lint`) + oxfmt (`pnpm format`) from the oxc project (ADR-0024).
-`tsc` remains the type gate. TS is ESM/NodeNext: **relative
-imports use the `.js` extension** even for `.ts` files (e.g. `import { createApp } from
-"../src/app.js"`).
+`tsc` remains the type gate, run per package by Turborepo (ADR-0037) rather than
+once at the root; `typecheck` is also what emits each package's `dist/*.d.ts` —
+`tsup`'s own declaration output doesn't work under TypeScript 7 yet, so `build`
+(`tsup`) owns the JS and `typecheck` (`tsc`) owns the types. TS is ESM/NodeNext:
+**relative imports use the `.js` extension** even for `.ts` files (e.g.
+`import { createApp } from "../src/app.js"`).
 
 ## Changesets
 
@@ -56,28 +60,34 @@ A PR that touches runtime code bundled into the release needs a changeset. Pure-
 
 ## Running the hosted-path tests
 
-Server/db integration tests need a Postgres database. The root `vitest.config.ts`
-runs a `globalSetup` (`packages/db/test/setup.ts`) that creates a fresh isolated
-database for every test run, migrates it, points `DATABASE_URL` at it, and drops it
-on teardown. A missing `DATABASE_URL` now fails loudly instead of silently skipping.
-`vitest.config.ts` does not load `.env.test`, so pass the URL inline:
+Server/db integration tests need a Postgres database. `@scholia/db` and
+`@scholia/server` each have their own `vitest.config.ts` with a `globalSetup`
+(`@scholia/db`'s own `test/setup.ts`, exported as `@scholia/db/test/setup.js`
+so `@scholia/server` can point at the same one) that creates a fresh isolated
+database for every test run, migrates it, points `DATABASE_URL` at it, and drops
+it on teardown. A missing `DATABASE_URL` fails loudly instead of silently
+skipping. `DATABASE_URL` has to be set in the shell — pass it inline:
 
 ```sh
 docker compose up -d        # Postgres (host port 5544) + MinIO
-pnpm db:migrate
+pnpm --filter @scholia/db migrate
 DATABASE_URL=postgres://scholia:scholia@127.0.0.1:5544/scholia pnpm test
 ```
 
-Postgres is on host port **5544, not 5432** (avoids clashing with a host-managed
-Postgres), and use **`127.0.0.1`, not `localhost`** (sidesteps IPv6 `::1`). Getting this
-wrong is the most common failure in this repo.
+`pnpm test` is `turbo run test`; turbo forwards `DATABASE_URL` through to every
+package's task (`turbo.json`'s `test` task declares it in `env`), so the one
+`DATABASE_URL=...` above reaches `@scholia/db` and `@scholia/server` however
+many other packages' tests turbo also runs. Postgres is on host port **5544,
+not 5432** (avoids clashing with a host-managed Postgres), and use
+**`127.0.0.1`, not `localhost`** (sidesteps IPv6 `::1`). Getting this wrong is
+the most common failure in this repo.
 
-`pnpm e2e` needs the same stack plus two things CI sets for you (`check.yml`, job
-`e2e`) and a local shell doesn't:
+`pnpm --filter @scholia/e2e e2e` needs the same stack plus two things CI sets
+for you (`check.yml`, job `e2e`) and a local shell doesn't:
 
 ```sh
-cp .env.example .env                  # the API server reads it; gitignored
-SCHOLIA_HOSTED=1 pnpm e2e             # registers `scholia share`, which the seed drives
+cp .env.example .env                    # the API server reads it; gitignored
+SCHOLIA_HOSTED=1 pnpm --filter @scholia/e2e e2e  # registers `scholia share`, which the seed drives
 ```
 
 Without `SCHOLIA_HOSTED=1` every hosted spec fails at `runShare` with
@@ -86,13 +96,15 @@ cac never matches `share`. It reads like a CLI bug and isn't.
 
 ## Local Preview
 
-`pnpm scholia <path>` needs the browser bundle built first (once): `pnpm --filter
-@scholia/local build`. Local Preview touches no network, DB, or token.
+`pnpm scholia <path>` builds `@scholia/local`'s browser bundle first automatically
+(`turbo run scholia` depends on `^build`); Local Preview itself touches no network,
+DB, or token.
 
 Its chrome lives in `packages/local/src/render/layout.tsx` (Preact SSR on the Hono route
 — ADR-0011). `packages/local/test/__snapshots__/*.txt` pin the rendered DOM, so altering
-the chrome means updating them deliberately; `pnpm e2e:local` covers it in a real browser,
-including with JavaScript disabled.
+the chrome means updating them deliberately;
+`SCHOLIA_E2E_NO_WEBSERVER=1 pnpm --filter @scholia/e2e e2e local-preview.spec.ts
+local-comments.spec.ts` covers it in a real browser, including with JavaScript disabled.
 
 Local Preview hosts Conversations (ADR-0018), and three things about how follow from
 ADR-0031:
@@ -147,7 +159,7 @@ consequences when editing it:
   which return null until mounted on purpose.
 - **`pnpm --filter @scholia/web build` builds both halves** (client, then `--ssr`).
   `packages/web/test/ssr.test.ts` covers the rendered document against a stubbed API;
-  `pnpm e2e` covers the browser.
+  `pnpm --filter @scholia/e2e e2e` covers the browser.
 
 The comment layer itself is `@scholia/ui` — shared with Local Preview, so it takes
 data as props and behaviour as a `CommentsPort` and knows nothing about Sites, tokens

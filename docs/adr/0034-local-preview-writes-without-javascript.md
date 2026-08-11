@@ -91,5 +91,6 @@ MCP, and a human's `<form>` is not a third party to it.
   fetch path does.
 - **`port.ts`'s doc comment is corrected.** It claims "the server render supplies none of
   them", which has never been true of `layout.tsx` and is not true under this decision.
-- **`pnpm e2e:local` already runs with JavaScript disabled**, so the no-JS write path has
-  somewhere to be tested from the day it lands.
+- **`SCHOLIA_E2E_NO_WEBSERVER=1 pnpm --filter @scholia/e2e e2e local-preview.spec.ts
+local-comments.spec.ts` already runs with JavaScript disabled**, so the no-JS write
+  path has somewhere to be tested from the day it lands.

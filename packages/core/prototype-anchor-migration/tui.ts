@@ -1,5 +1,5 @@
 // PROTOTYPE (issue #24) — THROWAWAY terminal shell over measure.ts.
-// `pnpm prototype:anchors`
+// `tsx packages/core/prototype-anchor-migration/tui.ts`
 //
 // Two views. The scoreboard is the answer; the case stepper is how you check
 // that the answer is not an artifact of my labelling.

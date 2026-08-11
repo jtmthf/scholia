@@ -9,7 +9,8 @@ so consecutive revisions are real agent rewrites), plus 42 hand-labelled
 single-step Anchor cases and 12 chain cases.
 
 **Harness:** `packages/core/prototype-anchor-migration/` (throwaway).
-`pnpm prototype:anchors` / `pnpm prototype:anchors:report`.
+`tsx packages/core/prototype-anchor-migration/tui.ts` /
+`tsx packages/core/prototype-anchor-migration/report.ts`.
 
 ## Headline
 

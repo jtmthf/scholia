@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.base.json",
+  "extends": "@scholia/tsconfig/base.json",
   "include": [
     "packages/*/src/**/*.ts",
     "packages/*/src/**/*.tsx",

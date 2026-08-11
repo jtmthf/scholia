@@ -34,6 +34,6 @@ for (const chain of readChains()) {
 console.log(
   drifted === 0
     ? `\x1b[32mOK\x1b[0m  ${checked} revisions match their git blobs byte for byte`
-    : `\x1b[31mFAIL\x1b[0m  ${drifted}/${checked} revisions drifted — re-run pnpm prototype:anchors:extract`,
+    : `\x1b[31mFAIL\x1b[0m  ${drifted}/${checked} revisions drifted — re-run tsx packages/core/prototype-anchor-migration/extract-corpus.ts`,
 );
 process.exit(drifted === 0 ? 0 : 1);

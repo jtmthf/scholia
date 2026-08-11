@@ -13,3 +13,7 @@ packages/*/tests/fixtures/
 # Written by `pnpm --filter scholia skill`, byte-compared against the generator
 # by packages/cli/test/skill.test.ts — formatting it would only ever make it stale.
 packages/cli/skills/
+
+# Written by packages/bridge/scripts/build-iframe.mjs on every `build` — an
+# esbuild IIFE string, not source; formatting it would only ever make it stale.
+packages/bridge/src/iframe-script.generated.ts

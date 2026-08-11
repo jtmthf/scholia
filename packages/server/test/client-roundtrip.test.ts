@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "@scholia/db";
 import { FsBlobStore, hashBytes } from "@scholia/core";
 import { createApp } from "../src/app.js";
-import { ScholiaClient } from "../../client/src/index.js";
+import { ScholiaClient } from "@scholia/client";
 
 // Integration round-trip tests for @scholia/client via an in-process Hono app.
 // ScholiaClient's fetch calls are intercepted and routed to app.request() so no

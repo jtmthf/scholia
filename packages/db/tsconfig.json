@@ -1,4 +1,12 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "include": ["src"]
+  "extends": "@scholia/tsconfig/base.json",
+  "include": ["src"],
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  }
 }

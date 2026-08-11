@@ -107,15 +107,14 @@ and the ones the CLI needs are bundled into its binary.
 
 ```sh
 pnpm install
-pnpm typecheck     # tsc across the workspace — this is also the lint
-pnpm test:ci       # vitest — the full suite, including the hosted path if DATABASE_URL is set
+pnpm typecheck     # tsc per package, via Turborepo — this is also the lint
+pnpm test:projects # vitest — the full suite in one process, including the hosted path if DATABASE_URL is set
 ```
 
 Run the CLI from source:
 
 ```sh
-pnpm --filter @scholia/local build   # build the browser bundle once
-pnpm scholia ./path/to/docs
+pnpm scholia ./path/to/docs   # builds @scholia/local's browser bundle first automatically
 ```
 
 Build the publishable binary:
@@ -129,9 +128,9 @@ For the hosted path you also need Postgres and a blob store:
 ```sh
 docker compose up -d                 # Postgres (host port 5544) + MinIO
 cp .env.example .env
-pnpm db:migrate
-pnpm dev:server                      # REST API + content origin on :8787
-pnpm dev:web                         # viewer SPA on :5173 (separate terminal)
+pnpm --filter @scholia/db migrate
+pnpm --filter @scholia/server dev    # REST API + content origin on :8787
+pnpm --filter @scholia/web dev       # viewer SPA on :5173 (separate terminal)
 
 SCHOLIA_HOSTED=1 pnpm scholia share ./path/to/page.md
 ```

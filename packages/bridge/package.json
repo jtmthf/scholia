@@ -3,14 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
-    "build:iframe": "node scripts/build-iframe.mjs",
-    "typecheck": "tsc -p tsconfig.json"
+    "build": "node scripts/build-iframe.mjs && tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "dom-anchor-text-position": "^5.0.0",
@@ -18,6 +22,10 @@
   },
   "devDependencies": {
     "@scholia/core": "workspace:*",
-    "esbuild": "^0.24.2"
+    "@scholia/tsconfig": "workspace:*",
+    "@scholia/vitest-config": "workspace:*",
+    "esbuild": "^0.24.2",
+    "tsup": "^8.5.1",
+    "vitest": "^4.1.10"
   }
 }
