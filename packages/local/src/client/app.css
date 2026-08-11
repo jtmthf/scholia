@@ -228,16 +228,22 @@ body.has-comments.has-nav .layout {
     var(--layout-nav-width) minmax(0, 1fr) var(--layout-outline-width)
     var(--rail-width);
 }
+/* The rail's own box is the scroll container (not the document, which the sticky
+   position keeps it detached from), so a stack of Conversations taller than the
+   viewport stays reachable — the inner `.comment-rail` no longer needs its own
+   overflow, or every card past the fold would sit inside two nested scrollbars. */
 #scholia-comments {
   position: sticky;
   top: var(--topbar-height);
   align-self: start;
-  height: calc(100vh - var(--topbar-height));
+  max-height: calc(100vh - var(--topbar-height));
+  overflow-y: auto;
   min-width: 0;
 }
 #scholia-comments .comment-rail {
   width: 100%;
-  height: 100%;
+  height: auto;
+  overflow-y: visible;
   flex: 1 1 auto;
 }
 
@@ -267,7 +273,8 @@ body.has-comments.has-nav .layout {
   }
   #scholia-comments {
     position: static;
-    height: auto;
+    max-height: none;
+    overflow-y: visible;
   }
   #scholia-comments .comment-rail {
     border-left: none;
