@@ -132,6 +132,18 @@ that drops other tests' in-flight requests; set `CI=1` locally to match. And
 with an opaque 403, diff it against `.env.example` before suspecting the code;
 credential drift there produces failures indistinguishable from a real bug.
 
+`playwright.config.ts` runs CI with a single worker (`workers: CI ? 1 : ...`).
+Every `runShare` call now goes through `turbo run scholia`, which forks child
+processes to verify/rebuild `@scholia/local` — real CPU load per test that
+didn't exist before universal dist exports — on top of Playwright's own
+worker + browser processes and `startLocalPreview`'s direct `tsx` spawn
+(`e2e/helpers/local-preview.ts`). Running that concurrently on a standard
+GitHub Actions runner forks enough processes to intermittently starve it:
+`spawn .../node_modules/.bin/tsx ENOENT` even though nothing in the repo ever
+touches that binary, and it survives Playwright's own retry. If e2e flakes
+with a `spawn ... ENOENT` on a binary that provably exists, suspect resource
+contention from concurrent workers before suspecting the binary or the test.
+
 ## Local Preview
 
 `pnpm scholia <path>` builds `@scholia/local`'s browser bundle first automatically

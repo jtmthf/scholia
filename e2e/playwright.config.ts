@@ -16,6 +16,16 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
+  // Every `runShare` call now runs `scholia share` through `turbo run scholia`
+  // (dependsOn: ["^build"]), which forks its own child processes to verify/
+  // rebuild @scholia/local — real CPU load per test that didn't exist before
+  // universal dist exports. Stacked on Playwright's own worker + browser
+  // processes and `startLocalPreview`'s direct `tsx` spawn (local-preview.ts),
+  // the GitHub Actions runner's default worker count forks enough concurrent
+  // processes to starve it: `spawn .../node_modules/.bin/tsx ENOENT` even
+  // though nothing ever removes that binary, and even across a retry. One
+  // worker in CI removes the contention rather than papering over it.
+  workers: CI ? 1 : undefined,
   reporter: CI ? [["github"], HTML_REPORT] : [["list"], HTML_REPORT],
   timeout: 60_000,
   expect: { timeout: 15_000 },
