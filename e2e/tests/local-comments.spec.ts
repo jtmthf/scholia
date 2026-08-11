@@ -41,6 +41,7 @@ const SEED = {
   "server-rendered.md": "# Server Rendered\n\nReadable with JavaScript off.\n",
   "outdated-ssr.md": "# Outdated SSR\n\nNothing here says what the Anchor quotes.\n",
   "capabilities.md": "# Capabilities\n\nOnly what the Sidecar can do.\n",
+  "many-comments.md": "# Many Comments\n\nA page with more Conversations than fit in one screen.\n",
   "resolve.md": "# Resolve\n\nSomething to settle.\n",
   "react.md": "# React\n\nSomething to react to.\n",
   "edit.md": "# Edit\n\nSomething to rewrite.\n",
@@ -378,6 +379,41 @@ test("a reply lands in the Conversation it answers", async ({ page }) => {
   await page.reload();
   await expect(page.locator(".thread-card .comment")).toHaveCount(2);
   await expect(page.locator(".thread-card")).toContainText("Second word.");
+});
+
+// Issue #102: `#scholia-comments` — the `position: sticky` box clamped to the
+// viewport — is the rail's scroll container, so a stack of Conversations taller
+// than one screen stays reachable there rather than painting past its own edge.
+// 18 is an ordinary review load, not a token few, so that is the number this
+// asserts against. Scrolling is asserted on `#scholia-comments` itself, not
+// merely on the card's eventual visibility: `.comment-rail` used to carry its
+// own independent `overflow-y: auto` too, which happened to make the card
+// reachable by the same wheel gesture for the wrong reason (two candidate scroll
+// containers stacked on top of each other) — asserting the box named in the
+// issue is what pins the fix rather than a coincidence of the old layout.
+test("every Conversation is reachable by scrolling the rail, past a viewport's worth", async ({
+  page,
+  request,
+}) => {
+  for (let i = 1; i <= 18; i++) {
+    await seedComment(request, "many-comments.md", `Comment number ${i}.`);
+  }
+  await page.goto(`${preview.url}/many-comments.md`);
+
+  const cards = page.locator(".thread-card");
+  await expect(cards).toHaveCount(18);
+
+  const last = cards.last();
+  await expect(last).toContainText("Comment number 18.");
+  await expect(last).not.toBeInViewport();
+
+  const rail = page.locator("#scholia-comments");
+  const railBox = (await rail.boundingBox())!;
+  await page.mouse.move(railBox.x + railBox.width / 2, railBox.y + railBox.height / 2);
+  await page.mouse.wheel(0, 10_000);
+
+  await expect(last).toBeInViewport();
+  expect(await rail.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
 });
 
 // @scholia/ui renders an absent port method as an affordance this surface
