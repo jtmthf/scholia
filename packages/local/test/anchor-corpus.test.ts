@@ -32,7 +32,7 @@ import {
   locate,
   readCases,
   selectionFor,
-} from "../../core/test/helpers/anchor-corpus.js";
+} from "@scholia/core/test/helpers/anchor-corpus.js";
 
 const READER = "Reviewer Jane";
 

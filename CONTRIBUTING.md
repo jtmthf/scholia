@@ -21,17 +21,16 @@ Node 22 or newer, and pnpm (the version is pinned in `package.json`'s
 
 ```sh
 pnpm install
-pnpm typecheck     # tsc across the workspace
+pnpm typecheck     # tsc per package, via Turborepo
 pnpm lint          # oxlint --type-aware (catches what tsc misses)
 pnpm format        # oxfmt
-pnpm test:ci       # full vitest suite (CI job test-hosted sets DATABASE_URL)
+pnpm test:projects # full vitest suite in one process (CI job test-hosted sets DATABASE_URL)
 ```
 
 Run the CLI from source:
 
 ```sh
-pnpm --filter @scholia/local build   # build the browser bundle once
-pnpm scholia ./path/to/docs
+pnpm scholia ./path/to/docs   # builds @scholia/local's browser bundle first automatically
 ```
 
 ## Things that will trip you up
@@ -46,28 +45,30 @@ is ESM with `NodeNext` resolution:
 import { createApp } from "../src/app.js";
 ```
 
-**`pnpm test` can pass without running anything that matters.** The server and
-db tests skip themselves when `DATABASE_URL` is unset, so a green run may mean
-the entire hosted suite never executed. To actually run it:
+**`pnpm test` fails loudly, not silently, without Postgres.** The server and
+db tests need a real database and raise immediately if `DATABASE_URL` is unset
+— they don't skip. To actually run them:
 
 ```sh
 docker compose up -d        # Postgres (host port 5544) + MinIO
-pnpm db:migrate
+pnpm --filter @scholia/db migrate
 DATABASE_URL=postgres://scholia:scholia@127.0.0.1:5544/scholia pnpm test
 ```
 
-Postgres is on port **5544**, not 5432, so it doesn't collide with a
-host-managed Postgres — and use **`127.0.0.1`**, not `localhost`, which can
-resolve to IPv6 `::1` and fail to connect. Getting this wrong is the most
-common failure in this repo.
+`pnpm test` is `turbo run test`; turbo forwards `DATABASE_URL` to every
+package's task, so that one variable reaches `@scholia/db` and
+`@scholia/server` alongside everything else turbo runs. Postgres is on port
+**5544**, not 5432, so it doesn't collide with a host-managed Postgres — and
+use **`127.0.0.1`**, not `localhost`, which can resolve to IPv6 `::1` and fail
+to connect. Getting this wrong is the most common failure in this repo.
 
 CI runs two test jobs. `check` (ubuntu + windows) runs typecheck, lint, format,
-and `pnpm test:no-db` — the Local-Preview-and-pure-packages subset, no Postgres
-needed. `test-hosted` (ubuntu only) stands up a Postgres service container,
-migrates, runs the full `pnpm test:ci` with `DATABASE_URL` set, and fails if any
-test silently skips — so a skip that passes locally is caught at the gate.
-You don't need Postgres for a Local Preview change; you do for anything on the
-hosted path.
+and `turbo run test` filtered to everything except `@scholia/db` and
+`@scholia/server` — no Postgres needed. `test-hosted` (ubuntu only) stands up a
+Postgres service container, migrates, runs the full `pnpm test:projects` with
+`DATABASE_URL` set, and fails if any test silently skips — so a skip that
+passes locally is caught at the gate. You don't need Postgres for a Local
+Preview change; you do for anything on the hosted path.
 
 ## Language and architecture
 

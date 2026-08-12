@@ -5,13 +5,14 @@
   "description": "End-to-end Playwright suite: cli share -> server -> content origin -> viewer.",
   "type": "module",
   "scripts": {
-    "test": "playwright test",
+    "e2e": "playwright test",
     "test:ui": "playwright test --ui",
     "install:browsers": "playwright install chromium",
     "report": "playwright show-report"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@scholia/tsconfig": "workspace:*",
     "fflate": "^0.8.2"
   }
 }

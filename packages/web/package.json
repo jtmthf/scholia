@@ -8,7 +8,8 @@
     "build": "vite build && vite build --ssr src/node.ts",
     "start": "node dist/server/node.js",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.6",
@@ -24,7 +25,10 @@
   "devDependencies": {
     "@hono/vite-dev-server": "^0.26.1",
     "@preact/preset-vite": "^2.10.0",
+    "@scholia/tsconfig": "workspace:*",
+    "@scholia/vitest-config": "workspace:*",
     "typescript": "^7.0.2",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
   }
 }

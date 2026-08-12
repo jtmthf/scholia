@@ -41,8 +41,8 @@ provides.
 ## Run it
 
 ```sh
-pnpm prototype:anchors          # interactive: scoreboard, case stepper, chain view
-pnpm prototype:anchors:report   # the full tally, non-interactive
+tsx packages/core/prototype-anchor-migration/tui.ts     # interactive: scoreboard, case stepper, chain view
+tsx packages/core/prototype-anchor-migration/report.ts  # the full tally, non-interactive
 ```
 
 Corpus lives in `packages/core/test/fixtures/anchor-migration/` and is committed
@@ -50,8 +50,8 @@ Corpus lives in `packages/core/test/fixtures/anchor-migration/` and is committed
 check they have not drifted, with:
 
 ```sh
-pnpm prototype:anchors:extract
-pnpm prototype:anchors:verify
+tsx packages/core/prototype-anchor-migration/extract-corpus.ts
+tsx packages/core/prototype-anchor-migration/verify-corpus.ts
 ```
 
 `.prettierignore` covers `packages/*/test/fixtures/`, so `pnpm format` leaves the

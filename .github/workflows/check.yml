@@ -28,10 +28,11 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       # Postgres isn't available on Windows GitHub runners as a service
-      # container, so the hosted-path suite runs in the test-hosted job below on
-      # Linux. Both legs run the non-DB subset here — Windows stays useful
-      # because path handling is what diverges across platforms.
-      - run: pnpm test:no-db
+      # container, so the hosted-path suite (@scholia/db, @scholia/server)
+      # runs in the test-hosted job below on Linux. Both legs run everything
+      # else here — Windows stays useful because path handling is what
+      # diverges across platforms.
+      - run: pnpm exec turbo run test --filter='!@scholia/db' --filter='!@scholia/server'
 
   # The hosted path (server/db integration tests) used to be excluded from CI
   # entirely, which let hosted-path regressions hide behind silent
@@ -65,13 +66,21 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm db:migrate
+      - run: pnpm --filter @scholia/db migrate
+      # test:projects runs vitest directly, not through turbo, so it doesn't
+      # get turbo's `test` task dependsOn: ["^build", "build"] for free —
+      # build explicitly, or workspace deps' package.json exports point at a
+      # dist/ that was never generated.
+      - run: pnpm build
       # Default reporter for humans; JSON reporter writes the file the
       # no-skipped check reads. No `--` here: pnpm already forwards trailing
       # args to the `vitest run` script — an extra `--` makes vitest treat
       # these flags as positional test-file filters instead, so no JSON file
       # is ever written and the next step fails on a missing results.json.
-      - run: pnpm test:ci --reporter=default --reporter=json --outputFile=results.json
+      # test:projects (not `test`, which is turbo-orchestrated per package)
+      # runs every package's suite in one process, which is what a single
+      # combined JSON report needs.
+      - run: pnpm test:projects --reporter=default --reporter=json --outputFile=results.json
       - name: Fail if any test was skipped
         if: always()
         run: node ./scripts/check-no-skipped-tests.mjs results.json
@@ -108,12 +117,18 @@ jobs:
       # blob bucket as a one-shot and exits.
       - run: docker compose up -d --wait postgres minio
       - run: docker compose run --rm minio-init
-      - run: pnpm db:migrate
+      - run: pnpm --filter @scholia/db migrate
+
+      # Playwright's webServer boots @scholia/server directly via tsx, which
+      # imports workspace deps like @scholia/db through their package.json
+      # exports (dist/index.js) — that dist/ has to exist before the
+      # webServer starts, and nothing else in this job builds it.
+      - run: pnpm build
 
       # Browsers + their OS libs, then the suite. Playwright's webServer boots the
       # API + viewer and reuses them.
       - run: pnpm --filter @scholia/e2e exec playwright install --with-deps chromium
-      - run: pnpm e2e
+      - run: pnpm --filter @scholia/e2e e2e
 
       # HTML report + per-test traces (trace: on-first-retry) for diagnosing
       # failures without re-running the suite.

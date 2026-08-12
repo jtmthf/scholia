@@ -1,6 +1,8 @@
 # ADR-0025: TypeScript 7 for typechecking, and no monorepo task runner yet
 
-- Status: Accepted
+- Status: Partially superseded by ADR-0037 (the "no monorepo task runner yet"
+  half — trigger #1 below fired once packages gained real `dist` build
+  boundaries). The TypeScript 7 decision stands unchanged.
 - Date: 2026-07-26
 
 ## Context

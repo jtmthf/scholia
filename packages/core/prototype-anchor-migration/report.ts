@@ -1,5 +1,5 @@
 // PROTOTYPE (issue #24) — THROWAWAY. Non-interactive dump of the whole tally.
-// `pnpm prototype:anchors:report`
+// `tsx packages/core/prototype-anchor-migration/report.ts`
 import { loadChains, readCases, LAYERS, type Layer } from "./corpus.js";
 import {
   measureCase,

@@ -3,15 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.6",
@@ -28,7 +32,10 @@
     "preact-render-to-string": "^6.7.0"
   },
   "devDependencies": {
+    "@scholia/tsconfig": "workspace:*",
+    "@scholia/vitest-config": "workspace:*",
     "parse5": "^7.2.1",
-    "tsup": "^8.5.1"
+    "tsup": "^8.5.1",
+    "vitest": "^4.1.10"
   }
 }

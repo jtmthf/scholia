@@ -1,4 +1,28 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "include": ["src", "test"]
+  "extends": "@scholia/tsconfig/base.json",
+  "include": ["src", "test"],
+  "compilerOptions": {
+    // `typecheck` emits declarations as well as checking (tsup's own dts
+    // generation doesn't work under TypeScript 7 yet — rollup-plugin-dts
+    // needs the programmatic compiler API, targeted for 7.1, not 7.0).
+    // `test` is included above for checking, so the emitted layout mirrors
+    // both dirs (dist/src/*.d.ts, dist/test/*.d.ts) rather than a flat
+    // dist/*.d.ts; package.json's "types"/"exports" point at the former.
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist",
+    // Tests assert the public surface by importing "@scholia/core" like any
+    // consumer would. That package name resolves through package.json's
+    // "exports" to dist/src/index.d.ts — which this same command is what
+    // produces, so on a package that's never been typechecked there's
+    // nothing there yet. Map the self-import back to source for
+    // typechecking only; it doesn't touch how consumers (or Vitest, at
+    // runtime) resolve the package — that stays dist-only.
+    "paths": {
+      "@scholia/core": ["./src/index.ts"],
+      "@scholia/core/*": ["./src/*"]
+    }
+  }
 }

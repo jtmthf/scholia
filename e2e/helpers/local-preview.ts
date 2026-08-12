@@ -1,8 +1,16 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { access, mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { REPO_ROOT, stripSlash } from "./env.js";
+
+// Resolved against @scholia/cli's own node_modules (it declares the `tsx`
+// dependency this preview needs to run through) rather than the shell shim at
+// node_modules/.bin/tsx: under pnpm that shim is a `#!/bin/sh` script that
+// itself execs node, an extra fork/exec hop on every preview launch. Spawning
+// node directly against tsx's real entry below removes that hop.
+const tsxCliEntry = createRequire(join(REPO_ROOT, "packages/cli/package.json")).resolve("tsx/cli");
 
 export interface LocalPreview {
   /** Base URL the preview actually bound (the CLI falls back if its port is taken). */
@@ -71,8 +79,15 @@ export async function startLocalPreview(opts: LocalPreviewOptions): Promise<Loca
   // HOME is redirected so ~/.scholia/config on the developer's machine can't
   // change which editor the preview resolves (and so the run can't write there).
   const child = spawn(
-    join(REPO_ROOT, "node_modules/.bin/tsx"),
-    [join(REPO_ROOT, "packages/cli/src/cli.ts"), root, "--no-open", "--port", String(opts.port)],
+    process.execPath,
+    [
+      tsxCliEntry,
+      join(REPO_ROOT, "packages/cli/src/cli.ts"),
+      root,
+      "--no-open",
+      "--port",
+      String(opts.port),
+    ],
     {
       cwd: REPO_ROOT,
       env: { ...process.env, HOME: await mkdtemp(join(tmpdir(), "scholia-e2e-home-")) },
