@@ -17,6 +17,7 @@ import {
   type SourceMap,
   type SourceMapEntry,
 } from "./source-map.js";
+import { scopeToArticle } from "./scope-css.js";
 import type { Heading } from "../types.js";
 
 // parse5's default tree adapter is loosely typed; these are the only node
@@ -169,10 +170,23 @@ export function ingestHtml(source: string): HtmlIngest {
   const body = findTag(doc, "body");
   const bodyHtml = body ? serialize(body as never, { treeAdapter: defaultTreeAdapter }) : "";
 
+  // `styleHtml` is only ever hoisted into an embedding consumer's own document
+  // (Local Preview's chrome) — `html` above, the whole served document, is
+  // untouched. `<link>` stylesheets stay verbatim: the CSS lives in a file we
+  // don't have here to rewrite.
+  function scopeStyleNode(node: P5Node): void {
+    if (node.tagName !== "style") return;
+    const text = node.childNodes?.find((c) => c.nodeName === "#text");
+    if (text) text.value = scopeToArticle(text.value ?? "");
+  }
+
   const head = findTag(doc, "head");
   const styleHtml = (head?.childNodes ?? [])
     .filter(isStylesheet)
-    .map((node) => serializeOuter(node as never, { treeAdapter: defaultTreeAdapter }))
+    .map((node) => {
+      scopeStyleNode(node);
+      return serializeOuter(node as never, { treeAdapter: defaultTreeAdapter });
+    })
     .join("\n");
 
   return { html, bodyHtml, styleHtml, title, headings, sourceMap: serializeSourceMap(entries) };
