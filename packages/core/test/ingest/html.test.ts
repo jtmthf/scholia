@@ -51,4 +51,32 @@ describe("ingestHtml (M4)", () => {
     const p = sourceMap.entries.find((e) => e.tag === "p")!;
     expect(source.slice(p.start, p.end)).toBe(source);
   });
+
+  test("scopes a hoisted <style>'s rules to the article (issue #105)", () => {
+    const source = `<head><style>body { font-family: system-ui; max-width: 40rem }</style></head><body><p>hi</p></body>`;
+    const { styleHtml } = ingestHtml(source);
+    expect(styleHtml).toContain("@scope (article)");
+    expect(styleHtml).toContain(":scope");
+    // The raw, unscoped rule must not appear verbatim in the hoisted markup.
+    expect(styleHtml).not.toMatch(/\bbody\s*\{\s*font-family/);
+  });
+
+  test("preserves a <style> tag's own attributes while scoping its content", () => {
+    const source = `<head><style media="print">body { color: red }</style></head>`;
+    const { styleHtml } = ingestHtml(source);
+    expect(styleHtml).toContain('media="print"');
+  });
+
+  test("leaves <link rel=stylesheet> hoisting unchanged — external CSS isn't scoped", () => {
+    const source = `<head><link rel="stylesheet" href="./page.css"></head>`;
+    const { styleHtml } = ingestHtml(source);
+    expect(styleHtml).toContain('<link rel="stylesheet" href="./page.css">');
+  });
+
+  test("the whole served document's <style> is left unscoped — only styleHtml (the embedding path) is", () => {
+    const source = `<head><style>body { max-width: 40rem }</style></head><body><p>hi</p></body>`;
+    const { html } = ingestHtml(source);
+    expect(html).toContain("body { max-width: 40rem }");
+    expect(html).not.toContain("@scope");
+  });
 });

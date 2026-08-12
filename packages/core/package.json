@@ -26,6 +26,8 @@
     "github-slugger": "^2.0.0",
     "katex": "^0.17.0",
     "parse5": "^7.2.1",
+    "postcss": "^8.5.25",
+    "postcss-selector-parser": "^7.1.5",
     "preact": "^10.29.2",
     "preact-render-to-string": "^6.7.0",
     "rehype-autolink-headings": "^7.1.0",
