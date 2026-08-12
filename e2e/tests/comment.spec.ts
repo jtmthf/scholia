@@ -76,14 +76,23 @@ test("anchored Thread persists and re-highlights after reload", async ({ page })
   await panel.locator(".composer-name-row input").fill("Reviewer Jane");
   await panel.locator("textarea").fill("Persisted across reload.");
   await panel.locator(".btn-primary").click();
-  await expect(page.locator(".comment-rail .thread-card")).toHaveCount(1);
+
+  // Scoped to this test's own Thread, not the rail's total count — the Site is
+  // shared across this file's tests (one `beforeAll`), and earlier tests' public
+  // Threads are still there, legitimately, when this test's assertions run.
+  const card = page
+    .locator(".comment-rail .thread-card")
+    .filter({ hasText: "Persisted across reload." });
+  await expect(card).toHaveCount(1);
 
   // Reload: the Thread comes back from the server (not just local state) and the
   // anchor re-resolves into the freshly-loaded content document.
   await page.reload();
-  const card = page.locator(".comment-rail .thread-card");
-  await expect(card).toHaveCount(1);
-  await expect(card.locator(".comment-body")).toHaveText("Persisted across reload.");
+  const reloadedCard = page
+    .locator(".comment-rail .thread-card")
+    .filter({ hasText: "Persisted across reload." });
+  await expect(reloadedCard).toHaveCount(1);
+  await expect(reloadedCard.locator(".comment-body")).toHaveText("Persisted across reload.");
 });
 
 test("page-level comment (no selection) posts to the Page Thread section", async ({ page }) => {
@@ -99,7 +108,11 @@ test("page-level comment (no selection) posts to the Page Thread section", async
   await panel.locator("textarea").fill("General feedback on this page.");
   await panel.locator(".btn-primary").click();
 
-  const card = page.locator(".comment-rail .thread-card");
+  // Scoped to this test's own Thread, not the rail's total count — see the
+  // reload test above for why (Site shared across this file's tests).
+  const card = page
+    .locator(".comment-rail .thread-card")
+    .filter({ hasText: "General feedback on this page." });
   await expect(card).toHaveCount(1);
   await expect(card.locator(".thread-anchor-quote")).toHaveText("Page Comment");
   await expect(card.locator(".comment-body")).toHaveText("General feedback on this page.");
