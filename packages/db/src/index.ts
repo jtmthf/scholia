@@ -19,6 +19,7 @@ export {
   ownerDeleteComment,
   setResolved,
   toggleReaction,
+  groupReactions,
   listConversationsForPage,
   listChats,
   getConversationMeta,

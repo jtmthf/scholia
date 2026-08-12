@@ -21,10 +21,12 @@ import {
   promoteConversation,
   setResolved,
   toggleReaction,
+  groupReactions,
   type Anchor,
   type ConversationDTO,
   type ConversationMeta,
   type Identity,
+  type ReactionGroup,
   type SiteCommentDTO,
 } from "@scholia/db";
 import type { AppDeps } from "../config.js";
@@ -221,27 +223,10 @@ async function fetchConversationById(
           .where(inArray(schema.reactions.commentId, commentIds))
       : [];
 
-  const reactionsByComment = new Map<
-    string,
-    Array<{ emoji: string; count: number; mine: boolean }>
-  >();
+  const reactionsByComment = new Map<string, ReactionGroup[]>();
   for (const commentId of commentIds) {
     const rs = reactionRows.filter((r: ReactionRow) => r.commentId === commentId);
-    const groups = new Map<string, { count: number; mine: boolean }>();
-    for (const r of rs) {
-      const g = groups.get(r.emoji) ?? { count: 0, mine: false };
-      g.count += 1;
-      if (viewerId && r.authorViewerId === viewerId) g.mine = true;
-      groups.set(r.emoji, g);
-    }
-    reactionsByComment.set(
-      commentId,
-      Array.from(groups.entries()).map(([emoji, g]) => ({
-        emoji,
-        count: g.count,
-        mine: g.mine,
-      })),
-    );
+    reactionsByComment.set(commentId, groupReactions(rs, viewerId));
   }
 
   const commentDTOs = commentRows.map((c: CommentRow) => {

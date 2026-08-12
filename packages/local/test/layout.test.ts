@@ -104,8 +104,8 @@ const COMMENTS: NonNullable<LayoutOptions["comments"]> = {
           deleted: false,
           mine: true,
           reactions: [
-            { emoji: "👍", count: 2, mine: true },
-            { emoji: "👀", count: 1, mine: false },
+            { emoji: "👍", count: 2, mine: true, authors: ["Reviewer & Co", "Someone Else"] },
+            { emoji: "👀", count: 1, mine: false, authors: ["Someone Else"] },
           ],
         },
         {
@@ -158,7 +158,7 @@ const COMMENTS: NonNullable<LayoutOptions["comments"]> = {
           editedAt: null,
           deleted: false,
           mine: true,
-          reactions: [{ emoji: "✅", count: 1, mine: false }],
+          reactions: [{ emoji: "✅", count: 1, mine: false, authors: ["Someone Else"] }],
         },
       ],
     },

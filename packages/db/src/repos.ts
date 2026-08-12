@@ -1023,6 +1023,32 @@ export interface ReactionGroup {
   emoji: string;
   count: number;
   mine: boolean;
+  /** Names of everyone who reacted with this emoji, sorted. */
+  authors: string[];
+}
+
+// Shared by every call site that groups raw reaction rows into `ReactionGroup[]`
+// (the single-comment toggle, the bulk conversation hydration, and the server's
+// direct-fetch duplicate) so "who reacted" stays available wherever "how many"
+// is.
+export function groupReactions(
+  rows: Array<{ emoji: string; author: Identity; authorViewerId: string | null }>,
+  viewerId: string | null,
+): ReactionGroup[] {
+  const groups = new Map<string, { count: number; mine: boolean; authors: string[] }>();
+  for (const r of rows) {
+    const g = groups.get(r.emoji) ?? { count: 0, mine: false, authors: [] };
+    g.count += 1;
+    g.authors.push(r.author.name);
+    if (viewerId && r.authorViewerId === viewerId) g.mine = true;
+    groups.set(r.emoji, g);
+  }
+  return Array.from(groups.entries()).map(([emoji, g]) => ({
+    emoji,
+    count: g.count,
+    mine: g.mine,
+    authors: g.authors.sort(),
+  }));
 }
 
 // Toggle a reaction for a Viewer: delete if (commentId, emoji, authorViewerId)
@@ -1071,24 +1097,13 @@ async function buildReactionGroups(
   const rows = await db
     .select({
       emoji: reactions.emoji,
+      author: reactions.author,
       authorViewerId: reactions.authorViewerId,
     })
     .from(reactions)
     .where(eq(reactions.commentId, commentId));
 
-  // Group by emoji, count, detect mine.
-  const groups = new Map<string, { count: number; mine: boolean }>();
-  for (const r of rows) {
-    const g = groups.get(r.emoji) ?? { count: 0, mine: false };
-    g.count += 1;
-    if (viewerId && r.authorViewerId === viewerId) g.mine = true;
-    groups.set(r.emoji, g);
-  }
-  return Array.from(groups.entries()).map(([emoji, g]) => ({
-    emoji,
-    count: g.count,
-    mine: g.mine,
-  }));
+  return groupReactions(rows, viewerId);
 }
 
 export interface CommentDTO {
@@ -1168,17 +1183,7 @@ async function assembleConversationDTOs(
   const reactionsByComment = new Map<string, ReactionGroup[]>();
   for (const commentId of commentIds) {
     const rs = reactionRows.filter((r) => r.commentId === commentId);
-    const groups = new Map<string, { count: number; mine: boolean }>();
-    for (const r of rs) {
-      const g = groups.get(r.emoji) ?? { count: 0, mine: false };
-      g.count += 1;
-      if (viewerId && r.authorViewerId === viewerId) g.mine = true;
-      groups.set(r.emoji, g);
-    }
-    reactionsByComment.set(
-      commentId,
-      Array.from(groups.entries()).map(([emoji, g]) => ({ emoji, count: g.count, mine: g.mine })),
-    );
+    reactionsByComment.set(commentId, groupReactions(rs, viewerId));
   }
 
   const commentsByConv = new Map<string, CommentDTO[]>();

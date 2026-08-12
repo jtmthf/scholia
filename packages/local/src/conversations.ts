@@ -128,12 +128,11 @@ export function toConversationDTO(
       editedAt: comment.editedAt,
       deleted: comment.deleted,
       mine: comment.author === reader,
-      // The rail counts reactions and asks whether the reader is among them;
-      // who else reacted is in the Sidecar for anyone reading the file.
       reactions: comment.reactions.map((reaction) => ({
         emoji: reaction.emoji,
         count: reaction.authors.length,
         mine: reaction.authors.includes(reader),
+        authors: reaction.authors,
       })),
     })),
   };

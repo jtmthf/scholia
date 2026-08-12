@@ -143,6 +143,7 @@ describe("M5: Anchoring + public Threads", () => {
     let groups = (await react.json()) as any[];
     expect(groups.find((g) => g.emoji === "👍")?.count).toBe(1);
     expect(groups.find((g) => g.emoji === "👍")?.mine).toBe(true);
+    expect(groups.find((g) => g.emoji === "👍")?.authors).toEqual(["Jane"]);
 
     // Toggle it off.
     groups = (await (
