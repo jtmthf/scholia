@@ -143,6 +143,22 @@ describe("ConversationCard", () => {
     });
   });
 
+  // Issue #103: a Comment's Delete and a Conversation's Delete sat ~40px apart with
+  // the same accessible name. Naming each by scope keeps them distinguishable.
+  it("names the moderation delete by scope, distinct from a Comment's Delete", () => {
+    const html = render(
+      <ConversationCard
+        conversation={conversation({ comments: [comment({ mine: true })] })}
+        active={false}
+        onActivate={() => {}}
+      />,
+      stubPort({ canModerate: true }),
+    );
+
+    expect(html).toContain(">Delete Conversation<");
+    expect(html).toContain(">Delete Comment<");
+  });
+
   it("names the resolver only while the Conversation is resolved", () => {
     const html = render(
       <ConversationCard
@@ -197,7 +213,7 @@ describe("Comment", () => {
     );
 
     expect(html).toContain("comment-actions");
-    expect(html).toContain(">Delete<");
+    expect(html).toContain(">Delete Comment<");
     expect(html).not.toContain(">Edit<");
     // Labelled as moderation, so a reader can tell which of the two they are doing.
     expect(html).toContain("Owner moderation");

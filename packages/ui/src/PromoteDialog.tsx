@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { useComments } from "./port.js";
+import { DialogShell } from "./DialogShell.js";
 import type { ConversationDTO } from "./types.js";
 
 interface PromoteDialogProps {
@@ -62,48 +63,44 @@ export function PromoteDialog({ conversation, onClose, note = DEFAULT_NOTE }: Pr
   }
 
   return (
-    <div class="promote-backdrop" onClick={onClose}>
-      <div class="promote-dialog" onClick={(e) => e.stopPropagation()}>
-        <div class="promote-header">
-          <span class="promote-title">Promote to a public Thread</span>
-          <button class="promote-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
+    <DialogShell
+      title="Promote to a public Thread"
+      onClose={onClose}
+      dialogClass="promote-dialog"
+      titleClass="promote-title"
+    >
+      <p class="promote-note">{note}</p>
 
-        <p class="promote-note">{note}</p>
-
-        <div class="promote-comments">
-          {selectable.map((c) => (
-            <label key={c.id} class="promote-comment">
-              <input type="checkbox" checked={checked.has(c.id)} onChange={() => toggle(c.id)} />
-              <span class="promote-comment-author">{c.author.name}</span>
-              <span class="promote-comment-body">{c.body}</span>
-            </label>
-          ))}
-        </div>
-
-        <label class="promote-summary-label">
-          Summary (optional)
-          <textarea
-            class="promote-summary"
-            value={summary}
-            placeholder="A short summary of what was decided…"
-            onInput={(e) => setSummary((e.target as HTMLTextAreaElement).value)}
-          />
-        </label>
-
-        {error && <div class="composer-error">{error}</div>}
-
-        <div class="promote-footer">
-          <button class="btn-primary" disabled={!canPromote} onClick={() => void handlePromote()}>
-            {submitting ? "Promoting…" : "Promote"}
-          </button>
-          <button class="btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-        </div>
+      <div class="promote-comments">
+        {selectable.map((c) => (
+          <label key={c.id} class="promote-comment">
+            <input type="checkbox" checked={checked.has(c.id)} onChange={() => toggle(c.id)} />
+            <span class="promote-comment-author">{c.author.name}</span>
+            <span class="promote-comment-body">{c.body}</span>
+          </label>
+        ))}
       </div>
-    </div>
+
+      <label class="promote-summary-label">
+        Summary (optional)
+        <textarea
+          class="promote-summary"
+          value={summary}
+          placeholder="A short summary of what was decided…"
+          onInput={(e) => setSummary((e.target as HTMLTextAreaElement).value)}
+        />
+      </label>
+
+      {error && <div class="composer-error">{error}</div>}
+
+      <div class="promote-footer">
+        <button class="btn-primary" disabled={!canPromote} onClick={() => void handlePromote()}>
+          {submitting ? "Promoting…" : "Promote"}
+        </button>
+        <button class="btn-secondary" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </DialogShell>
   );
 }

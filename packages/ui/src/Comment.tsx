@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { useComments } from "./port.js";
+import { ConfirmDialog } from "./ConfirmDialog.js";
 import { IdentityDisplay } from "./Identity.js";
 import { Reactions } from "./Reactions.js";
 import type { CommentDTO } from "./types.js";
@@ -14,6 +15,7 @@ export function Comment({ comment }: CommentProps) {
   const [editBody, setEditBody] = useState(comment.body);
   const [editError, setEditError] = useState<string | null>(null);
   const [editPending, setEditPending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   function formatTime(iso: string): string {
     try {
@@ -58,12 +60,7 @@ export function Comment({ comment }: CommentProps) {
 
   async function handleDelete() {
     if (!port.deleteComment) return;
-    if (!confirm(moderating ? "Delete this Comment as the Owner?" : "Delete this Comment?")) return;
-    try {
-      await port.deleteComment(comment.id);
-    } catch {
-      // ignore — comment stays visible
-    }
+    await port.deleteComment(comment.id);
   }
 
   if (comment.deleted) {
@@ -134,13 +131,23 @@ export function Comment({ comment }: CommentProps) {
           {canDelete && (
             <button
               class="comment-action-btn"
-              title={moderating ? "Owner moderation — delete someone else's comment" : undefined}
-              onClick={() => void handleDelete()}
+              title={moderating ? "Owner moderation — delete someone else's Comment" : undefined}
+              onClick={() => setDeleting(true)}
             >
-              Delete
+              Delete Comment
             </button>
           )}
         </div>
+      )}
+
+      {deleting && (
+        <ConfirmDialog
+          title="Delete Comment"
+          message={moderating ? "Delete this Comment as the Owner?" : "Delete this Comment?"}
+          confirmLabel="Delete"
+          onConfirm={handleDelete}
+          onClose={() => setDeleting(false)}
+        />
       )}
     </div>
   );
