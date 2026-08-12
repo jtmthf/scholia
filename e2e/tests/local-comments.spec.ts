@@ -703,13 +703,17 @@ test("an author edits their own Comment, and it says so", async ({ page }) => {
   await expect(page.locator(".comment-edited")).toBeVisible();
 });
 
+// Issue #103: an in-app dialog, not native window.confirm — so the reader gets a
+// consistent, distinguishable confirmation instead of a browser-chrome prompt.
 test("deleting a Comment leaves a tombstone in place", async ({ page }) => {
   await page.goto(`${preview.url}/delete.md`);
 
   await commentOnSelection(page, "Something to take back", "Said in haste.");
 
-  page.once("dialog", (dialog) => void dialog.accept());
-  await page.locator(".comment-action-btn", { hasText: "Delete" }).click();
+  await page.locator(".comment-action-btn", { hasText: "Delete Comment" }).click();
+  const dialog = page.locator(".confirm-dialog");
+  await expect(dialog).toContainText("Delete this Comment?");
+  await dialog.locator("button", { hasText: "Delete" }).click();
 
   await expect(page.locator(".comment-tombstone")).toBeVisible();
   await expect(page.locator(".comment-rail")).not.toContainText("Said in haste.");
@@ -719,7 +723,8 @@ test("deleting a Comment leaves a tombstone in place", async ({ page }) => {
 });
 
 // CONTEXT "Owner": the reader at this machine may remove a whole Conversation.
-// The delete takes two clicks on purpose — it holds other people's words.
+// The delete goes through a confirmation dialog naming what is lost, on purpose
+// — it holds other people's words (issue #103).
 test("the Owner deletes a whole Conversation, and it leaves the Page", async ({
   page,
   request,
@@ -728,7 +733,9 @@ test("the Owner deletes a whole Conversation, and it leaves the Page", async ({
   await page.goto(`${preview.url}/moderate.md`);
 
   await page.locator(".thread-action-btn--delete").click();
-  await page.locator(".thread-action-btn--delete", { hasText: "Confirm delete" }).click();
+  const dialog = page.locator(".confirm-dialog");
+  await expect(dialog).toContainText("Delete this Conversation and its 1 Comment?");
+  await dialog.locator("button", { hasText: "Delete" }).click();
 
   await expect(page.locator(".thread-card")).toHaveCount(0);
   await expect(page.locator(".rail-empty")).toBeVisible();

@@ -476,6 +476,27 @@
   color: var(--muted);
 }
 
+/* A destructive confirmation, e.g. ConfirmDialog's Delete — solid red rather than
+   the outline .thread-action-btn--delete uses, since this is the point of no return. */
+.btn-danger {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.btn-danger:hover {
+  background: color-mix(in srgb, #c0392b 85%, black);
+}
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .composer-error {
   font-size: 11px;
   color: var(--owner-tier-fg);
@@ -640,9 +661,14 @@
   background: color-mix(in srgb, var(--agent-badge-bg) 80%, black);
 }
 
-/* ── Promote dialog (Chat → Thread) ────────────────────────── */
+/* ── Dialog shell (DialogShell, shared by Promote and ConfirmDialog) ───────
+   The backdrop/card/header/close markup itself lives once, in DialogShell
+   (issue #103); PromoteDialog and ConfirmDialog only add their own dialogClass
+   ("promote-dialog"/"confirm-dialog") and content below it, so promote-dialog
+   and promote-title are markers on top of the dialog/dialog-title rules, not
+   separate styling. */
 
-.promote-backdrop {
+.dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9500;
@@ -653,7 +679,8 @@
   padding: 24px;
 }
 
-.promote-dialog {
+.promote-dialog,
+.dialog {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -668,19 +695,21 @@
   cursor: default;
 }
 
-.promote-header {
+.dialog-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.promote-title {
+.promote-title,
+.dialog-title {
   font-weight: 600;
   font-size: 13px;
   color: var(--fg);
 }
 
-.promote-note {
+.promote-note,
+.dialog-message {
   font-size: 12px;
   line-height: 1.5;
   color: var(--muted);
@@ -755,7 +784,8 @@
   border-color: var(--nav-active-fg);
 }
 
-.promote-footer {
+.promote-footer,
+.dialog-footer {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -763,7 +793,7 @@
 
 /* The dialog's close affordance. Same rules the hosted viewer's own panels use
    for theirs, restated here so the dialog is dressed by this stylesheet alone. */
-.promote-close {
+.dialog-close {
   background: none;
   border: none;
   color: var(--muted);
@@ -774,6 +804,6 @@
   border-radius: 3px;
   transition: color 0.1s;
 }
-.promote-close:hover {
+.dialog-close:hover {
   color: var(--fg);
 }

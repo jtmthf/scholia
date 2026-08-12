@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { useComments } from "./port.js";
 import { Comment } from "./Comment.js";
 import { Composer } from "./Composer.js";
+import { ConfirmDialog } from "./ConfirmDialog.js";
 import { PromoteDialog } from "./PromoteDialog.js";
 import type { ConversationDTO } from "./types.js";
 
@@ -47,9 +48,9 @@ export function ConversationCard({
   useEffect(() => setExpanded(!conversation.resolved), [conversation.resolved]);
   const [replying, setReplying] = useState(false);
   const [promoting, setPromoting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Absent port methods are surfaces this consumer doesn't have — the control
   // isn't rendered rather than rendered and failing (see CommentsPort).
@@ -59,11 +60,7 @@ export function ConversationCard({
 
   async function deleteConversation() {
     if (!port.deleteConversation) return;
-    try {
-      await port.deleteConversation(conversation.id);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Delete failed.");
-    }
+    await port.deleteConversation(conversation.id);
   }
 
   const anchored = conversation.anchor !== null;
@@ -176,28 +173,15 @@ export function ConversationCard({
                   {conversation.resolved ? "Reopen" : "Resolve"}
                 </button>
               )}
-              {canModerate &&
-                (confirmDelete ? (
-                  <>
-                    <button
-                      class="thread-action-btn thread-action-btn--delete"
-                      onClick={() => void deleteConversation()}
-                    >
-                      Confirm delete
-                    </button>
-                    <button class="thread-action-btn" onClick={() => setConfirmDelete(false)}>
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    class="thread-action-btn thread-action-btn--delete"
-                    title="Owner moderation — delete this entire conversation"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    Delete
-                  </button>
-                ))}
+              {canModerate && (
+                <button
+                  class="thread-action-btn thread-action-btn--delete"
+                  title="Owner moderation — delete this entire Conversation"
+                  onClick={() => setDeleting(true)}
+                >
+                  Delete Conversation
+                </button>
+              )}
             </div>
           )}
         </>
@@ -209,6 +193,20 @@ export function ConversationCard({
             conversation={conversation}
             onClose={() => setPromoting(false)}
             {...(promoteNote ? { note: promoteNote } : {})}
+          />
+        </div>
+      )}
+
+      {deleting && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmDialog
+            title="Delete Conversation"
+            message={`Delete this Conversation and its ${conversation.comments.length} ${
+              conversation.comments.length === 1 ? "Comment" : "Comments"
+            }?`}
+            confirmLabel="Delete"
+            onConfirm={deleteConversation}
+            onClose={() => setDeleting(false)}
           />
         </div>
       )}
