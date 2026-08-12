@@ -34,6 +34,8 @@ export interface ReactionGroup {
   emoji: string;
   count: number;
   mine: boolean;
+  /** Names of everyone who reacted with this emoji, sorted. */
+  authors: string[];
 }
 
 export interface CommentDTO {

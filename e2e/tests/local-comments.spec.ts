@@ -428,7 +428,8 @@ test("offers only what the Sidecar can actually do", async ({ page, request }) =
   await expect(card.locator(".thread-action-btn", { hasText: "Reply" })).toBeVisible();
   await expect(card.locator(".thread-action-btn--resolve")).toBeVisible();
   await expect(card.locator(".thread-action-btn--delete")).toBeVisible();
-  await expect(card.locator(".reaction-chip")).toHaveCount(6);
+  await expect(card.locator(".reaction-chip")).toHaveCount(1);
+  await expect(card.locator(".reaction-chip--add")).toBeVisible();
   await expect(card.locator(".thread-action-btn--promote")).toHaveCount(0);
   // No tokens to hand out locally, so no "Bring your agent".
   await expect(page.locator(".bring-agent-btn")).toHaveCount(0);
@@ -606,6 +607,7 @@ test("statuses wait for the content they describe while a reader is composing", 
 
   // A write of their own, mid-sentence: the reply comes back resolved against
   // the file on disk, where the quoted passage is already gone.
+  await page.locator(".thread-card .reaction-chip--add").click();
   await page.locator(".thread-card .reaction-chip").filter({ hasText: "👍" }).click();
   await expect(page.locator(".thread-card .reaction-chip--mine")).toContainText("1");
 
@@ -665,22 +667,28 @@ test("a reaction can be added and taken back from the fixed palette", async ({ p
   await seedComment(request, "react.md", "Worth a look.");
   await page.goto(`${preview.url}/react.md`);
 
-  // No tallies yet, so the whole palette is offered — six and no picker.
+  // No tallies yet, so only the add-reaction chip is offered — not the whole palette.
   const chips = page.locator(".thread-card .reaction-chip");
-  await expect(chips).toHaveCount(6);
+  await expect(chips).toHaveCount(1);
+
+  // Opening it reveals the fixed six-emoji palette alongside the add chip.
+  await page.locator(".thread-card .reaction-chip--add").click();
+  await expect(chips).toHaveCount(7);
 
   await chips.filter({ hasText: "👍" }).click();
 
   const tally = page.locator(".thread-card .reaction-chip--mine");
   await expect(tally).toHaveCount(1);
   await expect(tally).toContainText("1");
+  // Picking closes the picker: the tally plus an add chip for what's left.
+  await expect(chips).toHaveCount(2);
 
   await page.reload();
   await expect(page.locator(".thread-card .reaction-chip--mine")).toContainText("1");
 
-  // Clicking the chip again takes it back, and the palette returns.
+  // Clicking the chip again takes it back, down to just the add chip.
   await page.locator(".thread-card .reaction-chip--mine").click();
-  await expect(page.locator(".thread-card .reaction-chip")).toHaveCount(6);
+  await expect(page.locator(".thread-card .reaction-chip")).toHaveCount(1);
 
   await page.reload();
   await expect(page.locator(".thread-card .reaction-chip--mine")).toHaveCount(0);

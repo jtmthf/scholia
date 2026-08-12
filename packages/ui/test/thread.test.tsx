@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { Comment, Composer, ConversationCard, IdentityDisplay, Reactions } from "../src/index.js";
+import {
+  Comment,
+  Composer,
+  ConversationCard,
+  IdentityDisplay,
+  REACTION_PALETTE,
+  Reactions,
+} from "../src/index.js";
 import {
   comment,
   conversation,
@@ -240,30 +247,54 @@ describe("Comment", () => {
 });
 
 describe("Reactions", () => {
-  it("offers the whole palette when nothing has been reacted with yet", () => {
+  // The palette stays behind a single add-reaction chip until asked for, so an
+  // unreacted Comment doesn't cost the rail six tab stops (issue #104).
+  it("offers a single add-reaction chip when nothing has been reacted with yet", () => {
     const html = render(<Reactions commentId="c1" reactions={[]} />);
 
-    expect(occurrences(html, "<button")).toBe(6);
+    expect(occurrences(html, "<button")).toBe(1);
+    expect(html).toContain("reaction-chip--add");
     expect(html).not.toContain("reaction-chip__count");
   });
 
-  // Once there are counts the rail shows only what people actually used, so the
-  // card stays readable.
-  it("shows only reacted emoji, with counts, once there are any", () => {
+  // Tallies render alongside the add chip, not instead of it, so a reader can
+  // always reach a distinct reaction even once others are in use.
+  it("shows reacted emoji with counts plus an add chip for what's left", () => {
     const html = render(
       <Reactions
         commentId="c1"
         reactions={[
-          { emoji: "👍", count: 2, mine: true },
-          { emoji: "👀", count: 1, mine: false },
+          { emoji: "👍", count: 2, mine: true, authors: ["Reviewer Jane", "Agent Bot"] },
+          { emoji: "👀", count: 1, mine: false, authors: ["Reviewer Jane"] },
         ]}
       />,
     );
 
-    expect(occurrences(html, "<button")).toBe(2);
+    expect(occurrences(html, "<button")).toBe(3);
     expect(occurrences(html, "reaction-chip__count")).toBe(2);
     expect(html).toContain("reaction-chip--mine");
-    expect(html).toContain("👍 2 (you reacted)");
+    expect(html).toContain("reaction-chip--add");
+    expect(html).toContain("Reviewer Jane, Agent Bot");
+    expect(html).toContain(`aria-pressed="true"`);
+    expect(html).toContain(`aria-pressed="false"`);
+  });
+
+  // All six used leaves nothing left to add, so the disclosure itself goes away.
+  it("hides the add chip once every palette entry has been used", () => {
+    const html = render(
+      <Reactions
+        commentId="c1"
+        reactions={REACTION_PALETTE.map((emoji) => ({
+          emoji,
+          count: 1,
+          mine: false,
+          authors: ["Reviewer Jane"],
+        }))}
+      />,
+    );
+
+    expect(html).not.toContain("reaction-chip--add");
+    expect(occurrences(html, "<button")).toBe(6);
   });
 
   it("offers no palette when the port cannot record a Reaction", () => {
@@ -279,12 +310,16 @@ describe("Reactions", () => {
   // — just not as something to click.
   it("still shows existing tallies read-only when the port cannot react", () => {
     const html = render(
-      <Reactions commentId="c1" reactions={[{ emoji: "👍", count: 3, mine: false }]} />,
+      <Reactions
+        commentId="c1"
+        reactions={[{ emoji: "👍", count: 3, mine: false, authors: ["A", "B", "C"] }]}
+      />,
       stubPort({ toggleReaction: undefined }),
     );
 
     expect(html).toContain("reaction-chip--static");
     expect(html).toContain("3");
+    expect(html).toContain("A, B, C");
     expect(html).not.toContain("<button");
   });
 });

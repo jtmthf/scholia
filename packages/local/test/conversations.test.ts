@@ -70,7 +70,7 @@ interface CommentBody {
   author: { name: string };
   editedAt: string | null;
   deleted: boolean;
-  reactions: Array<{ emoji: string; count: number; mine: boolean }>;
+  reactions: Array<{ emoji: string; count: number; mine: boolean; authors: string[] }>;
 }
 
 interface ConversationsBody {
@@ -715,8 +715,9 @@ test("a reaction can be added and taken back, from the fixed palette only", asyn
   const added = (await (
     await act(url, path, { page: "guide.md", emoji: "👍" })
   ).json()) as ConversationsBody;
-  expect(added.conversations![0]!.comments[0]!.reactions).toEqual([
-    { emoji: "👍", count: 1, mine: true },
+  const reactedComment = added.conversations![0]!.comments[0]!;
+  expect(reactedComment.reactions).toEqual([
+    { emoji: "👍", count: 1, mine: true, authors: [reactedComment.author.name] },
   ]);
 
   // Clicking the same chip again takes it back.
