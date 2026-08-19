@@ -1,6 +1,6 @@
 {
   "name": "scholia",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Preview a local markdown file or folder in your browser. One command, no config, no account, no network.",
   "keywords": [
     "cli",
