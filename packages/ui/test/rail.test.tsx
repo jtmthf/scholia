@@ -8,12 +8,17 @@ import { comment, conversation, occurrences, render, stubPort } from "./helpers/
 describe("Rail", () => {
   const anchored = conversation({ id: "anchored" });
   const pageLevel = conversation({ id: "page-level", anchor: null });
+  const resolved = conversation({
+    id: "resolved",
+    resolved: true,
+    resolvedBy: "Reviewer Jane",
+  });
   const outdated = conversation({ id: "outdated", anchorStatus: "outdated", createdOrdinal: 2 });
   const chat = conversation({ id: "chat", visibility: "private" });
 
   const full = (
     <Rail
-      conversations={[anchored, pageLevel, outdated]}
+      conversations={[anchored, pageLevel, resolved, outdated]}
       chats={[chat]}
       activeConversationId={null}
       onActivate={() => {}}
@@ -21,15 +26,66 @@ describe("Rail", () => {
     />
   );
 
-  it("splits Conversations into Chats, anchored, page-level and Outdated sections", () => {
+  it("groups public Conversations by attention: Open, Resolved and Outdated", () => {
     const html = render(full);
 
     expect(html).toContain("🔒 Private Chats (1)");
-    expect(html).toContain("Anchored (1)");
-    expect(html).toContain("Page Comments (1)");
+    // Anchored and page-level live Threads are merged into Open.
+    expect(html).toContain("Open (2)");
+    expect(html).toContain("Resolved (1)");
     expect(html).toContain("Outdated (1)");
-    // Four Conversations in, four cards out — an Outdated one is moved, not dropped.
-    expect(occurrences(html, 'class="thread-card')).toBe(4);
+    // Five Conversations in, five cards out — an Outdated one is moved, not dropped.
+    expect(occurrences(html, 'class="thread-card')).toBe(5);
+  });
+
+  it("keeps anchored and page-level Conversations in the same Open section", () => {
+    const html = render(
+      <Rail
+        conversations={[anchored, pageLevel]}
+        chats={[]}
+        activeConversationId={null}
+        onActivate={() => {}}
+        onNewPageComment={() => {}}
+      />,
+    );
+
+    expect(html).toContain("Open (2)");
+    expect(html).not.toContain("Anchored (");
+    expect(html).not.toContain("Page Comments (");
+    // The distinction is per card, not per section.
+    expect(html).toContain("Page Comment");
+    expect(html).toContain("the rendered text");
+  });
+
+  it("moves resolved Conversations out of Open so the count answers how much is open", () => {
+    const html = render(
+      <Rail
+        conversations={[anchored, resolved]}
+        chats={[]}
+        activeConversationId={null}
+        onActivate={() => {}}
+        onNewPageComment={() => {}}
+      />,
+    );
+
+    expect(html).toContain("Open (1)");
+    expect(html).not.toContain("Open (2)");
+    expect(html).toContain("Resolved (1)");
+  });
+
+  it("removes the Open section entirely when the only Conversation is resolved", () => {
+    const html = render(
+      <Rail
+        conversations={[resolved]}
+        chats={[]}
+        activeConversationId={null}
+        onActivate={() => {}}
+        onNewPageComment={() => {}}
+      />,
+    );
+
+    expect(html).not.toContain("Open (");
+    expect(html).toContain("Resolved (1)");
   });
 
   it("renders an empty-state instead of sections when there is nothing to show", () => {
@@ -195,6 +251,8 @@ describe("Rail", () => {
     expect(withoutModeration).not.toContain("thread-action-btn--delete");
 
     const withModeration = render(full, stubPort({ canModerate: true }));
+    // The resolved Conversation is collapsed, so its delete action is hidden; the
+    // other four expanded cards show the control.
     expect(occurrences(withModeration, "thread-action-btn--delete")).toBe(4);
   });
 

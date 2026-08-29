@@ -43,7 +43,7 @@ describe("rendering a Site URL", () => {
 
     const { html } = await render("http://localhost:5173/s/abc123", DEV_ASSETS);
 
-    expect(html).toContain("Anchored (1)");
+    expect(html).toContain("Open (1)");
     expect(html).toContain("This claim needs a citation.");
     expect(html).toContain("Reviewer Jane");
   });
