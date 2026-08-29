@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { useComments } from "./port.js";
 import { Comment } from "./Comment.js";
 import { Composer } from "./Composer.js";
@@ -12,6 +12,8 @@ interface ConversationCardProps {
   active: boolean;
   /** User clicked the card → scroll its anchor into view. */
   onActivate: () => void;
+  /** The reader's pointer entered (true) or left (false) the card. */
+  onHover?: (hovering: boolean) => void;
   /** Render a lock affordance + muted styling (a private Chat, not a Thread). */
   isPrivate?: boolean;
   /** Show the Promote control (the owning reader flipping a Chat → Thread). */
@@ -34,12 +36,23 @@ export function ConversationCard({
   conversation,
   active,
   onActivate,
+  onHover,
   isPrivate = false,
   promotable = false,
   promoteNote,
 }: ConversationCardProps) {
   const port = useComments();
   const [expanded, setExpanded] = useState(!conversation.resolved);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Becoming active from outside the rail — clicking the passage in the
+  // content — should bring the card into view, the other half of the
+  // card→passage link a hover already gets (issue #109). `block: "nearest"`
+  // so a card already on screen (including the click-on-the-card-itself case)
+  // doesn't jump.
+  useEffect(() => {
+    if (active) cardRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [active]);
 
   // Whether a resolved card is expanded is the reader's choice, but resolving is
   // not: a Conversation that has just been settled has to collapse now, not on
@@ -96,7 +109,13 @@ export function ConversationCard({
     `${isPrivate ? " thread-card--private" : ""}`;
 
   return (
-    <div class={cls} onClick={onActivate}>
+    <div
+      ref={cardRef}
+      class={cls}
+      onClick={onActivate}
+      onMouseEnter={() => onHover?.(true)}
+      onMouseLeave={() => onHover?.(false)}
+    >
       <div class="thread-header">
         {isPrivate && (
           <span class="thread-lock" title="Private Chat — visible only to you and your agents">

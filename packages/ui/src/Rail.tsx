@@ -20,6 +20,12 @@ interface RailProps {
   activeConversationId: string | null;
   /** Click a Conversation → scroll its anchor into view in the content. */
   onActivate: (id: string) => void;
+  /**
+   * Hovering a card emphasizes its passage in the content, and unhovering
+   * clears it (id → null). Omitted where there is no passage to emphasize
+   * (e.g. a surface that hasn't wired up its content bridge yet).
+   */
+  onEmphasize?: (id: string | null) => void;
   /** Start a new page-level (un-anchored) Thread. */
   onNewPageComment: () => void;
   /** Hand a reader's own agent a token. Omitted where there are no tokens. */
@@ -68,6 +74,7 @@ export function Rail({
   chats,
   activeConversationId,
   onActivate,
+  onEmphasize,
   onNewPageComment,
   onBringAgent,
   outdatedOrigin,
@@ -85,12 +92,18 @@ export function Rail({
   const open = conversations.filter((c) => c.anchorStatus === "live" && !c.resolved);
   const resolved = conversations.filter((c) => c.anchorStatus === "live" && c.resolved);
 
+  // Shared by both card renderers below: hovering any card emphasizes its own
+  // passage, id → null on unhover.
+  const hoverHandler = (id: string) =>
+    onEmphasize ? (hovering: boolean) => onEmphasize(hovering ? id : null) : undefined;
+
   const renderConversation = (c: ConversationDTO) => (
     <ConversationCard
       key={c.id}
       conversation={c}
       active={c.id === activeConversationId}
       onActivate={() => onActivate(c.id)}
+      onHover={hoverHandler(c.id)}
     />
   );
 
@@ -102,6 +115,7 @@ export function Rail({
       conversation={c}
       active={c.id === activeConversationId}
       onActivate={() => onActivate(c.id)}
+      onHover={hoverHandler(c.id)}
       isPrivate
       promotable
       {...(promoteNote ? { promoteNote } : {})}

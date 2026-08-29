@@ -79,7 +79,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
     });
   }, []);
 
-  const { selection, clearSelection, activeConversationId, activate, anchorOffsets } =
+  const { selection, clearSelection, activeConversationId, activate, emphasize, anchorOffsets } =
     useContentAnchors({ content, contentKey: data.contentHash, conversations });
 
   // ---- Composing holds the ground still (issue #29) --------------------------
@@ -328,6 +328,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
         chats={chats}
         activeConversationId={activeConversationId}
         onActivate={activate}
+        onEmphasize={emphasize}
         onNewPageComment={() => composeOn(null, "public")}
         outdatedNote={OUTDATED_NOTE}
         emptyNote={EMPTY_NOTE}

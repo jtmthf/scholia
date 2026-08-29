@@ -12,8 +12,32 @@ import { toRange } from "./dom-anchor.js";
 import type { TextQuote } from "./quote.js";
 
 const HIGHLIGHT_NAME = "scholia-anchor";
-const HIGHLIGHT_STYLE =
-  "::highlight(scholia-anchor){background-color:rgba(255,213,0,0.45);color:inherit;}";
+const HIGHLIGHT_NAME_RESOLVED = "scholia-anchor-resolved";
+const HIGHLIGHT_NAME_EMPHASIS = "scholia-anchor-emphasis";
+
+// The light-mode open/resolved colors, shared with the DOM `<mark>` fallback
+// below — one pair of values decides what "open" and "resolved" look like,
+// rather than the CSS registration and the fallback drifting independently.
+const COLOR_OPEN = "rgba(255,213,0,0.45)";
+const COLOR_RESOLVED = "rgba(255,213,0,0.16)";
+
+// Three registrations, not one: an open Conversation stays at full strength, a
+// resolved one dims to a trace so a settled document doesn't accumulate
+// permanent highlights (issue #109), and the emphasis layer is the one a
+// hovered rail card lights up, painted above either. `:root.dark` — not
+// `prefers-color-scheme` — because both hosts that inject this style (the
+// hosted iframe and Local Preview's chrome document) toggle dark mode as an
+// explicit class on their own root, driven by the reader's choice or the
+// parent, not bare OS preference (see @scholia/bridge's iframe entry and
+// Local Preview's THEME_BOOT).
+const HIGHLIGHT_STYLE = `
+::highlight(${HIGHLIGHT_NAME}) { background-color: ${COLOR_OPEN}; color: inherit; }
+::highlight(${HIGHLIGHT_NAME_RESOLVED}) { background-color: ${COLOR_RESOLVED}; color: inherit; }
+::highlight(${HIGHLIGHT_NAME_EMPHASIS}) { background-color: rgba(255,153,0,0.6); color: inherit; }
+:root.dark ::highlight(${HIGHLIGHT_NAME}) { background-color: rgba(255,196,0,0.24); color: inherit; }
+:root.dark ::highlight(${HIGHLIGHT_NAME_RESOLVED}) { background-color: rgba(255,196,0,0.09); color: inherit; }
+:root.dark ::highlight(${HIGHLIGHT_NAME_EMPHASIS}) { background-color: rgba(255,163,26,0.42); color: inherit; }
+`;
 
 interface HighlightRegistry {
   set(name: string, highlight: unknown): void;
@@ -33,6 +57,8 @@ export class AnchorHighlights {
   private root: Element;
   private doc: Document;
   private ranges = new Map<string, Range>();
+  private resolvedIds = new Set<string>();
+  private emphasisId: string | null = null;
   private marks = new Map<string, Element>();
   private registry: HighlightRegistry | null;
   private HighlightCtor: (new (...ranges: Range[]) => unknown) | null;
@@ -62,10 +88,12 @@ export class AnchorHighlights {
 
   /**
    * Resolve a stored quote against the current rendered text and paint it.
-   * Returns the matched range, or null when the quote no longer matches — the
-   * caller decides what that means (CONTEXT "Outdated").
+   * `resolved` is the owning Conversation's own resolved state (CONTEXT
+   * "Resolved"), which decides which of the two base highlights the passage
+   * joins. Returns the matched range, or null when the quote no longer
+   * matches — the caller decides what that means (CONTEXT "Outdated").
    */
-  resolve(id: string, quote: TextQuote): Range | null {
+  resolve(id: string, quote: TextQuote, resolved = false): Range | null {
     this.remove(id);
     let range: Range | null = null;
     try {
@@ -74,12 +102,14 @@ export class AnchorHighlights {
       range = null;
     }
     if (!range) return null;
-    this.add(id, range);
+    this.add(id, range, resolved);
     return range;
   }
 
   remove(id: string): void {
     this.ranges.delete(id);
+    this.resolvedIds.delete(id);
+    if (this.emphasisId === id) this.emphasisId = null;
     const mark = this.marks.get(id);
     if (mark) {
       const parent = mark.parentNode;
@@ -97,6 +127,19 @@ export class AnchorHighlights {
     const ids = Array.from(this.ranges.keys());
     for (const id of ids) this.remove(id);
     this.registry?.delete(HIGHLIGHT_NAME);
+    this.registry?.delete(HIGHLIGHT_NAME_RESOLVED);
+    this.registry?.delete(HIGHLIGHT_NAME_EMPHASIS);
+    this.emphasisId = null;
+  }
+
+  /**
+   * Emphasize one resolved Anchor's passage — the passage-side half of hovering
+   * its rail card — or clear the emphasis with null. A no-op id that isn't
+   * currently resolved (already scrolled away, Outdated) simply paints nothing.
+   */
+  emphasize(id: string | null): void {
+    this.emphasisId = id;
+    this.repaintEmphasis();
   }
 
   /** The id of the topmost Anchor under a viewport point, or null. */
@@ -138,8 +181,9 @@ export class AnchorHighlights {
     return el instanceof Element ? el : null;
   }
 
-  private add(id: string, range: Range): void {
+  private add(id: string, range: Range, resolved: boolean): void {
     this.ranges.set(id, range);
+    if (resolved) this.resolvedIds.add(id);
     if (this.registry) {
       this.repaint();
       return;
@@ -149,7 +193,7 @@ export class AnchorHighlights {
     try {
       const mark = this.doc.createElement("mark");
       mark.setAttribute("data-scholia-anchor", id);
-      mark.style.backgroundColor = "rgba(255,213,0,0.45)";
+      mark.style.backgroundColor = resolved ? COLOR_RESOLVED : COLOR_OPEN;
       mark.style.color = "inherit";
       mark.appendChild(range.cloneContents());
       range.deleteContents();
@@ -163,10 +207,29 @@ export class AnchorHighlights {
 
   private repaint(): void {
     if (!this.registry || !this.HighlightCtor) return;
-    if (this.ranges.size === 0) {
-      this.registry.delete(HIGHLIGHT_NAME);
+    const open: Range[] = [];
+    const resolved: Range[] = [];
+    for (const [id, range] of this.ranges) {
+      (this.resolvedIds.has(id) ? resolved : open).push(range);
+    }
+    if (open.length === 0) this.registry.delete(HIGHLIGHT_NAME);
+    else this.registry.set(HIGHLIGHT_NAME, new this.HighlightCtor(...open));
+    if (resolved.length === 0) this.registry.delete(HIGHLIGHT_NAME_RESOLVED);
+    else this.registry.set(HIGHLIGHT_NAME_RESOLVED, new this.HighlightCtor(...resolved));
+    this.repaintEmphasis();
+  }
+
+  private repaintEmphasis(): void {
+    if (!this.registry || !this.HighlightCtor) return;
+    const range = this.emphasisId ? this.ranges.get(this.emphasisId) : undefined;
+    if (!range) {
+      this.registry.delete(HIGHLIGHT_NAME_EMPHASIS);
       return;
     }
-    this.registry.set(HIGHLIGHT_NAME, new this.HighlightCtor(...this.ranges.values()));
+    const highlight = new this.HighlightCtor(range);
+    // Paint above the base highlights where the engine honors explicit
+    // priority (spec'd on Highlight; best-effort where it isn't read).
+    (highlight as { priority?: number }).priority = 1;
+    this.registry.set(HIGHLIGHT_NAME_EMPHASIS, highlight);
   }
 }

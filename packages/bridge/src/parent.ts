@@ -36,19 +36,24 @@ export interface ConnectOptions {
   onSelectionCleared?: () => void;
   /** Called when an anchor resolve attempt completes. */
   onAnchorResolved?: (event: AnchorResolvedEvent) => void;
-  /** Called when the user clicks an existing anchor highlight. */
-  onAnchorActivated?: (id: string) => void;
+  /**
+   * Called on every click in the content: `id` is the highlight hit, or null
+   * when the click missed everything (the cue to clear the rail's active card).
+   */
+  onAnchorActivated?: (id: string | null) => void;
 }
 
 export interface BridgeHandle {
   /** Push a new theme to the content document. */
   setTheme(theme: Theme): void;
   /** Resolve a stored anchor's text-quote against the DOM and highlight it. */
-  resolveAnchor(id: string, quote: TextQuote): void;
+  resolveAnchor(id: string, quote: TextQuote, resolved: boolean): void;
   /** Remove all anchor highlights in the content (e.g. before re-resolving). */
   clearAnchors(): void;
   /** Scroll a previously-resolved anchor highlight into view. */
   scrollToAnchor(id: string): void;
+  /** Emphasize one resolved anchor's passage, or clear the emphasis with null. */
+  emphasizeAnchor(id: string | null): void;
   /** Detach the message listener. */
   dispose(): void;
 }
@@ -117,14 +122,17 @@ export function connectBridge(
       theme = next;
       if (ready) post({ type: "set-theme", theme: next });
     },
-    resolveAnchor(id: string, quote: TextQuote) {
-      post({ type: "resolve-anchor", id, quote });
+    resolveAnchor(id: string, quote: TextQuote, resolved: boolean) {
+      post({ type: "resolve-anchor", id, quote, resolved });
     },
     clearAnchors() {
       post({ type: "clear-anchors" });
     },
     scrollToAnchor(id: string) {
       post({ type: "scroll-to", id });
+    },
+    emphasizeAnchor(id: string | null) {
+      post({ type: "emphasize-anchor", id });
     },
     dispose() {
       window.removeEventListener("message", onMessage);

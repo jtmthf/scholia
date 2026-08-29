@@ -63,7 +63,7 @@ describe("connectBridge handshake", () => {
 
   test("queues anchor work until the content says it is ready", () => {
     const bridge = connectBridge(iframe);
-    bridge.resolveAnchor("a1", QUOTE);
+    bridge.resolveAnchor("a1", QUOTE, false);
 
     expect(content.types()).toEqual(["ping"]);
 
@@ -77,7 +77,7 @@ describe("connectBridge handshake", () => {
   // ever highlighted.
   test("flushes when the content answers a ping, its own ready having been missed", () => {
     const bridge = connectBridge(iframe, { theme: "dark" });
-    bridge.resolveAnchor("a1", QUOTE);
+    bridge.resolveAnchor("a1", QUOTE, false);
     bridge.scrollToAnchor("a1");
 
     // The content was already up: it never sees the parent's listener appear, and
@@ -107,7 +107,7 @@ describe("connectBridge handshake", () => {
 
   test("ignores messages that aren't from this iframe's content window", () => {
     const bridge = connectBridge(iframe);
-    bridge.resolveAnchor("a1", QUOTE);
+    bridge.resolveAnchor("a1", QUOTE, false);
 
     const foreign = {
       source: new FakeContentWindow(),
@@ -117,5 +117,45 @@ describe("connectBridge handshake", () => {
 
     // Still queued: a foreign "ready" must not complete our handshake.
     expect(content.types()).toEqual(["ping"]);
+  });
+
+  // issue #109: which base highlight a passage joins (full-strength vs dimmed)
+  // is the owning Conversation's resolved state, carried on the wire rather
+  // than decided client-side.
+  test("carries the Conversation's resolved state on resolve-anchor", () => {
+    const bridge = connectBridge(iframe);
+    bridge.resolveAnchor("a1", QUOTE, true);
+    fromContent({ type: "ready" });
+
+    expect(content.posted.at(-1)).toEqual({
+      type: "resolve-anchor",
+      id: "a1",
+      quote: QUOTE,
+      resolved: true,
+    });
+  });
+
+  test("emphasizeAnchor posts the hovered id, and null to clear it", () => {
+    const bridge = connectBridge(iframe);
+    fromContent({ type: "ready" });
+
+    bridge.emphasizeAnchor("a1");
+    expect(content.posted.at(-1)).toEqual({ type: "emphasize-anchor", id: "a1" });
+
+    bridge.emphasizeAnchor(null);
+    expect(content.posted.at(-1)).toEqual({ type: "emphasize-anchor", id: null });
+  });
+
+  // A click that hits nothing is reported too (id: null), not skipped — the
+  // parent's cue to clear a stale active card (issue #109).
+  test("onAnchorActivated is called with null when a click misses every highlight", () => {
+    const seen: (string | null)[] = [];
+    connectBridge(iframe, { onAnchorActivated: (id) => seen.push(id) });
+    fromContent({ type: "ready" });
+
+    fromContent({ type: "anchor-activated", id: "a1" });
+    fromContent({ type: "anchor-activated", id: null });
+
+    expect(seen).toEqual(["a1", null]);
   });
 });

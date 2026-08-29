@@ -31,6 +31,8 @@ export interface ContentAnchors {
   activeConversationId: string | null;
   /** Focus a Conversation and scroll its Anchor into view. */
   activate: (id: string) => void;
+  /** Emphasize a Conversation's passage (hovering its rail card), or clear with null. */
+  emphasize: (id: string | null) => void;
   /**
    * Where each resolved Anchor sits in the document, keyed by Conversation id.
    * The rail orders its cards by this so a Conversation is beside the passage it
@@ -123,7 +125,9 @@ export function useContentAnchors(opts: {
     const offsets: Record<string, number> = {};
     for (const conversation of conversations) {
       if (!conversation.anchor || conversation.anchorStatus !== "live") continue;
-      if (highlights.resolve(conversation.id, conversation.anchor.textQuote)) {
+      if (
+        highlights.resolve(conversation.id, conversation.anchor.textQuote, conversation.resolved)
+      ) {
         offsets[conversation.id] = highlights.offsetTop(conversation.id);
       }
     }
@@ -131,11 +135,17 @@ export function useContentAnchors(opts: {
   }, [conversations, content, contentKey]);
 
   // Clicking a painted Anchor focuses its card, the same gesture the hosted
-  // viewer reports over the bridge as `anchor-activated`.
+  // viewer reports over the bridge as `anchor-activated`. A click that hits
+  // neither an Anchor nor the rail itself clears the active card instead of
+  // leaving a stale `thread-card--active` behind (issue #109) — the rail is
+  // excluded because a card click already sets the active id itself via
+  // `activate`, in the same document this listener also observes.
   useEffect(() => {
     const onClick = (e: MouseEvent): void => {
-      const id = highlightsRef.current?.hitTest(e.clientX, e.clientY);
-      if (id) setActive(id);
+      const target = e.target;
+      if (target instanceof Element && target.closest(".comment-rail")) return;
+      const id = highlightsRef.current?.hitTest(e.clientX, e.clientY) ?? null;
+      setActive(id);
     };
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
@@ -146,6 +156,10 @@ export function useContentAnchors(opts: {
     highlightsRef.current?.scrollTo(id);
   }, []);
 
+  const emphasize = useCallback((id: string | null) => {
+    highlightsRef.current?.emphasize(id);
+  }, []);
+
   const clearSelection = useCallback(() => setSelection(null), []);
 
   return {
@@ -153,6 +167,7 @@ export function useContentAnchors(opts: {
     clearSelection,
     activeConversationId,
     activate,
+    emphasize,
     anchorOffsets,
   };
 }
