@@ -5,6 +5,7 @@ html lang="en"
     meta content="width=device-width, initial-scale=1" name="viewport"
     title
       "Guide & "Notes" <intro> — it's > that"
+    link href="/__assets/favicon.svg" rel="icon" type="image/svg+xml"
     script
       "(function(){try{var t=localStorage.getItem('scholia-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();"
     link href="/__assets/katex/katex.min.css" rel="stylesheet"

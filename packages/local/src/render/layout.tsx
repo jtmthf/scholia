@@ -300,6 +300,7 @@ function HeadContent(opts: LayoutOptions) {
       <meta charSet="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{opts.title}</title>
+      <link rel="icon" href="/__assets/favicon.svg" type="image/svg+xml" />
       <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       <link rel="stylesheet" href="/__assets/katex/katex.min.css" />
       <link rel="stylesheet" href="/__assets/client.css" />

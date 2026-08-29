@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { basename, resolve as resolvePath } from "node:path";
+import { basename, join, resolve as resolvePath } from "node:path";
 import net from "node:net";
 import { Hono, type Context } from "hono";
 import { streamSSE, type SSEStreamingApi } from "hono/streaming";
@@ -325,19 +325,38 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return c.json(searchIndex.query(q));
   });
 
+  async function serveFile(c: Context, filePath: string): Promise<Response> {
+    if (!(await exists(filePath))) return c.notFound();
+    const buf = await readFile(filePath);
+    return c.body(new Uint8Array(buf), 200, { "Content-Type": contentType(filePath) });
+  }
+
   app.get("/__assets/*", async (c) => {
     const rest = c.req.path.replace(/^\/__assets\//, "");
     const filePath = resolveWithinRoot(ASSETS_DIR, rest);
-    if (!filePath || !(await exists(filePath))) return c.notFound();
-    const buf = await readFile(filePath);
-    return c.body(new Uint8Array(buf), 200, { "Content-Type": contentType(filePath) });
+    if (!filePath) return c.notFound();
+    return serveFile(c, filePath);
+  });
+
+  // A browser asks for this path on its own, regardless of the <link rel="icon">
+  // in the head (bookmarking, the address bar) — so it needs an answer even
+  // when the served root carries no such file (issue #115). Registered ahead
+  // of the "*" catch-all below, so a served root that *does* ship its own
+  // favicon.ico is checked first and wins — this route only stands in for
+  // one that has none. The fallback is the same SVG the head links to; the
+  // path's ".ico" extension doesn't have to match the content it names.
+  app.get("/favicon.ico", async (c) => {
+    const ownFavicon = join(opts.rootDir, "favicon.ico");
+    if (await exists(ownFavicon)) return serveFile(c, ownFavicon);
+    return serveFile(c, join(ASSETS_DIR, "favicon.svg"));
   });
 
   // ADR-0017: Local Preview spawns the user's editor from a guarded loopback
   // route. Registered before the catch-all "*" route below, same as
-  // /__livereload, /search, and /__assets/* — a specific path must win over
-  // the wildcard. The request-shape guards (POST only, same-origin, loopback
-  // peer and Host, no proxy headers) live in ./open-guard.ts; the path guard
+  // /__livereload, /search, /__assets/*, and /favicon.ico — a specific path
+  // must win over the wildcard. The request-shape guards (POST only,
+  // same-origin, loopback peer and Host, no proxy headers) live in
+  // ./open-guard.ts; the path guard
   // has to stay here because it needs the served root. Only after all of them
   // pass do we check whether an editor resolved at startup, and spawn it
   // detached (no waiting on the child, no piping its output back).

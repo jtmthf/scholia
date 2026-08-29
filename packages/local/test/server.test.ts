@@ -136,6 +136,31 @@ test("the /search endpoint returns matching documents as JSON", async ({ tmp, se
   expect(hits.some((h: { path: string }) => h.path.startsWith("/topic.md"))).toBe(true);
 });
 
+// Issue #115: a browser requests this path on its own, independent of the
+// <link rel="icon"> in the head, so it needs an answer even when the served
+// root has no such file.
+test("/favicon.ico is served, not 404 (Issue #115)", async ({ tmp, serve }) => {
+  await tmp.write("README.md", "# Home\n");
+  const { url } = await serve();
+
+  const res = await fetch(`${url}/favicon.ico`);
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("image/svg+xml");
+});
+
+// The built-in favicon is a fallback, not an override — a served root that
+// ships its own must win, the same as any other sibling file it carries.
+test("a served root's own favicon.ico wins over the built-in one", async ({ tmp, serve }) => {
+  await tmp.write("README.md", "# Home\n");
+  await tmp.write("favicon.ico", new Uint8Array([0, 0, 1, 0]));
+  const { url } = await serve();
+
+  const res = await fetch(`${url}/favicon.ico`);
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("image/x-icon");
+  expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([0, 0, 1, 0]));
+});
+
 test("serves sibling non-document files with the correct content-type", async ({ tmp, serve }) => {
   await tmp.write("README.md", "# Home\n");
   await tmp.write("logo.png", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
