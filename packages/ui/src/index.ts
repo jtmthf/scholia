@@ -22,4 +22,5 @@ export {
   type Identity,
   type ReactionGroup,
   type TextQuote,
+  type PromotionDTO,
 } from "./types.js";

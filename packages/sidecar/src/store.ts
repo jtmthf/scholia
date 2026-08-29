@@ -95,6 +95,10 @@ interface YamlHeader {
   author: string;
   authorKind?: unknown;
   timestamp: string;
+  promotedFrom?: {
+    conversationId?: unknown;
+    commentIds?: unknown;
+  };
 }
 
 /** Shape of an event document as read from YAML (docs 1..n), before validation. */
@@ -107,6 +111,8 @@ interface YamlEvent {
   target?: unknown;
   body?: unknown;
   emoji?: unknown;
+  threadId?: unknown;
+  commentIds?: unknown;
 }
 
 /**
@@ -118,6 +124,16 @@ interface YamlEvent {
  */
 function readAuthorKind(value: unknown): { authorKind?: AuthorKind } {
   return value === "agent" ? { authorKind: "agent" } : {};
+}
+
+function readPromotedFrom(value: unknown): { conversationId: string; commentIds: string[] } | null {
+  if (!value || typeof value !== "object") return null;
+  const { conversationId, commentIds } = value as Record<string, unknown>;
+  if (typeof conversationId !== "string") return null;
+  if (!Array.isArray(commentIds) || !commentIds.every((id) => typeof id === "string")) {
+    return null;
+  }
+  return { conversationId, commentIds };
 }
 
 export class SidecarStore implements ConversationRepository {
@@ -188,6 +204,14 @@ export class SidecarStore implements ConversationRepository {
           author: header.author,
           ...(header.authorKind === "agent" ? { authorKind: header.authorKind } : {}),
           timestamp: header.timestamp,
+          ...(header.promotedFrom
+            ? {
+                promotedFrom: {
+                  conversationId: header.promotedFrom.conversationId,
+                  commentIds: header.promotedFrom.commentIds,
+                },
+              }
+            : {}),
           // No `visibility` — that is the directory this file is about to go in.
         }),
       ),
@@ -293,6 +317,7 @@ function parseStream(raw: string, visibility: Visibility): Conversation | null {
   const headerDoc = docs[0]!.toJSON() as YamlHeader | null;
   if (!headerDoc) return null;
 
+  const promotedFrom = readPromotedFrom(headerDoc.promotedFrom);
   const header: ConversationHeader = {
     id: headerDoc.id,
     page: headerDoc.page,
@@ -302,6 +327,7 @@ function parseStream(raw: string, visibility: Visibility): Conversation | null {
     author: headerDoc.author,
     ...readAuthorKind(headerDoc.authorKind),
     timestamp: headerDoc.timestamp,
+    ...(promotedFrom ? { promotedFrom } : {}),
   };
 
   const events: ConversationEvent[] = [];
@@ -333,6 +359,10 @@ function readEvent(doc: YamlEvent | null): ConversationEvent | null {
   const target = typeof doc.target === "string" ? doc.target : null;
   const body = typeof doc.body === "string" ? doc.body : null;
   const emoji = typeof doc.emoji === "string" ? doc.emoji : null;
+  const threadId = typeof doc.threadId === "string" ? doc.threadId : null;
+  const commentIds = Array.isArray(doc.commentIds)
+    ? doc.commentIds.filter((item): item is string => typeof item === "string")
+    : null;
 
   switch (type) {
     case "comment":
@@ -347,6 +377,10 @@ function readEvent(doc: YamlEvent | null): ConversationEvent | null {
     case "resolved":
     case "reopened":
       return { ...base, type };
+    case "promoted":
+      return threadId === null || commentIds === null
+        ? null
+        : { ...base, type, threadId, commentIds };
     default:
       return null;
   }
@@ -375,6 +409,7 @@ function stringifyEvent(event: ConversationEvent): string {
       ...("target" in event ? { target: event.target } : {}),
       ...("emoji" in event ? { emoji: event.emoji } : {}),
       ...("body" in event ? { body: event.body } : {}),
+      ...("threadId" in event ? { threadId: event.threadId, commentIds: event.commentIds } : {}),
     }),
   );
 }

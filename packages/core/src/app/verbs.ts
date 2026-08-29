@@ -552,15 +552,16 @@ export const VERBS: readonly Verb[] = [
     command: "promote",
     summary: "Write a Chat's chosen messages into a public Thread",
     description:
-      'Promote messages out of a private Chat into a new public Thread (CONTEXT "Promotion"). ' +
-      "The Chat is untouched and stays private. Deciding what the team gets to read is the " +
-      "human's call — do not promote anything without being asked to, and note that this verb " +
-      "takes no agent name for that reason.",
+      'Promote messages out of a private Chat into a public Thread (CONTEXT "Promotion"). ' +
+      "The promoting human selects which messages become public. Deciding what the team gets to " +
+      "read is the human's call — do not promote anything without being asked to, and note that " +
+      "this verb takes no agent name for that reason.",
     hostedTier: "viewer",
     notes: {
       local:
         "The new Thread is written into .scholia/conversations, where git can see it; the " +
-        "Chat file stays exactly where it was.",
+        "Chat file stays private and in place, and records the Promotion so the same selection " +
+        "cannot be promoted twice.",
       hosted:
         "Name the acting Viewer (`--viewer <id>`, or SCHOLIA_VIEWER) — the Chat belongs to " +
         "the Viewer who started it, and only they may decide what the team reads.",
@@ -595,7 +596,7 @@ export const VERBS: readonly Verb[] = [
           `Promoted to Thread ${thread.id}`,
           `  Page:     ${thread.page ?? "(none)"}`,
           `  Messages: ${thread.comments.length}`,
-          `  The Chat ${source} is untouched and still private.`,
+          `  The Chat ${source} records this Promotion.`,
         ],
       };
     },

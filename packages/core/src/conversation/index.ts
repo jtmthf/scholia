@@ -14,10 +14,12 @@ export type {
   UnreactedEvent,
   ResolvedEvent,
   ReopenedEvent,
+  PromotedEvent,
   ConversationEvent,
   Reaction,
   Comment,
   Conversation,
+  PromotionRecord,
 } from "./types.js";
 
 export type { ConversationRepository, CreateConversationInput } from "./repository.js";

@@ -125,6 +125,7 @@ function conversationView(value: HostedConversation): ConversationView {
     resolved_by: typeof value.resolvedBy === "string" ? value.resolvedBy : null,
     comment_count: comments.length,
     comments,
+    promotions: [],
   };
 }
 
@@ -162,6 +163,7 @@ function groupComments(comments: SiteCommentDTO[]): ConversationView[] {
         resolved_by: null,
         comment_count: 0,
         comments: [],
+        promotions: [],
       };
       byConversation.set(dto.conversationId, conversation);
     }

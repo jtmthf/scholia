@@ -116,6 +116,24 @@ export function ConversationCard({
         {conversation.resolved && <span class="thread-resolved-badge">Resolved</span>}
       </div>
 
+      {conversation.promotedFrom && (
+        <div class="thread-origin">
+          Promoted from Chat{" "}
+          <span class="thread-origin-id">{conversation.promotedFrom.conversationId}</span>
+        </div>
+      )}
+
+      {conversation.promotions && conversation.promotions.length > 0 && (
+        <div class="thread-promotions">
+          {conversation.promotions.map((p) => (
+            <div key={p.threadId} class="thread-promotion">
+              Promoted to Thread <span class="thread-promotion-id">{p.threadId}</span> (
+              {p.commentIds.length} message{p.commentIds.length === 1 ? "" : "s"})
+            </div>
+          ))}
+        </div>
+      )}
+
       {conversation.resolved && !expanded ? (
         <div
           class="thread-collapsed-summary"

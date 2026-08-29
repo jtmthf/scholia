@@ -166,6 +166,46 @@ describe("ConversationCard", () => {
     expect(html).toContain(">Delete Comment<");
   });
 
+  it("shows the Chat origin on a Thread promoted from a Chat", () => {
+    const html = render(
+      <ConversationCard
+        conversation={conversation({
+          promotedFrom: {
+            conversationId: "00000000-0000-7000-8000-0000000000c1",
+            commentIds: ["c1"],
+          },
+        })}
+        active={false}
+        onActivate={() => {}}
+      />,
+    );
+    expect(html).toContain("Promoted from Chat");
+    expect(html).toContain("00000000-0000-7000-8000-0000000000c1");
+  });
+
+  it("shows the promoted Threads on a Chat card", () => {
+    const html = render(
+      <ConversationCard
+        conversation={conversation({
+          visibility: "private",
+          promotions: [
+            {
+              threadId: "00000000-0000-7000-8000-0000000000t1",
+              commentIds: ["c1"],
+              timestamp: "2026-07-29T12:00:00.000Z",
+            },
+          ],
+        })}
+        active={false}
+        onActivate={() => {}}
+        isPrivate
+        promotable
+      />,
+    );
+    expect(html).toContain("Promoted to Thread");
+    expect(html).toContain("00000000-0000-7000-8000-0000000000t1");
+  });
+
   it("names the resolver only while the Conversation is resolved", () => {
     const html = render(
       <ConversationCard

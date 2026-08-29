@@ -51,6 +51,12 @@ export interface CommentDTO {
   reactions: ReactionGroup[];
 }
 
+export interface PromotionDTO {
+  threadId: string;
+  commentIds: string[];
+  timestamp: string;
+}
+
 export interface ConversationDTO {
   id: string;
   /** The Page this Conversation is on; null for a Page-level Conversation. */
@@ -65,6 +71,10 @@ export interface ConversationDTO {
   comments: CommentDTO[];
   /** Hosted only: the Version ordinal this Conversation was created on. */
   createdOrdinal?: number;
+  /** Promotions recorded on a Chat: each selection that became a public Thread. */
+  promotions?: PromotionDTO[];
+  /** When this Thread was promoted from a Chat, where it came from. */
+  promotedFrom?: { conversationId: string; commentIds: string[] };
 }
 
 /**

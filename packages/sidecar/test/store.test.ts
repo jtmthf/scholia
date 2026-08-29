@@ -1058,6 +1058,86 @@ describe("SidecarStore", () => {
 
   // ---- Creating a Conversation with a history (Promotion) ----
 
+  test("createConversation round-trips a promoted-from header", async () => {
+    const id = "00000000-0000-7000-8000-0000000000f5";
+    const conversation = await store.createConversation({
+      header: {
+        id,
+        page: "readme.md",
+        anchor: null,
+        author: "alice",
+        timestamp: "2025-01-15T12:10:00.000Z",
+        promotedFrom: {
+          conversationId: "00000000-0000-7000-8000-0000000000f4",
+          commentIds: ["00000000-0000-7000-8000-0000000000f3"],
+        },
+      },
+      firstComment: {
+        id: "00000000-0000-7000-8000-0000000000f6",
+        type: "comment",
+        timestamp: "2025-01-15T12:10:00.000Z",
+        author: "alice",
+        body: "promoted comment",
+      },
+    });
+
+    expect(conversation.header.promotedFrom).toEqual({
+      conversationId: "00000000-0000-7000-8000-0000000000f4",
+      commentIds: ["00000000-0000-7000-8000-0000000000f3"],
+    });
+
+    const reread = (await store.getConversation(id))!;
+    expect(reread.header.promotedFrom).toEqual(conversation.header.promotedFrom);
+  });
+
+  test("appendEvent round-trips a promoted event with no comment ids", async () => {
+    const conversationId = "00000000-0000-7000-8000-0000000000e0";
+    const commentId = "00000000-0000-7000-8000-0000000000e1";
+    await seedConversation(conversationId, commentId);
+
+    await store.appendEvent(conversationId, {
+      id: "00000000-0000-7000-8000-0000000000e2",
+      type: "promoted",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "alice",
+      threadId: "00000000-0000-7000-8000-0000000000e3",
+      commentIds: [],
+    });
+
+    const reread = (await store.getConversation(conversationId))!;
+    expect(reread.promotions).toEqual([
+      {
+        threadId: "00000000-0000-7000-8000-0000000000e3",
+        commentIds: [],
+        timestamp: "2025-01-15T12:05:00.000Z",
+      },
+    ]);
+  });
+
+  test("appendEvent round-trips a promoted event", async () => {
+    const conversationId = "00000000-0000-7000-8000-0000000000f0";
+    const commentId = "00000000-0000-7000-8000-0000000000f1";
+    await seedConversation(conversationId, commentId);
+
+    await store.appendEvent(conversationId, {
+      id: "00000000-0000-7000-8000-0000000000f2",
+      type: "promoted",
+      timestamp: "2025-01-15T12:05:00.000Z",
+      author: "alice",
+      threadId: "00000000-0000-7000-8000-0000000000f3",
+      commentIds: [commentId],
+    });
+
+    const reread = (await store.getConversation(conversationId))!;
+    expect(reread.promotions).toEqual([
+      {
+        threadId: "00000000-0000-7000-8000-0000000000f3",
+        commentIds: [commentId],
+        timestamp: "2025-01-15T12:05:00.000Z",
+      },
+    ]);
+  });
+
   test("createConversation writes every event it was given in one file", async () => {
     const id = "00000000-0000-7000-8000-0000000000f6";
     const conversation = await store.createConversation({
