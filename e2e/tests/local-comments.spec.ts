@@ -250,7 +250,7 @@ test("select text, comment, reload — the Conversation is still anchored", asyn
   await expect(page.locator(".thread-card")).toHaveCount(1);
   await expect(page.locator(".thread-anchor-quote")).toHaveText("“the moat”");
   await expect(page.locator(".comment-rail")).toContainText("Is this still the differentiator?");
-  await expect(page.locator(".rail-section-title").first()).toHaveText("Anchored (1)");
+  await expect(page.locator(".rail-section-title").first()).toHaveText("Open (1)");
 
   // "Still anchored" is a claim about the content, not about the rail: the rail
   // would say exactly this even if resolution had failed for every Conversation.
@@ -334,14 +334,16 @@ test("a repeated phrase anchors to the occurrence that was selected", async ({ p
   expect(anchor.textQuote.prefix ?? "").toContain("Filler between");
 });
 
-test("a Page-level comment needs no selection and shows in its own section", async ({ page }) => {
+test("a Page-level comment joins the Open section, distinguished as a Page Comment on its card", async ({
+  page,
+}) => {
   await page.goto(`${preview.url}/page-level.md`);
 
   await page.locator(".page-comment-btn").click();
   await page.locator(".rail-inline-composer textarea").fill("About this page as a whole.");
   await page.locator(".rail-inline-composer button[type=submit]").click();
 
-  await expect(page.locator(".rail-section-title")).toHaveText("Page Comments (1)");
+  await expect(page.locator(".rail-section-title")).toHaveText("Open (1)");
   await expect(page.locator(".thread-anchor-quote")).toHaveText("Page Comment");
 
   await page.reload();
@@ -594,7 +596,7 @@ test("statuses wait for the content they describe while a reader is composing", 
   await seedComment(request, "hold-status.md", "About a doomed passage.", "about to be deleted");
   await page.goto(`${preview.url}/hold-status.md`);
 
-  await expect(page.locator(".rail-section-title").first()).toHaveText("Anchored (1)");
+  await expect(page.locator(".rail-section-title").first()).toHaveText("Open (1)");
   await expect.poll(() => paintedAnchors(page)).toBe(1);
 
   // Composing holds the swap — and the reader is looking at the passage.

@@ -56,12 +56,13 @@ interface RailProps {
   pageLevelComposer?: ComponentChildren;
 }
 
-// The right-hand comment rail: the reader's private Chats first, then anchored
-// public Threads, then page-level Threads, each rendered as a ConversationCard.
-// Resolved Conversations render collapsed (handled in ConversationCard). To start an
-// anchored Conversation the user selects text in the content (handled by the
-// consumer, which owns the content surface); the rail only offers the page-level +
-// agent entry points.
+// The right-hand comment rail: the reader's private Chats first, then public
+// Threads grouped by whether they still want attention: Open (live anchored and
+// page-level together), Resolved, and Outdated. Each is rendered as a
+// ConversationCard. Resolved Conversations render collapsed (handled in
+// ConversationCard). To start an anchored Conversation the user selects text in the
+// content (handled by the consumer, which owns the content surface); the rail only
+// offers the page-level + agent entry points.
 export function Rail({
   conversations,
   chats,
@@ -77,12 +78,12 @@ export function Rail({
   pageLevelComposer,
 }: RailProps) {
   // Outdated Threads (anchor no longer matches the current text, CONTEXT
-  // "Outdated") are pulled out of the live sections into their own collapsed rail,
-  // each linking back to where it was made. Everything else splits into live
-  // anchored vs page-level.
+  // "Outdated") are pulled out first. The remaining public Threads group by whether
+  // they still want attention: Open (live, not resolved) and Resolved. Within Open,
+  // anchored and page-level Threads are mixed; the card itself shows which is which.
   const outdated = conversations.filter((c) => c.anchorStatus === "outdated");
-  const anchored = conversations.filter((c) => c.anchor !== null && c.anchorStatus === "live");
-  const pageLevel = conversations.filter((c) => c.anchor === null && c.anchorStatus === "live");
+  const open = conversations.filter((c) => c.anchorStatus === "live" && !c.resolved);
+  const resolved = conversations.filter((c) => c.anchorStatus === "live" && c.resolved);
 
   const renderConversation = (c: ConversationDTO) => (
     <ConversationCard
@@ -140,17 +141,17 @@ export function Rail({
         </div>
       )}
 
-      {anchored.length > 0 && (
-        <div class="rail-section">
-          <h3 class="rail-section-title">Anchored ({anchored.length})</h3>
-          {anchored.map(renderConversation)}
+      {open.length > 0 && (
+        <div class="rail-section rail-section--open">
+          <h3 class="rail-section-title">Open ({open.length})</h3>
+          {open.map(renderConversation)}
         </div>
       )}
 
-      {pageLevel.length > 0 && (
-        <div class="rail-section">
-          <h3 class="rail-section-title">Page Comments ({pageLevel.length})</h3>
-          {pageLevel.map(renderConversation)}
+      {resolved.length > 0 && (
+        <div class="rail-section rail-section--resolved">
+          <h3 class="rail-section-title">Resolved ({resolved.length})</h3>
+          {resolved.map(renderConversation)}
         </div>
       )}
 
