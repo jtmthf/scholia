@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { useComments } from "./port.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { IdentityDisplay } from "./Identity.js";
@@ -16,6 +16,11 @@ export function Comment({ comment }: CommentProps) {
   const [editError, setEditError] = useState<string | null>(null);
   const [editPending, setEditPending] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) editRef.current?.focus();
+  }, [editing]);
 
   function formatTime(iso: string): string {
     try {
@@ -42,8 +47,8 @@ export function Comment({ comment }: CommentProps) {
   const canDelete =
     (comment.mine || moderating) && !comment.deleted && port.deleteComment !== undefined;
 
-  async function handleEdit(e: Event) {
-    e.preventDefault();
+  async function handleEdit(e?: Event) {
+    e?.preventDefault();
     const body = editBody.trim();
     if (!body || !port.editComment) return;
     setEditPending(true);
@@ -55,6 +60,17 @@ export function Comment({ comment }: CommentProps) {
       setEditError(err instanceof Error ? err.message : "Edit failed.");
     } finally {
       setEditPending(false);
+    }
+  }
+
+  function handleEditKeyDown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setEditing(false);
+      setEditBody(comment.body);
+    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void handleEdit();
     }
   }
 
@@ -89,8 +105,10 @@ export function Comment({ comment }: CommentProps) {
       {editing ? (
         <form class="comment-edit-form" onSubmit={(e) => void handleEdit(e)}>
           <textarea
+            ref={editRef}
             value={editBody}
             onInput={(e) => setEditBody((e.target as HTMLTextAreaElement).value)}
+            onKeyDown={handleEditKeyDown}
           />
           {editError && <div class="composer-error">{editError}</div>}
           <div class="comment-edit-actions">

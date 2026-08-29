@@ -104,12 +104,14 @@ export function useContentBridge(opts: {
     if (!iframe) return null;
     const box = iframe.getBoundingClientRect();
     const r = raw.rect;
-    // DOMRectInit exposes x/y (== left/top for a normalized rect).
+    // DOMRectInit exposes x/y (== left/top for a normalized rect). Anchor
+    // floating affordances at the bottom of the selection so they sit below the
+    // passage instead of covering it (issue #106).
     return {
       candidate: raw.candidate,
       at: {
         left: box.left + (r.x ?? 0) + (r.width ?? 0) / 2,
-        top: box.top + (r.y ?? 0),
+        top: box.top + (r.y ?? 0) + (r.height ?? 0),
       },
     };
   }, [raw, iframeRef]);

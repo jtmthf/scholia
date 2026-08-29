@@ -70,7 +70,9 @@ export function useContentAnchors(opts: {
       const rect = captured.range.getBoundingClientRect();
       setSelection({
         candidate: captured.candidate,
-        at: { left: rect.left + rect.width / 2, top: rect.top },
+        // Anchor floating affordances at the bottom of the selection so they
+        // sit below the passage instead of covering it (issue #106).
+        at: { left: rect.left + rect.width / 2, top: rect.bottom },
       });
     };
 

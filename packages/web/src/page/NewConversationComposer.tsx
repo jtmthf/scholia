@@ -16,8 +16,10 @@ export interface DraftConversation {
   /** null for a Page-level Conversation (no highlight). */
   anchor: AnchorInput | null;
   mode: ComposerMode;
-  /** Where the selection was, so the panel opens next to it. */
+  /** Where the selection was, so the panel opens below it. */
   at?: { left: number; top: number };
+  /** The passage this Composer is about, shown in its header. */
+  quote?: string;
 }
 
 interface NewConversationComposerProps {
@@ -26,20 +28,22 @@ interface NewConversationComposerProps {
   draft: DraftConversation;
   /** The reader's display name, or null if they haven't given one yet. */
   displayName: string | null;
+  /** Render inline in the rail rather than as a floating panel. */
+  inline?: boolean;
+  /** Focus the textarea on mount. */
+  autoFocus?: boolean;
   onDone: () => void;
   onCancel: () => void;
 }
 
 /**
- * Anchored at the selection, clamped so the panel can't open off-screen; parked at a
- * fixed spot for a Page-level Conversation, which has no selection to sit beside.
+ * Anchored at the selection, clamped so the panel can't open off-screen.
  *
  * This is the one place in the shell that reads `window` while rendering, and it is
  * safe because `at` cannot exist on the server: it comes from a selection inside the
  * content iframe, which only ever happens in a browser.
  */
-function panelStyle(at: DraftConversation["at"]): Record<string, string> {
-  if (!at) return { right: "340px", top: "72px" };
+function panelStyle(at: NonNullable<DraftConversation["at"]>): Record<string, string> {
   return {
     left: `${Math.max(8, Math.min(at.left - 150, window.innerWidth - 320))}px`,
     top: `${Math.min(at.top + 12, window.innerHeight - 240)}px`,
@@ -53,6 +57,8 @@ export function NewConversationComposer({
   pagePath,
   draft,
   displayName,
+  inline,
+  autoFocus,
   onDone,
   onCancel,
 }: NewConversationComposerProps) {
@@ -84,27 +90,38 @@ export function NewConversationComposer({
     }
   }
 
+  const composer = (
+    <Composer
+      label={
+        draft.mode === "chat"
+          ? "Ask your agent (private)"
+          : draft.anchor
+            ? "New comment on selection"
+            : "Comment on this page"
+      }
+      quote={draft.quote}
+      placeholder={
+        draft.mode === "chat"
+          ? `Ask your agent about this ${draft.anchor ? "selection" : "page"}…`
+          : "Write a comment…"
+      }
+      submitLabel={draft.mode === "chat" ? "Ask" : "Comment"}
+      autoFocus={autoFocus}
+      needsName={!displayName}
+      currentName={displayName ?? undefined}
+      isSubmitting={submitting}
+      error={error}
+      onSubmit={submit}
+      onCancel={onCancel}
+    />
+  );
+
+  if (inline) return composer;
+  if (!draft.at) return null;
+
   return (
     <div class="floating-composer-panel" style={panelStyle(draft.at)}>
-      <Composer
-        label={
-          draft.mode === "chat"
-            ? "Ask your agent (private)"
-            : draft.anchor
-              ? "New comment on selection"
-              : "Comment on this page"
-        }
-        placeholder={
-          draft.mode === "chat" ? "Ask your agent about this selection…" : "Write a comment…"
-        }
-        submitLabel={draft.mode === "chat" ? "Ask" : "Comment"}
-        needsName={!displayName}
-        currentName={displayName ?? undefined}
-        isSubmitting={submitting}
-        error={error}
-        onSubmit={submit}
-        onCancel={onCancel}
-      />
+      {composer}
     </div>
   );
 }
