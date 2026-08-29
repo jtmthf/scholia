@@ -1,6 +1,16 @@
-import { watch as chokidarWatch, type FSWatcher } from "chokidar";
+import { watch as chokidarWatch } from "chokidar";
 
 const HIDDEN_OR_VENDORED = /(^|[\\/])(\.[^\\/]|node_modules([\\/]|$))/;
+
+export interface Watcher {
+  /**
+   * Stops watching and cancels any debounced callback that hasn't fired yet,
+   * so a burst of changes right before shutdown can never call `onChange`
+   * (and, in turn, run `refresh()`) after the caller has moved on and torn
+   * down the state that callback expects to still be there.
+   */
+  close(): Promise<void>;
+}
 
 /**
  * The Sidecar, which is a dotfile directory we very much do want to watch.
@@ -20,7 +30,7 @@ export function watchPath(
   target: string | string[],
   onChange: (paths: string[]) => void,
   delay = 80,
-): FSWatcher {
+): Watcher {
   const watcher = chokidarWatch(target, {
     ignoreInitial: true,
     ignored: (p: string) => !SIDECAR.test(p) && HIDDEN_OR_VENDORED.test(p),
@@ -28,6 +38,7 @@ export function watchPath(
 
   const pending = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
 
   function schedule(path: string): void {
     pending.add(path);
@@ -36,7 +47,7 @@ export function watchPath(
       timer = null;
       const batch = [...pending];
       pending.clear();
-      onChange(batch);
+      if (!closed) onChange(batch);
     }, delay);
   }
 
@@ -44,5 +55,14 @@ export function watchPath(
     watcher.on(event, (path: string) => schedule(path));
   }
 
-  return watcher;
+  return {
+    async close() {
+      closed = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      await watcher.close();
+    },
+  };
 }

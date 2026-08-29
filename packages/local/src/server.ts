@@ -866,12 +866,19 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   // In directory mode the root covers the Sidecar; previewing a single file
   // watches that file alone, so the Sidecar is named separately — otherwise a
   // Comment an agent writes while the preview is open would never show up.
+  // Tracks the most recently triggered refresh so close() can wait for it —
+  // otherwise a refresh already in flight when the caller shuts down can
+  // still be running against state (e.g. the rootDir) the caller considers
+  // gone, and its error logs after the caller has moved on.
+  let pendingJob: Promise<void> = Promise.resolve();
   const watchTarget = opts.singleFile ? [opts.singleFile, sidecarDir(opts.rootDir)] : opts.rootDir;
   const watcher = watchPath(watchTarget, (paths) => {
     for (const p of paths) pages.invalidate(p);
     const structural = paths.some((p) => isDoc(p) || /(^|[\\/])_?meta\.json$/i.test(p));
     const job = structural ? refresh() : Promise.resolve();
-    job.then(broadcastReload).catch((err) => console.error("[scholia] refresh failed:", err));
+    pendingJob = job
+      .then(broadcastReload)
+      .catch((err) => console.error("[scholia] refresh failed:", err));
   });
 
   const hosts = await resolveBindHosts(opts.host);
@@ -899,6 +906,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     port,
     close: async () => {
       await watcher.close();
+      await pendingJob;
       await Promise.all(servers.map((s) => new Promise<void>((res) => s.close(() => res()))));
     },
   };
