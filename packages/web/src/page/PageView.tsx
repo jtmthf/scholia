@@ -95,6 +95,7 @@ export function PageView({
           chats={chats}
           activeConversationId={bridge.activeConversationId}
           onActivate={bridge.activate}
+          onEmphasize={bridge.emphasize}
           onNewPageComment={() => setDraft({ anchor: null, mode: "thread" })}
           onBringAgent={onBringAgent}
           outdatedOrigin={outdatedOrigin(slug)}

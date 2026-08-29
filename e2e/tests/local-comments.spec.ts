@@ -29,6 +29,9 @@ const SEED = {
   ].join("\n"),
   "reply.md": "# Reply\n\nReply target.\n",
   "gone.md": "# Gone\n\nThis Page says nothing the seeded Anchor quotes.\n",
+  "dim.md": "# Dim\n\nSomething about a passage now settled.\n",
+  "emphasis.md": "# Emphasis\n\nSomething about a passage worth emphasis.\n",
+  "outside-click.md": "# Outside Click\n\nA passage to click.\n",
   // Owned by the held-live-reload tests (issue #29), which rewrite them under a
   // reader who is mid-comment. One Page each: they assert what is *still* on
   // screen, so another test's write would be indistinguishable from the bug.
@@ -162,10 +165,20 @@ async function selectInContent(page: Page, text: string, occurrence = 0): Promis
  * saved. Chromium is the only project this suite runs, and it has the API.
  */
 function paintedAnchors(page: Page): Promise<number> {
-  return page.evaluate(() => {
+  return paintedIn(page, "scholia-anchor");
+}
+
+/**
+ * How many ranges are registered under one of the three Custom Highlight API
+ * registrations `AnchorHighlights` uses (issue #109): `scholia-anchor` (open),
+ * `scholia-anchor-resolved` (dimmed), or `scholia-anchor-emphasis` (a hovered
+ * rail card's passage).
+ */
+function paintedIn(page: Page, name: string): Promise<number> {
+  return page.evaluate((n) => {
     const registry = (CSS as unknown as { highlights?: Map<string, { size: number }> }).highlights;
-    return registry?.get("scholia-anchor")?.size ?? 0;
-  });
+    return registry?.get(n)?.size ?? 0;
+  }, name);
 }
 
 /** The viewport centre of the first occurrence of `text` in the content. */
@@ -262,6 +275,67 @@ test("select text, comment, reload — the Conversation is still anchored", asyn
   const at = await centreOf(page, "the moat");
   await page.mouse.click(at.x, at.y);
   await expect(page.locator(".thread-card--active")).toHaveCount(1);
+});
+
+// issue #109: a settled Conversation must not go on accumulating a
+// full-strength highlight — the passage moves to the dimmed registration
+// instead of staying in the one open Threads use.
+test("resolving a Conversation dims its passage instead of leaving it fully highlighted", async ({
+  page,
+  request,
+}) => {
+  await seedComment(request, "dim.md", "Settled now.", "a passage now settled");
+  await page.goto(`${preview.url}/dim.md`);
+
+  await expect.poll(() => paintedAnchors(page)).toBe(1);
+  expect(await paintedIn(page, "scholia-anchor-resolved")).toBe(0);
+
+  await page.locator(".thread-card .thread-action-btn--resolve").click();
+
+  await expect.poll(() => paintedIn(page, "scholia-anchor-resolved")).toBe(1);
+  expect(await paintedAnchors(page)).toBe(0);
+});
+
+// issue #109: hovering a rail card is the reader asking "where is that in the
+// text" — the passage lights up in the emphasis registration, and leaving the
+// card clears it again rather than leaving a stray emphasis behind.
+test("hovering a rail card emphasizes its passage, and unhovering clears it", async ({
+  page,
+  request,
+}) => {
+  await seedComment(request, "emphasis.md", "Look here.", "a passage worth emphasis");
+  await page.goto(`${preview.url}/emphasis.md`);
+
+  await expect.poll(() => paintedAnchors(page)).toBe(1);
+  expect(await paintedIn(page, "scholia-anchor-emphasis")).toBe(0);
+
+  await page.locator(".thread-card").hover();
+  await expect.poll(() => paintedIn(page, "scholia-anchor-emphasis")).toBe(1);
+
+  await page.mouse.move(0, 0);
+  await expect.poll(() => paintedIn(page, "scholia-anchor-emphasis")).toBe(0);
+});
+
+// issue #109: `thread-card--active` was set on activation and never cleared —
+// a click that lands on neither a highlighted passage nor the rail itself has
+// to let go of it.
+test("clicking outside any passage and outside the rail clears the active card", async ({
+  page,
+  request,
+}) => {
+  await seedComment(request, "outside-click.md", "Focus me.", "passage to click");
+  await page.goto(`${preview.url}/outside-click.md`);
+
+  // The highlighter resolves the Anchor into the DOM on its own effect; the
+  // hit-test the click depends on has nothing to hit until then.
+  await expect.poll(() => paintedAnchors(page)).toBe(1);
+
+  const at = await centreOf(page, "passage to click");
+  await page.mouse.click(at.x, at.y);
+  await expect(page.locator(".thread-card--active")).toHaveCount(1);
+
+  await page.locator("article.markdown-body h1").click();
+  await expect(page.locator(".thread-card--active")).toHaveCount(0);
 });
 
 // An Anchor whose quote is no longer in the Page can't be painted. It must still

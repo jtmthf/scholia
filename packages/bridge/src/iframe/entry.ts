@@ -136,8 +136,11 @@ function rectOf(range: Range): Record<string, number> {
 
     document.addEventListener("click", function (e: MouseEvent) {
       try {
+        // Always reported, not only on a hit: a click that misses every
+        // highlight is the parent's cue to clear a stale active card
+        // (issue #109), so `id` is null rather than the message being skipped.
         const id = highlights.hitTest(e.clientX, e.clientY);
-        if (id) send({ type: "anchor-activated", id });
+        send({ type: "anchor-activated", id });
       } catch {
         // swallow
       }
@@ -166,7 +169,7 @@ function rectOf(range: Range): Record<string, number> {
 
         case "resolve-anchor": {
           const id = m["id"] as string;
-          const range = highlights.resolve(id, m["quote"] as TextQuote);
+          const range = highlights.resolve(id, m["quote"] as TextQuote, m["resolved"] === true);
           if (range) send({ type: "anchor-resolved", id, found: true, rect: rectOf(range) });
           else send({ type: "anchor-resolved", id, found: false });
           break;
@@ -178,6 +181,10 @@ function rectOf(range: Range): Record<string, number> {
 
         case "scroll-to":
           highlights.scrollTo(m["id"] as string);
+          break;
+
+        case "emphasize-anchor":
+          highlights.emphasize(m["id"] as string | null);
           break;
       }
     });

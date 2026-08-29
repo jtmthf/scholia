@@ -33,6 +33,8 @@ export interface ContentBridge {
   activeConversationId: string | null;
   /** Focus a Conversation and scroll its Anchor into view in the content. */
   activate: (id: string) => void;
+  /** Emphasize a Conversation's passage (hovering its rail card), or clear with null. */
+  emphasize: (id: string | null) => void;
 }
 
 /**
@@ -65,6 +67,8 @@ export function useContentBridge(opts: {
       theme: osTheme(),
       onSelection: (e) => !readOnly && setRaw({ candidate: e.candidate, rect: e.rect }),
       onSelectionCleared: () => setRaw(null),
+      // A click that missed every highlight arrives as null — clearing a stale
+      // active card is exactly as valid a report as setting one (issue #109).
       onAnchorActivated: (id) => setActive(id),
     });
     bridgeRef.current = bridge;
@@ -92,7 +96,7 @@ export function useContentBridge(opts: {
     if (!bridge) return;
     bridge.clearAnchors();
     for (const c of anchored) {
-      if (c.anchor) bridge.resolveAnchor(c.id, c.anchor.textQuote);
+      if (c.anchor) bridge.resolveAnchor(c.id, c.anchor.textQuote, c.resolved);
     }
   }, [anchored]);
 
@@ -121,7 +125,11 @@ export function useContentBridge(opts: {
     bridgeRef.current?.scrollToAnchor(id);
   }, []);
 
+  const emphasize = useCallback((id: string | null) => {
+    bridgeRef.current?.emphasizeAnchor(id);
+  }, []);
+
   const clearSelection = useCallback(() => setRaw(null), []);
 
-  return { selection, clearSelection, activeConversationId, activate };
+  return { selection, clearSelection, activeConversationId, activate, emphasize };
 }

@@ -38,8 +38,10 @@ export type IframeMessage =
   // Result of a `resolve-anchor` request: whether the quote matched and, if so,
   // the matched range's bounding rect (iframe coordinates) for marker placement.
   | { type: "anchor-resolved"; id: string; found: boolean; rect?: DOMRectInit }
-  // The user clicked an existing anchor highlight.
-  | { type: "anchor-activated"; id: string };
+  // The user clicked in the content. `id` is the anchor highlight they hit, or
+  // null when the click missed every highlight — the parent's cue to clear a
+  // stale `thread-card--active` rather than only ever set one (issue #109).
+  | { type: "anchor-activated"; id: string | null };
 
 // Messages the parent sends down to the iframe.
 export type ParentMessage =
@@ -53,11 +55,16 @@ export type ParentMessage =
   // content isn't up yet, because then its own `ready` still arrives.
   | { type: "ping" }
   // Resolve a stored anchor's text-quote against the DOM and highlight it.
-  | { type: "resolve-anchor"; id: string; quote: TextQuote }
+  // `resolved` is the owning Conversation's own resolved state, which decides
+  // whether the passage joins the full-strength or the dimmed highlight.
+  | { type: "resolve-anchor"; id: string; quote: TextQuote; resolved: boolean }
   // Remove all anchor highlights (e.g. on page navigation).
   | { type: "clear-anchors" }
   // Scroll a previously-resolved anchor highlight into view.
-  | { type: "scroll-to"; id: string };
+  | { type: "scroll-to"; id: string }
+  // Emphasize one resolved anchor's passage (the reader hovering its rail
+  // card), or clear the emphasis with null.
+  | { type: "emphasize-anchor"; id: string | null };
 
 export type BridgeMessage = IframeMessage | ParentMessage;
 
