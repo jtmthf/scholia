@@ -1,9 +1,9 @@
-// Promotion writes a new public Thread from a Chat and leaves the Chat alone
-// (CONTEXT "Promotion", ADR-0019).
+// Promotion writes a new public Thread from a Chat and records the Promotion on
+// the Chat (CONTEXT "Promotion", ADR-0019).
 //
-// The property under test throughout is that the Chat is *untouched*: not moved,
-// not marked, not appended to. That is what makes Promotion safe to offer — the
-// private original stays private whatever happens to the copy.
+// The Chat stays private and in place, but it is no longer untouched: a
+// `promoted` event names the Thread and the exact selection that became it,
+// which is what makes an exact repeat detectable.
 
 import { describe, test, expect } from "vitest";
 import { ConversationError, promoteConversation } from "@scholia/core";
@@ -45,9 +45,8 @@ function chatWithThree() {
 }
 
 describe("promoteConversation", () => {
-  test("writes a new public Thread and leaves the Chat exactly as it was", async () => {
+  test("writes a new public Thread and leaves the Chat private and in place", async () => {
     const { repo } = chatWithThree();
-    const before = await repo.getConversation(CHAT_ID);
 
     const thread = await promoteConversation(repo, {
       conversationId: CHAT_ID,
@@ -58,12 +57,120 @@ describe("promoteConversation", () => {
     expect(thread.visibility).toBe("public");
     expect(thread.header.id).not.toBe(CHAT_ID);
 
-    // Not a move: the Chat is still there, still private, still the same.
-    const after = await repo.getConversation(CHAT_ID);
-    expect(after).toEqual(before);
-    expect(after!.visibility).toBe("private");
-    // Nothing was appended to it either — "untouched" is literal.
-    expect(repo.appended).toHaveLength(0);
+    // Not a move: the Chat is still there, still private, still the same messages.
+    const chat = await repo.getConversation(CHAT_ID);
+    expect(chat!.visibility).toBe("private");
+    expect(chat!.comments).toHaveLength(3);
+    // But it does record that a Promotion happened.
+    expect(chat!.promotions).toHaveLength(1);
+    expect(chat!.promotions[0]!.threadId).toBe(thread.header.id);
+  });
+
+  test("records the Promotion on the Chat with the exact selection promoted", async () => {
+    const { repo } = chatWithThree();
+
+    const thread = await promoteConversation(repo, {
+      conversationId: CHAT_ID,
+      commentIds: ["00000000-0000-7000-8000-000000000003", "00000000-0000-7000-8000-000000000001"],
+      author: "alice",
+    });
+
+    const chat = await repo.getConversation(CHAT_ID);
+    expect(chat!.promotions).toEqual([
+      {
+        threadId: thread.header.id,
+        commentIds: [
+          "00000000-0000-7000-8000-000000000001",
+          "00000000-0000-7000-8000-000000000003",
+        ],
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      },
+    ]);
+  });
+
+  test("records the Chat origin on the new Thread header", async () => {
+    const { repo } = chatWithThree();
+
+    const thread = await promoteConversation(repo, {
+      conversationId: CHAT_ID,
+      commentIds: ["00000000-0000-7000-8000-000000000001"],
+      author: "alice",
+    });
+
+    expect(thread.header.promotedFrom).toEqual({
+      conversationId: CHAT_ID,
+      commentIds: ["00000000-0000-7000-8000-000000000001"],
+    });
+  });
+
+  test("refuses an exact repeat, naming the existing Thread", async () => {
+    const { repo } = chatWithThree();
+
+    const thread = await promoteConversation(repo, {
+      conversationId: CHAT_ID,
+      commentIds: ["00000000-0000-7000-8000-000000000001"],
+      author: "alice",
+    });
+
+    await expect(
+      promoteConversation(repo, {
+        conversationId: CHAT_ID,
+        // Same selection, different caller order — still the same set.
+        commentIds: ["00000000-0000-7000-8000-000000000001"],
+        author: "alice",
+      }),
+    ).rejects.toThrow(`already promoted to Thread ${thread.header.id}`);
+  });
+
+  test("refuses a repeat even when the Chat's promotion record is missing", async () => {
+    const { repo } = chatWithThree();
+
+    // Simulate an orphan Thread: one whose origin header names the Chat, but the
+    // Chat carries no matching promotion event (e.g. a crash after create).
+    const orphanId = "00000000-0000-7000-8000-0000000000aa";
+    repo.seed(
+      makeHeader({
+        id: orphanId,
+        page: "docs/guide.md",
+        anchor: null,
+        author: "alice",
+        timestamp: "2025-01-15T12:10:00.000Z",
+        promotedFrom: {
+          conversationId: CHAT_ID,
+          commentIds: ["00000000-0000-7000-8000-000000000001"],
+        },
+      }),
+      [comment("00000000-0000-7000-8000-0000000000ab", "alice", "orphaned promotion")],
+      "public",
+    );
+
+    await expect(
+      promoteConversation(repo, {
+        conversationId: CHAT_ID,
+        commentIds: ["00000000-0000-7000-8000-000000000001"],
+        author: "alice",
+      }),
+    ).rejects.toThrow(`already promoted to Thread ${orphanId}`);
+  });
+
+  test("allows a different selection from the same Chat as a further Promotion", async () => {
+    const { repo } = chatWithThree();
+
+    await promoteConversation(repo, {
+      conversationId: CHAT_ID,
+      commentIds: ["00000000-0000-7000-8000-000000000001"],
+      author: "alice",
+    });
+
+    const second = await promoteConversation(repo, {
+      conversationId: CHAT_ID,
+      commentIds: ["00000000-0000-7000-8000-000000000002"],
+      author: "alice",
+    });
+
+    expect(second.visibility).toBe("public");
+    const chat = await repo.getConversation(CHAT_ID);
+    expect(chat!.promotions).toHaveLength(2);
   });
 
   test("carries only the chosen messages, in the order the Chat read", async () => {
@@ -168,10 +275,12 @@ describe("promoteConversation", () => {
     // A Thread that landed with only some of the chosen messages would be a
     // Promotion that published less than it was told to.
     expect(repo.created).toHaveLength(1);
-    expect(repo.appended).toHaveLength(0);
     // One first Comment plus the remaining two plus the summary, all in the
     // initial write.
     expect(repo.created[0]!.events).toHaveLength(3);
+    // The Chat records the Promotion in a separate append afterwards.
+    expect(repo.appended).toHaveLength(1);
+    expect(repo.appended[0]!.type).toBe("promoted");
   });
 
   test("refuses to promote something that is already a Thread", async () => {

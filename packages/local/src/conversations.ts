@@ -120,6 +120,23 @@ export function toConversationDTO(
     resolved: conversation.resolved,
     resolvedBy: conversation.resolvedBy,
     visibility: conversation.visibility,
+    ...(conversation.promotions.length > 0
+      ? {
+          promotions: conversation.promotions.map((p) => ({
+            threadId: p.threadId,
+            commentIds: p.commentIds,
+            timestamp: p.timestamp,
+          })),
+        }
+      : {}),
+    ...(conversation.header.promotedFrom
+      ? {
+          promotedFrom: {
+            conversationId: conversation.header.promotedFrom.conversationId,
+            commentIds: conversation.header.promotedFrom.commentIds,
+          },
+        }
+      : {}),
     comments: conversation.comments.map((comment) => ({
       id: comment.id,
       author: identityFor(comment.author, comment.authorKind),

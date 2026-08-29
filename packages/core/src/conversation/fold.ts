@@ -22,6 +22,7 @@ import type {
   Conversation,
   ConversationEvent,
   ConversationHeader,
+  PromotionRecord,
   Reaction,
   Visibility,
 } from "./types.js";
@@ -98,6 +99,7 @@ export function foldConversation(
   const edits = new Map<string, { body: string; at: string }>();
   const tombstones = new Set<string>();
   const reactions: ReactionState = new Map();
+  const promotions: PromotionRecord[] = [];
   let resolution: { resolved: boolean; author: string; at: string } | null = null;
 
   for (const event of ordered) {
@@ -142,6 +144,14 @@ export function foldConversation(
 
       case "reopened":
         resolution = { resolved: false, author: event.author, at: event.timestamp };
+        break;
+
+      case "promoted":
+        promotions.push({
+          threadId: event.threadId,
+          commentIds: event.commentIds,
+          timestamp: event.timestamp,
+        });
         break;
     }
   }
@@ -194,5 +204,6 @@ export function foldConversation(
     resolvedAt: resolution?.resolved ? resolution.at : null,
     // The Conversation's own id as a target is the whole aggregate going.
     deleted: tombstones.has(header.id),
+    promotions,
   };
 }

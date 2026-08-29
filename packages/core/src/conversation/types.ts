@@ -62,6 +62,11 @@ export interface ConversationHeader {
   authorKind?: AuthorKind;
   /** ISO 8601 creation timestamp. */
   timestamp: string;
+  /**
+   * When this Thread was promoted from a Chat, the Chat it came from and the
+   * Comments that were carried across (CONTEXT "Promotion").
+   */
+  promotedFrom?: { conversationId: string; commentIds: string[] };
 }
 
 /** What every event document in the stream carries (ADR-0019). */
@@ -132,6 +137,29 @@ export interface ReopenedEvent extends EventBase {
 }
 
 /**
+ * A Promotion: the Chat records which of its Comments became which public Thread
+ * (CONTEXT "Promotion"). This is an event rather than header mutation because a
+ * Chat can be promoted multiple times with different selections.
+ */
+export interface PromotedEvent extends EventBase {
+  type: "promoted";
+  /** The public Thread that was written from this Chat. */
+  threadId: string;
+  /** The Comment ids that were promoted, in Chat order. */
+  commentIds: string[];
+}
+
+/**
+ * One Promotion recorded on a Chat: a selection of its Comments and the Thread
+ * they became (CONTEXT "Promotion").
+ */
+export interface PromotionRecord {
+  threadId: string;
+  commentIds: string[];
+  timestamp: string;
+}
+
+/**
  * Every state change a Conversation can undergo, as an appendable document.
  * There is no other way to change one: the header is immutable and no event is
  * ever rewritten, which is what makes git's union merge correct here rather than
@@ -144,7 +172,8 @@ export type ConversationEvent =
   | ReactedEvent
   | UnreactedEvent
   | ResolvedEvent
-  | ReopenedEvent;
+  | ReopenedEvent
+  | PromotedEvent;
 
 /** One emoji's tally on a Comment, folded from `reacted`/`unreacted` events. */
 export interface Reaction {
@@ -189,4 +218,9 @@ export interface Conversation {
   resolvedAt: string | null;
   /** A tombstone over the whole aggregate — the file stays, the Conversation goes. */
   deleted: boolean;
+  /**
+   * Promotions recorded on this Chat: each selection that became a public Thread
+   * (CONTEXT "Promotion"). Empty for a Thread that was never a Chat.
+   */
+  promotions: PromotionRecord[];
 }

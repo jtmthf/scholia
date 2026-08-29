@@ -354,6 +354,56 @@ describe("foldConversation", () => {
     expect(conversation.comments[0]!.reactions.map((r) => r.emoji)).toEqual(["👍", "🎉"]);
   });
 
+  // ---- promoted ----
+
+  test("a `promoted` event records the Thread and the promoted comment ids", () => {
+    const conversation = foldsIdentically([
+      first,
+      {
+        id: "00000000-0000-7000-8000-0000000000a1",
+        type: "promoted",
+        timestamp: "2025-01-15T12:30:00.000Z",
+        author: "alice",
+        threadId: "00000000-0000-7000-8000-0000000000a2",
+        commentIds: [first.id],
+      },
+    ]);
+
+    expect(conversation.promotions).toEqual([
+      {
+        threadId: "00000000-0000-7000-8000-0000000000a2",
+        commentIds: [first.id],
+        timestamp: "2025-01-15T12:30:00.000Z",
+      },
+    ]);
+  });
+
+  test("multiple `promoted` events are kept in order", () => {
+    const conversation = foldsIdentically([
+      first,
+      {
+        id: "00000000-0000-7000-8000-0000000000a1",
+        type: "promoted",
+        timestamp: "2025-01-15T12:30:00.000Z",
+        author: "alice",
+        threadId: "00000000-0000-7000-8000-0000000000a2",
+        commentIds: [first.id],
+      },
+      {
+        id: "00000000-0000-7000-8000-0000000000a3",
+        type: "promoted",
+        timestamp: "2025-01-15T12:35:00.000Z",
+        author: "alice",
+        threadId: "00000000-0000-7000-8000-0000000000a4",
+        commentIds: [reply.id],
+      },
+    ]);
+
+    expect(conversation.promotions).toHaveLength(2);
+    expect(conversation.promotions[0]!.threadId).toBe("00000000-0000-7000-8000-0000000000a2");
+    expect(conversation.promotions[1]!.threadId).toBe("00000000-0000-7000-8000-0000000000a4");
+  });
+
   // ---- resolve / reopen ----
 
   test("a `resolved` event resolves the Conversation and records who did it", () => {
@@ -445,6 +495,7 @@ describe("foldConversation", () => {
       resolvedBy: null,
       resolvedAt: null,
       deleted: false,
+      promotions: [],
     });
   });
 });

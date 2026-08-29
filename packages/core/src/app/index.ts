@@ -24,6 +24,7 @@ export {
   type CommentView,
   type ConversationView,
   type ReactionView,
+  type PromotionView,
 } from "./view.js";
 
 export {

@@ -172,9 +172,9 @@ Delete an entire Conversation — moderation for content that should not be on t
 
 `scholia promote [conversation]` — MCP tool `promote`.
 
-Promote messages out of a private Chat into a new public Thread (CONTEXT "Promotion"). The Chat is untouched and stays private. Deciding what the team gets to read is the human's call — do not promote anything without being asked to, and note that this verb takes no agent name for that reason.
+Promote messages out of a private Chat into a public Thread (CONTEXT "Promotion"). The promoting human selects which messages become public. Deciding what the team gets to read is the human's call — do not promote anything without being asked to, and note that this verb takes no agent name for that reason.
 
-The new Thread is written into .scholia/conversations, where git can see it; the Chat file stays exactly where it was.
+The new Thread is written into .scholia/conversations, where git can see it; the Chat file stays private and in place, and records the Promotion so the same selection cannot be promoted twice.
 
 | Flag | Type | | Meaning |
 | --- | --- | --- | --- |

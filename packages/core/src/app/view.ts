@@ -36,6 +36,12 @@ export interface CommentView {
   reactions: ReactionView[];
 }
 
+export interface PromotionView {
+  thread_id: string;
+  comment_ids: string[];
+  timestamp: string;
+}
+
 export interface ConversationView {
   id: string;
   /** Repo-relative Page path, or null for a Conversation with no Page. */
@@ -49,6 +55,10 @@ export interface ConversationView {
   resolved_by: string | null;
   comment_count: number;
   comments: CommentView[];
+  /** Promotions recorded on a Chat: each selection that became a public Thread. */
+  promotions: PromotionView[];
+  /** When this Thread was promoted from a Chat, the Chat it came from. */
+  promoted_from?: { conversation_id: string; comment_ids: string[] };
 }
 
 /** The folded domain Conversation as the shape both surfaces hand out. */
@@ -77,5 +87,18 @@ export function toConversationView(conversation: Conversation): ConversationView
         authors: reaction.authors,
       })),
     })),
+    promotions: conversation.promotions.map((p) => ({
+      thread_id: p.threadId,
+      comment_ids: p.commentIds,
+      timestamp: p.timestamp,
+    })),
+    ...(conversation.header.promotedFrom
+      ? {
+          promoted_from: {
+            conversation_id: conversation.header.promotedFrom.conversationId,
+            comment_ids: conversation.header.promotedFrom.commentIds,
+          },
+        }
+      : {}),
   };
 }

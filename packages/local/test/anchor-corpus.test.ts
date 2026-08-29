@@ -55,6 +55,7 @@ function conversationAnchoredTo(quote: {
     resolvedBy: null,
     resolvedAt: null,
     deleted: false,
+    promotions: [],
   };
 }
 

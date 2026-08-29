@@ -82,6 +82,8 @@ interface ConversationsBody {
     resolvedBy: string | null;
     visibility: "public" | "private";
     comments: CommentBody[];
+    promotions?: Array<{ threadId: string; commentIds: string[]; timestamp: string }>;
+    promotedFrom?: { conversationId: string; commentIds: string[] };
   }>;
   error?: string;
 }
@@ -408,8 +410,82 @@ test("promoting writes a new Thread and leaves the Chat where it was", async ({ 
   const stillPrivate = conversations!.find((c) => c.visibility === "private")!;
   expect(stillPrivate.id).toBe(chat.id);
   expect(stillPrivate.comments).toHaveLength(1);
+  expect(stillPrivate.promotions).toEqual([
+    {
+      threadId: thread.id,
+      commentIds: [chat.comments[0]!.id],
+      timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    },
+  ]);
+  expect(thread.promotedFrom).toEqual({
+    conversationId: chat.id,
+    commentIds: [chat.comments[0]!.id],
+  });
   expect(await sidecarFiles(tmp.root, "chats")).toHaveLength(1);
   expect(await sidecarFiles(tmp.root, "conversations")).toHaveLength(1);
+});
+
+test("promoting the same selection twice is refused, naming the existing Thread", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+
+  const created = (await (
+    await comment(url, { page: "guide.md", body: "is this right?", visibility: "private" })
+  ).json()) as ConversationsBody;
+  const chat = created.conversations!.at(-1)!;
+
+  await act(url, `/__conversations/${chat.id}/promote`, {
+    page: "guide.md",
+    commentIds: [chat.comments[0]!.id],
+  });
+
+  const again = await act(url, `/__conversations/${chat.id}/promote`, {
+    page: "guide.md",
+    commentIds: [chat.comments[0]!.id],
+  });
+  expect(again.status).toBe(400);
+  const body = (await again.json()) as { error?: string };
+  expect(body.error).toMatch(/already promoted to Thread/);
+
+  const { conversations } = await conversationsOn(url, "guide.md");
+  expect(conversations!.filter((c) => c.visibility === "public")).toHaveLength(1);
+});
+
+test("promoting a different selection from the same Chat writes a second Thread", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+
+  const created = (await (
+    await comment(url, { page: "guide.md", body: "first", visibility: "private" })
+  ).json()) as ConversationsBody;
+  const chat = created.conversations!.at(-1)!;
+  await act(url, `/__conversations/${chat.id}/comments`, {
+    page: "guide.md",
+    body: "second",
+  });
+  const refreshed = (await conversationsOn(url, "guide.md")).conversations!.find(
+    (c) => c.id === chat.id,
+  )!;
+
+  await act(url, `/__conversations/${chat.id}/promote`, {
+    page: "guide.md",
+    commentIds: [refreshed.comments[0]!.id],
+  });
+  await act(url, `/__conversations/${chat.id}/promote`, {
+    page: "guide.md",
+    commentIds: [refreshed.comments[1]!.id],
+  });
+
+  const { conversations } = await conversationsOn(url, "guide.md");
+  const chatAgain = conversations!.find((c) => c.visibility === "private")!;
+  expect(chatAgain.promotions).toHaveLength(2);
+  expect(conversations!.filter((c) => c.visibility === "public")).toHaveLength(2);
 });
 
 test("a Tunnel guest cannot promote their host's Chat", async ({ tmp, serve }) => {
@@ -863,6 +939,7 @@ function storedConversation(anchor: Anchor | null, id = "1"): Conversation {
     resolvedBy: null,
     resolvedAt: null,
     deleted: false,
+    promotions: [],
   };
 }
 

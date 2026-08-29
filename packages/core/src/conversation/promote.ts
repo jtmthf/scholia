@@ -10,10 +10,10 @@
 // was never to be in a diff. Copying instead means the private original stays
 // private and nothing about it changes.
 //
-// The consequence to be honest about: nothing marks the Chat as promoted, so
-// promoting twice writes two Threads. That is the literal reading of "leaving
-// the Chat untouched", and the alternative — an event appended to the Chat —
-// would be writing to the aggregate this command exists not to disturb.
+// The Promotion *is* recorded: the new Thread names the Chat it came from, and
+// the Chat gets an event naming the Thread and the exact selection that became
+// it. That event is what lets us refuse an exact repeat — the same message set
+// promoted twice writes only one Thread.
 //
 // Only a human promotes (CONTEXT "Promotion": "the promoting human selects
 // which messages become public"), which is why there is no `authorKind` here.
@@ -37,10 +37,18 @@ export interface PromoteConversationParams {
   author: string;
 }
 
+function sameCommentSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((id, i) => id === sortedB[i]);
+}
+
 /**
  * Write a new public Thread from a Chat's chosen messages.
  *
- * Returns the Thread. The Chat is not read back, because nothing happened to it.
+ * Returns the Thread. The Chat stays private and in place, but it does record
+ * that the Promotion happened.
  */
 export async function promoteConversation(
   repo: ConversationRepository,
@@ -82,6 +90,27 @@ export async function promoteConversation(
   // Fold order, not the order the caller listed them in: the Thread should read
   // the way the Chat did.
   chosen.sort((a, b) => chat.comments.indexOf(a) - chat.comments.indexOf(b));
+  const promotedCommentIds = chosen.map((c) => c.id);
+
+  // Refuse an exact repeat — the same message set promoted twice — naming the
+  // Thread it already became. Check the Chat's own records first, then any
+  // public Thread whose origin header names this Chat and selection, so a
+  // previous Promotion that created the Thread but failed to record the event
+  // still cannot be duplicated.
+  const existing = chat.promotions.find((p) => sameCommentSet(p.commentIds, promotedCommentIds));
+  if (existing) {
+    throw new ConversationError("invalid", `already promoted to Thread ${existing.threadId}`);
+  }
+
+  const orphan = (await repo.listConversations()).find(
+    (c) =>
+      c.visibility === "public" &&
+      c.header.promotedFrom?.conversationId === chat.header.id &&
+      sameCommentSet(c.header.promotedFrom.commentIds, promotedCommentIds),
+  );
+  if (orphan) {
+    throw new ConversationError("invalid", `already promoted to Thread ${orphan.header.id}`);
+  }
 
   const now = new Date().toISOString();
 
@@ -116,7 +145,7 @@ export async function promoteConversation(
 
   // The Thread is about the same passage, in the same state, as the Chat: page,
   // Anchor, content hash and Provenance all come across unchanged. What is new
-  // is who made it public and when.
+  // is who made it public and when, plus the Chat it came from.
   const header: ConversationHeader = {
     id: uuidv7(),
     page: chat.header.page,
@@ -125,6 +154,10 @@ export async function promoteConversation(
     ...(chat.header.provenance ? { provenance: chat.header.provenance } : {}),
     author: params.author,
     timestamp: now,
+    promotedFrom: {
+      conversationId: chat.header.id,
+      commentIds: promotedCommentIds,
+    },
   };
 
   // `firstComment` plus the rest in one write. Promotion is the reason the port
@@ -133,10 +166,25 @@ export async function promoteConversation(
   // to (see CreateConversationInput).
   const [firstComment, ...rest] = promoted as [CommentEvent, ...CommentEvent[]];
 
-  return repo.createConversation({
+  const thread = await repo.createConversation({
     header,
     firstComment,
     visibility: "public",
     ...(rest.length > 0 ? { events: rest } : {}),
   });
+
+  // Record the Promotion on the Chat: which messages were published, and which
+  // Thread they became. This is the event that makes an exact repeat
+  // detectable, and it is safe to append because the public Thread already
+  // exists.
+  await repo.appendEvent(chat.header.id, {
+    id: uuidv7(),
+    type: "promoted",
+    timestamp: now,
+    author: params.author,
+    threadId: thread.header.id,
+    commentIds: promotedCommentIds,
+  });
+
+  return thread;
 }
