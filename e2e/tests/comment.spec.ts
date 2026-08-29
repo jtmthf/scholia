@@ -102,11 +102,11 @@ test("page-level comment (no selection) posts to the Page Thread section", async
   ).toBeVisible();
 
   await page.locator(".page-comment-btn").click();
-  const panel = page.locator(".floating-composer-panel");
-  await expect(panel).toBeVisible();
-  await panel.locator(".composer-name-row input").fill("Reviewer Jane");
-  await panel.locator("textarea").fill("General feedback on this page.");
-  await panel.locator(".btn-primary").click();
+  const composer = page.locator(".rail-inline-composer");
+  await expect(composer).toBeVisible();
+  await composer.locator(".composer-name-row input").fill("Reviewer Jane");
+  await composer.locator("textarea").fill("General feedback on this page.");
+  await composer.locator(".btn-primary").click();
 
   // Scoped to this test's own Thread, not the rail's total count — see the
   // reload test above for why (Site shared across this file's tests).

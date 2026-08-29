@@ -338,8 +338,8 @@ test("a Page-level comment needs no selection and shows in its own section", asy
   await page.goto(`${preview.url}/page-level.md`);
 
   await page.locator(".page-comment-btn").click();
-  await page.locator(".floating-composer-panel textarea").fill("About this page as a whole.");
-  await page.locator(".floating-composer-panel button[type=submit]").click();
+  await page.locator(".rail-inline-composer textarea").fill("About this page as a whole.");
+  await page.locator(".rail-inline-composer button[type=submit]").click();
 
   await expect(page.locator(".rail-section-title")).toHaveText("Page Comments (1)");
   await expect(page.locator(".thread-anchor-quote")).toHaveText("Page Comment");
