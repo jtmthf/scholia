@@ -95,6 +95,42 @@ describe("Rail", () => {
     });
   });
 
+  describe("page-level composer", () => {
+    it("renders inline at the top of the rail when supplied", () => {
+      const html = render(
+        <Rail
+          conversations={[]}
+          chats={[]}
+          activeConversationId={null}
+          onActivate={() => {}}
+          onNewPageComment={() => {}}
+          onBringAgent={() => {}}
+          pageLevelComposer={<div class="page-composer-slot">Composer</div>}
+        />,
+      );
+      expect(html).toContain("rail-inline-composer");
+      expect(html).toContain("page-composer-slot");
+      // The "Comment on this page" button is hidden while the composer is open,
+      // but the unrelated agent button stays reachable.
+      expect(html).not.toContain("page-comment-btn");
+      expect(html).toContain("bring-agent-btn");
+    });
+
+    it("falls back to the page-comment button when no composer is supplied", () => {
+      const html = render(
+        <Rail
+          conversations={[]}
+          chats={[]}
+          activeConversationId={null}
+          onActivate={() => {}}
+          onNewPageComment={() => {}}
+        />,
+      );
+      expect(html).toContain("page-comment-btn");
+      expect(html).not.toContain("rail-inline-composer");
+    });
+  });
+
   describe("Outdated origin link", () => {
     it("is omitted when the consumer supplies no outdatedOrigin", () => {
       const html = render(full);

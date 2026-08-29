@@ -18,7 +18,7 @@ export function SelectionActions({ at, onComment, onAsk }: SelectionActionsProps
       style={{
         left: `${at.left}px`,
         top: `${at.top}px`,
-        transform: "translate(-50%, -120%)",
+        transform: "translate(-50%, 8px)",
       }}
       // Don't let the click steal focus / collapse the selection before we read it.
       onMouseDown={(e) => e.preventDefault()}

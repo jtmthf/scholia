@@ -7,8 +7,14 @@ interface NewConversationComposerProps {
   anchored: boolean;
   /** Whether this is headed for a public Thread or a private Chat. */
   visibility: "public" | "private";
-  /** Where the selection was, so the panel opens beside it. */
+  /** Where the selection was, so the panel opens below it. */
   at?: ViewportPoint;
+  /** The passage this Composer is about, shown in its header. */
+  quote?: string;
+  /** Render inline in the rail rather than as a floating panel. */
+  inline?: boolean;
+  /** Focus the textarea on mount. */
+  autoFocus?: boolean;
   displayName: string;
   /** A draft restored from a previous life of this page (issue #29). */
   initialBody?: string;
@@ -18,12 +24,10 @@ interface NewConversationComposerProps {
   onCancel: () => void;
 }
 
-// Anchored at the selection, clamped so the panel can't open off-screen; parked
-// at a fixed spot for a Page-level Conversation, which has no selection to sit
-// beside. Reading `window` while rendering is safe here and only here: `at` comes
-// from a selection, which cannot exist on the server.
-function panelStyle(at: NewConversationComposerProps["at"]): Record<string, string> {
-  if (!at) return { right: "340px", top: "72px" };
+// Anchored at the selection, clamped so the panel can't open off-screen. Reading
+// `window` while rendering is safe here and only here: `at` comes from a
+// selection, which cannot exist on the server.
+function panelStyle(at: ViewportPoint): Record<string, string> {
   return {
     left: `${Math.max(8, Math.min(at.left - 150, window.innerWidth - 320))}px`,
     top: `${Math.min(at.top + 12, window.innerHeight - 240)}px`,
@@ -40,6 +44,9 @@ export function NewConversationComposer({
   anchored,
   visibility,
   at,
+  quote,
+  inline,
+  autoFocus,
   displayName,
   initialBody,
   onBodyChange,
@@ -67,32 +74,45 @@ export function NewConversationComposer({
   // directory git is told never to track, rather than a promise.
   const isPrivate = visibility === "private";
 
+  const composer = (
+    <Composer
+      label={
+        isPrivate
+          ? "🔒 Ask your agent (private Chat)"
+          : anchored
+            ? "New comment on selection"
+            : "Comment on this page"
+      }
+      quote={quote}
+      placeholder={
+        isPrivate
+          ? `Ask your agent about this ${anchored ? "passage" : "page"}…`
+          : "Write a comment…"
+      }
+      submitLabel={isPrivate ? "Ask" : "Comment"}
+      autoFocus={autoFocus}
+      // git config already answered this (CONTEXT "Identity"), so the reader is
+      // never asked to introduce themselves on their own machine.
+      needsName={false}
+      currentName={displayName}
+      isSubmitting={submitting}
+      error={error}
+      initialBody={initialBody}
+      onBodyChange={onBodyChange}
+      onSubmit={(body) => submit(body)}
+      onCancel={onCancel}
+    />
+  );
+
+  if (inline) return composer;
+  if (!at) return null;
+
   return (
     <div
       class={`floating-composer-panel${isPrivate ? " floating-composer-panel--private" : ""}`}
       style={panelStyle(at)}
     >
-      <Composer
-        label={
-          isPrivate
-            ? "🔒 Ask your agent (private Chat)"
-            : anchored
-              ? "New comment on selection"
-              : "Comment on this page"
-        }
-        placeholder={isPrivate ? "Ask your agent about this passage…" : "Write a comment…"}
-        submitLabel={isPrivate ? "Ask" : "Comment"}
-        // git config already answered this (CONTEXT "Identity"), so the reader is
-        // never asked to introduce themselves on their own machine.
-        needsName={false}
-        currentName={displayName}
-        isSubmitting={submitting}
-        error={error}
-        initialBody={initialBody}
-        onBodyChange={onBodyChange}
-        onSubmit={(body) => submit(body)}
-        onCancel={onCancel}
-      />
+      {composer}
     </div>
   );
 }

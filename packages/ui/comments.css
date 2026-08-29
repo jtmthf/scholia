@@ -64,6 +64,18 @@
   padding: 8px 0;
 }
 
+.rail-inline-composer {
+  margin: 8px 8px 4px;
+  border: 1px solid var(--comment-border);
+  border-radius: var(--comment-radius);
+  background: var(--comment-bg);
+  overflow: hidden;
+}
+.rail-inline-composer .composer {
+  border-top: none;
+  padding: 10px;
+}
+
 .rail-section-title {
   font-size: 11px;
   font-weight: 600;
@@ -385,6 +397,16 @@
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.composer-quote {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 6px;
 }
 
 .composer textarea,

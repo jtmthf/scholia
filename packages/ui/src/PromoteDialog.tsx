@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { useComments } from "./port.js";
 import { DialogShell } from "./DialogShell.js";
 import type { ConversationDTO } from "./types.js";
@@ -31,6 +31,11 @@ export function PromoteDialog({ conversation, onClose, note = DEFAULT_NOTE }: Pr
   const [summary, setSummary] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const summaryRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    summaryRef.current?.focus();
+  }, []);
 
   function toggle(id: string) {
     setChecked((prev) => {
@@ -45,7 +50,7 @@ export function PromoteDialog({ conversation, onClose, note = DEFAULT_NOTE }: Pr
   // chosen Comment or a summary to carry the gist forward.
   const canPromote = (checked.size > 0 || summary.trim().length > 0) && !submitting;
 
-  async function handlePromote() {
+  const handlePromote = useCallback(async () => {
     // Unreachable in practice — Thread only offers Promote when the port has it.
     if (!port.promote) return;
     setSubmitting(true);
@@ -60,7 +65,21 @@ export function PromoteDialog({ conversation, onClose, note = DEFAULT_NOTE }: Pr
       setError(err instanceof Error ? err.message : "Promote failed.");
       setSubmitting(false);
     }
-  }
+  }, [port, conversation.id, checked, summary, onClose]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (canPromote) void handlePromote();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose, canPromote, handlePromote]);
 
   return (
     <DialogShell
@@ -84,6 +103,7 @@ export function PromoteDialog({ conversation, onClose, note = DEFAULT_NOTE }: Pr
       <label class="promote-summary-label">
         Summary (optional)
         <textarea
+          ref={summaryRef}
           class="promote-summary"
           value={summary}
           placeholder="A short summary of what was decided…"

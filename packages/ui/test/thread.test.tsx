@@ -356,6 +356,15 @@ describe("Composer", () => {
     expect(html).toContain(">Ask<");
     expect(html).toContain("disabled");
   });
+
+  it("renders the quoted passage in the header", () => {
+    const html = render(
+      <Composer needsName={false} quote="the selected passage" onSubmit={() => {}} />,
+    );
+
+    expect(html).toContain("composer-quote");
+    expect(html).toContain("“the selected passage”");
+  });
 });
 
 describe("IdentityDisplay", () => {

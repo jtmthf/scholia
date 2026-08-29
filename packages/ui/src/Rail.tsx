@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import { ConversationCard } from "./ConversationCard.js";
 import type { ConversationDTO } from "./types.js";
 
@@ -47,6 +48,12 @@ interface RailProps {
    * token — a directory git is told never to track — can say so.
    */
   chatsNote?: string;
+  /**
+   * A Composer rendered inline at the top of the rail when the reader is writing
+   * a Page-level Conversation. The rail hides its own "Comment on this page"
+   * button while this slot is filled.
+   */
+  pageLevelComposer?: ComponentChildren;
 }
 
 // The right-hand comment rail: the reader's private Chats first, then anchored
@@ -67,6 +74,7 @@ export function Rail({
   emptyNote = "No Comments yet. Select text in the Page to start a Thread or a private Chat, or comment on the whole Page.",
   promoteNote,
   chatsNote = "Visible only to you and your agents.",
+  pageLevelComposer,
 }: RailProps) {
   // Outdated Threads (anchor no longer matches the current text, CONTEXT
   // "Outdated") are pulled out of the live sections into their own collapsed rail,
@@ -102,9 +110,11 @@ export function Rail({
   return (
     <aside class="comment-rail">
       <div class="rail-toolbar">
-        <button class="page-comment-btn" onClick={onNewPageComment}>
-          💬 Comment on this page
-        </button>
+        {pageLevelComposer ? null : (
+          <button class="page-comment-btn" onClick={onNewPageComment}>
+            💬 Comment on this page
+          </button>
+        )}
         {onBringAgent && (
           <button
             class="bring-agent-btn"
@@ -115,6 +125,8 @@ export function Rail({
           </button>
         )}
       </div>
+
+      {pageLevelComposer && <div class="rail-inline-composer">{pageLevelComposer}</div>}
 
       {conversations.length === 0 && chats.length === 0 && (
         <div class="rail-empty">{emptyNote}</div>

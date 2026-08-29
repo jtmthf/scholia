@@ -333,6 +333,24 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
         emptyNote={EMPTY_NOTE}
         chatsNote={CHATS_NOTE}
         promoteNote={PROMOTE_NOTE}
+        pageLevelComposer={
+          draft && !draft.selection ? (
+            <NewConversationComposer
+              inline
+              anchored={false}
+              visibility={draft.visibility ?? "public"}
+              displayName={data.displayName}
+              autoFocus={engaged}
+              initialBody={draft.body}
+              onBodyChange={persistBody}
+              onSubmit={submitDraft}
+              onCancel={() => {
+                discardDraft();
+                clearSelection();
+              }}
+            />
+          ) : undefined
+        }
       />
       {selection && !draft && (
         <SelectionAction
@@ -341,14 +359,16 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
           onAsk={() => composeOn(selection.candidate, "private", selection.at)}
         />
       )}
-      {draft && (
+      {draft && draft.selection && (
         <NewConversationComposer
-          anchored={draft.selection !== null}
+          anchored
           // The Composer says which of the two this is, because once it is open
           // over the passage the buttons that distinguished them are gone.
           visibility={draft.visibility ?? "public"}
           at={draft.at}
+          quote={draft.selection.quote.exact}
           displayName={data.displayName}
+          autoFocus={engaged}
           initialBody={draft.body}
           onBodyChange={persistBody}
           onSubmit={submitDraft}

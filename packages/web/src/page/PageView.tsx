@@ -99,6 +99,19 @@ export function PageView({
           onBringAgent={onBringAgent}
           outdatedOrigin={outdatedOrigin(slug)}
           outdatedNote="These Threads no longer match the Latest Version."
+          pageLevelComposer={
+            draft && !draft.anchor ? (
+              <NewConversationComposer
+                inline
+                slug={slug}
+                pagePath={currentPath}
+                draft={draft}
+                displayName={viewer?.displayName ?? null}
+                onDone={() => setDraft(null)}
+                onCancel={() => setDraft(null)}
+              />
+            ) : undefined
+          }
         />
       </CommentsProvider>
 
@@ -110,6 +123,7 @@ export function PageView({
               anchor: candidateToAnchor(selection.candidate),
               at: selection.at,
               mode: "thread",
+              quote: selection.candidate.quote.exact,
             })
           }
           onAsk={() =>
@@ -117,12 +131,13 @@ export function PageView({
               anchor: candidateToAnchor(selection.candidate),
               at: selection.at,
               mode: "chat",
+              quote: selection.candidate.quote.exact,
             })
           }
         />
       )}
 
-      {draft && (
+      {draft && draft.anchor && (
         <NewConversationComposer
           slug={slug}
           pagePath={currentPath}
