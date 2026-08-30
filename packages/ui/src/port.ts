@@ -2,6 +2,33 @@ import { createContext } from "preact";
 import { useContext } from "preact/hooks";
 
 /**
+ * Verbs the comment layer can back with a `<form>` so the rail works without
+ * JavaScript. Each is a single use case; the consumer's `formAction` turns the
+ * verb and its target id into an action URL, method and hidden fields.
+ */
+export type CommentVerb =
+  | "page-comment"
+  | "reply"
+  | "resolve"
+  | "reopen"
+  | "react"
+  | "edit"
+  | "delete-comment"
+  | "delete-conversation"
+  | "promote";
+
+/**
+ * What `formAction` returns: enough to render a `<form>` that submits the same
+ * use case the port's async method would call. The consumer constructs the URL;
+ * the layer never does (ADR-0030).
+ */
+export interface FormAction {
+  action: string;
+  method: "POST";
+  hidden: Array<{ name: string; value: string }>;
+}
+
+/**
  * Everything the comment layer needs from the outside world, and the only way it
  * reaches it. The components render the Conversations they are handed and call
  * these methods to change them; they never construct a request, hold a credential,
@@ -22,8 +49,8 @@ import { useContext } from "preact/hooks";
  * - **An optional method is a surface the consumer doesn't have.** The same
  *   pattern as `Rail`'s optional `onBringAgent`: where a method is absent, the
  *   affordance that would call it isn't rendered at all, rather than rendered and
- *   failing. The server render supplies none of them, because nothing has been
- *   clicked yet; Local Preview supplies everything the Sidecar can write.
+ *   failing. Local Preview supplies everything the Sidecar can write; the hosted
+ *   viewer omits the forms it has no token surface for.
  *
  * Methods reject with an `Error` whose message is fit to show a reader; the
  * component that initiated the call renders it inline.
@@ -54,6 +81,14 @@ export interface CommentsPort {
   ): Promise<void>;
   /** Owner moderation — delete a whole Conversation. Gated on `canModerate`. */
   deleteConversation?(conversationId: string): Promise<void>;
+
+  /**
+   * Optional: when present, action controls render as `<form>` elements so the
+   * rail is usable with JavaScript disabled. The consumer supplies the URL and
+   * hidden fields; the layer supplies the visible fields and the submit handler
+   * that `preventDefault`s when JavaScript is running (ADR-0034).
+   */
+  formAction?(verb: CommentVerb, id: string): FormAction;
 }
 
 const CommentsContext = createContext<CommentsPort | null>(null);

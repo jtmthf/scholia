@@ -1,5 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { ConversationCard } from "./ConversationCard.js";
+import { Composer } from "./Composer.js";
+import { useComments } from "./port.js";
 import type { ConversationDTO } from "./types.js";
 
 /**
@@ -28,6 +30,12 @@ interface RailProps {
   onEmphasize?: (id: string | null) => void;
   /** Start a new page-level (un-anchored) Thread. */
   onNewPageComment: () => void;
+  /**
+   * When a page-level comment form is submitted with JavaScript running. The
+   * rail renders the form when the port supplies `formAction`; without JS the
+   * form posts to the action directly.
+   */
+  onSubmitPageComment?: (body: string) => void | Promise<void>;
   /** Hand a reader's own agent a token. Omitted where there are no tokens. */
   onBringAgent?: () => void;
   outdatedOrigin?: OutdatedOrigin;
@@ -76,6 +84,7 @@ export function Rail({
   onActivate,
   onEmphasize,
   onNewPageComment,
+  onSubmitPageComment,
   onBringAgent,
   outdatedOrigin,
   outdatedNote = "These Threads no longer match the current text.",
@@ -122,10 +131,29 @@ export function Rail({
     />
   );
 
+  const port = useComments();
+  const pageCommentForm = port.formAction?.("page-comment", "");
+
   return (
     <aside class="comment-rail">
       <div class="rail-toolbar">
-        {pageLevelComposer ? null : (
+        {pageLevelComposer ? null : pageCommentForm ? (
+          <Composer
+            placeholder="Comment on this page…"
+            submitLabel="Comment"
+            needsName={!port.displayName}
+            currentName={port.displayName ?? undefined}
+            formAction={pageCommentForm}
+            autoFocus={false}
+            onSubmit={(body) => {
+              if (onSubmitPageComment) {
+                void onSubmitPageComment(body);
+              } else {
+                onNewPageComment();
+              }
+            }}
+          />
+        ) : (
           <button class="page-comment-btn" onClick={onNewPageComment}>
             💬 Comment on this page
           </button>

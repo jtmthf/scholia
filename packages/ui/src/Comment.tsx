@@ -47,6 +47,9 @@ export function Comment({ comment }: CommentProps) {
   const canDelete =
     (comment.mine || moderating) && !comment.deleted && port.deleteComment !== undefined;
 
+  const editAction = port.formAction?.("edit", comment.id);
+  const deleteAction = port.formAction?.("delete-comment", comment.id);
+
   async function handleEdit(e?: Event) {
     e?.preventDefault();
     const body = editBody.trim();
@@ -102,40 +105,54 @@ export function Comment({ comment }: CommentProps) {
         {comment.editedAt && <span class="comment-edited">&nbsp;(edited)</span>}
       </div>
 
-      {editing ? (
-        <form class="comment-edit-form" onSubmit={(e) => void handleEdit(e)}>
+      {!editing && <div class="comment-body">{comment.body}</div>}
+      {(editing || (canEdit && editAction)) && (
+        <form
+          class="comment-edit-form"
+          action={editAction?.action}
+          method={editAction?.method}
+          onSubmit={(e) => void handleEdit(e)}
+        >
+          {editAction?.hidden.map((field) => (
+            <input key={field.name} type="hidden" name={field.name} value={field.value} />
+          ))}
           <textarea
             ref={editRef}
+            name="body"
             value={editBody}
             onInput={(e) => setEditBody((e.target as HTMLTextAreaElement).value)}
             onKeyDown={handleEditKeyDown}
           />
           {editError && <div class="composer-error">{editError}</div>}
           <div class="comment-edit-actions">
-            <button class="btn-primary" type="submit" disabled={editPending || !editBody.trim()}>
+            <button
+              class="btn-primary"
+              type="submit"
+              disabled={editPending || (!editAction && !editBody.trim())}
+            >
               {editPending ? "Saving…" : "Save"}
             </button>
-            <button
-              class="btn-secondary"
-              type="button"
-              onClick={() => {
-                setEditing(false);
-                setEditBody(comment.body);
-              }}
-            >
-              Cancel
-            </button>
+            {!editAction && (
+              <button
+                class="btn-secondary"
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setEditBody(comment.body);
+                }}
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </form>
-      ) : (
-        <div class="comment-body">{comment.body}</div>
       )}
 
       <Reactions commentId={comment.id} reactions={comment.reactions} />
 
       {(canEdit || canDelete) && (
         <div class="comment-actions">
-          {canEdit && (
+          {canEdit && !editAction && (
             <button
               class="comment-action-btn"
               onClick={() => {
@@ -146,15 +163,39 @@ export function Comment({ comment }: CommentProps) {
               Edit
             </button>
           )}
-          {canDelete && (
-            <button
-              class="comment-action-btn"
-              title={moderating ? "Owner moderation — delete someone else's Comment" : undefined}
-              onClick={() => setDeleting(true)}
-            >
-              Delete Comment
-            </button>
-          )}
+          {canDelete &&
+            (deleteAction ? (
+              <form
+                class="comment-action-form"
+                action={deleteAction.action}
+                method={deleteAction.method}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setDeleting(true);
+                }}
+              >
+                {deleteAction.hidden.map((field) => (
+                  <input key={field.name} type="hidden" name={field.name} value={field.value} />
+                ))}
+                <button
+                  class="comment-action-btn"
+                  type="submit"
+                  title={
+                    moderating ? "Owner moderation — delete someone else's Comment" : undefined
+                  }
+                >
+                  Delete Comment
+                </button>
+              </form>
+            ) : (
+              <button
+                class="comment-action-btn"
+                title={moderating ? "Owner moderation — delete someone else's Comment" : undefined}
+                onClick={() => setDeleting(true)}
+              >
+                Delete Comment
+              </button>
+            ))}
         </div>
       )}
 

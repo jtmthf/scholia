@@ -121,6 +121,38 @@ function act(
   });
 }
 
+/**
+ * POST a urlencoded form to one of the Conversation action routes.
+ *
+ * This is the no-JavaScript path: the body is `URLSearchParams`, the response
+ * is a 303 redirect back to the Page (ADR-0034).
+ */
+function formAct(
+  url: string,
+  path: string,
+  body: Record<string, string | string[]>,
+  opts: { asGuest?: boolean } = {},
+): Promise<Response> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(body)) {
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    } else {
+      params.append(key, value);
+    }
+  }
+  return fetch(`${url}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      "Sec-Fetch-Site": "same-origin",
+      ...(opts.asGuest ? { "x-forwarded-for": "203.0.113.9" } : {}),
+    },
+    body: params.toString(),
+    redirect: "manual",
+  });
+}
+
 /** Start a Conversation and hand back the ids everything else needs. */
 async function started(
   url: string,
@@ -809,6 +841,181 @@ test("a reaction can be added and taken back, from the fixed palette only", asyn
 
   const outside = await act(url, path, { page: "guide.md", emoji: "🦖" });
   expect(outside.status).toBe(400);
+});
+
+// ---------------------------------------------------------------------------
+// Form posts without JavaScript (ADR-0034)
+//
+// The same routes accept application/x-www-form-urlencoded and redirect back
+// to the Page as a POST-redirect-GET. These tests assert the no-JS path for
+// every Conversation-scoped verb that the rail surfaces as a form.
+// ---------------------------------------------------------------------------
+
+test("a page-level comment via form post lands and redirects to the Page", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n\nBody.\n");
+  const { url } = await serve();
+
+  const res = await formAct(url, "/__conversations", {
+    page: "guide.md",
+    body: "from the form",
+    contentHash: "0".repeat(64),
+    visibility: "public",
+  });
+  expect(res.status).toBe(303);
+  expect(res.headers.get("location")).toBe("/guide.md");
+
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).toContain("from the form");
+});
+
+test("a reply via form post lands and redirects to the Page", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId } = await started(url, "guide.md", "first");
+
+  const res = await formAct(url, `/__conversations/${conversationId}/comments`, {
+    page: "guide.md",
+    body: "second from form",
+  });
+  expect(res.status).toBe(303);
+
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).toContain("second from form");
+});
+
+test("resolve and reopen via form post land and redirect to the Page", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId } = await started(url, "guide.md", "to resolve");
+
+  const resolved = await formAct(url, `/__conversations/${conversationId}/resolve`, {
+    page: "guide.md",
+    resolved: "true",
+  });
+  expect(resolved.status).toBe(303);
+  expect(await (await fetch(`${url}/guide.md`)).text()).toContain("thread-card--resolved");
+
+  const reopened = await formAct(url, `/__conversations/${conversationId}/resolve`, {
+    page: "guide.md",
+    resolved: "false",
+  });
+  expect(reopened.status).toBe(303);
+  expect(await (await fetch(`${url}/guide.md`)).text()).not.toContain("thread-card--resolved");
+});
+
+test("a comment edit via form post lands and redirects to the Page", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId, commentId } = await started(url, "guide.md", "orignal");
+
+  const res = await formAct(url, `/__conversations/${conversationId}/comments/${commentId}/edit`, {
+    page: "guide.md",
+    body: "original",
+  });
+  expect(res.status).toBe(303);
+
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).toContain("original");
+  expect(html).toContain("comment-edited");
+});
+
+test("a comment delete via form post lands and redirects to the Page", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId, commentId } = await started(url, "guide.md", "regrettable");
+
+  const res = await formAct(
+    url,
+    `/__conversations/${conversationId}/comments/${commentId}/delete`,
+    { page: "guide.md" },
+  );
+  expect(res.status).toBe(303);
+
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).toContain("comment-tombstone");
+  expect(html).not.toContain("regrettable");
+});
+
+test("a conversation delete via form post lands and redirects to the Page", async ({
+  tmp,
+  serve,
+}) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId } = await started(url, "guide.md", "off topic");
+
+  const res = await formAct(url, `/__conversations/${conversationId}/delete`, {
+    page: "guide.md",
+  });
+  expect(res.status).toBe(303);
+
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).not.toContain("off topic");
+});
+
+test("a reaction via form post lands and redirects to the Page", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId, commentId } = await started(url, "guide.md", "worth a look");
+
+  const add = await formAct(
+    url,
+    `/__conversations/${conversationId}/comments/${commentId}/reactions`,
+    { page: "guide.md", emoji: "👍", on: "true" },
+  );
+  expect(add.status).toBe(303);
+
+  let html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).toContain("reaction-chip--mine");
+
+  const remove = await formAct(
+    url,
+    `/__conversations/${conversationId}/comments/${commentId}/reactions`,
+    { page: "guide.md", emoji: "👍", on: "false" },
+  );
+  expect(remove.status).toBe(303);
+
+  html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).not.toContain("reaction-chip--mine");
+});
+
+test("promotion via form post lands and redirects to the Page", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const created = (await (
+    await comment(url, { page: "guide.md", body: "promote me", visibility: "private" })
+  ).json()) as ConversationsBody;
+  const chat = created.conversations!.at(-1)!;
+
+  const res = await formAct(url, `/__conversations/${chat.id}/promote`, {
+    page: "guide.md",
+    commentIds: [chat.comments[0]!.id],
+    summary: "Worth raising with the team.",
+  });
+  expect(res.status).toBe(303);
+
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).toContain("Worth raising with the team.");
+});
+
+test("a Tunnel guest is refused by form posts that need the Owner", async ({ tmp, serve }) => {
+  await tmp.write("guide.md", "# Guide\n");
+  const { url } = await serve();
+  const { conversationId, commentId } = await started(url, "guide.md", "the host's thread");
+
+  const edit = await formAct(
+    url,
+    `/__conversations/${conversationId}/comments/${commentId}/edit`,
+    { page: "guide.md", body: "tampered" },
+    { asGuest: true },
+  );
+  expect(edit.status).toBe(303);
+
+  const html = await (await fetch(`${url}/guide.md`)).text();
+  expect(html).not.toContain("tampered");
 });
 
 // @scholia/ui carries its own copy of the palette because it depends on nothing

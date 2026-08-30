@@ -13,7 +13,13 @@ export { Reactions } from "./Reactions.js";
 export { IdentityDisplay } from "./Identity.js";
 export { PromoteDialog } from "./PromoteDialog.js";
 export { ConfirmDialog } from "./ConfirmDialog.js";
-export { CommentsProvider, useComments, type CommentsPort } from "./port.js";
+export {
+  CommentsProvider,
+  useComments,
+  type CommentsPort,
+  type CommentVerb,
+  type FormAction,
+} from "./port.js";
 export {
   REACTION_PALETTE,
   type Anchor,

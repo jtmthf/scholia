@@ -466,6 +466,34 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     return input.visibility === "private" ? "private" : "public";
   }
 
+  // Reads a JSON or urlencoded body, depending on what the caller sent. Form
+  // posts carry the same fields as JSON ones; they are how the rail works with
+  // JavaScript disabled (ADR-0034).
+  async function readRequestBody(c: Context): Promise<Record<string, unknown>> {
+    const ct = c.req.header("content-type") ?? "";
+    if (ct.includes("application/x-www-form-urlencoded")) {
+      return await c.req.parseBody();
+    }
+    return ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
+  }
+
+  function isFormPost(c: Context): boolean {
+    return (c.req.header("content-type") ?? "").includes("application/x-www-form-urlencoded");
+  }
+
+  function formBool(value: unknown): boolean | undefined {
+    if (typeof value === "boolean") return value;
+    if (value === "true" || value === "1") return true;
+    if (value === "false" || value === "0") return false;
+    return undefined;
+  }
+
+  function formStrings(value: unknown): string[] {
+    if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+    if (typeof value === "string" && value.length > 0) return [value];
+    return [];
+  }
+
   // Every write route is guarded, parsed and scoped to a Page the same way, so
   // that part lives here rather than once per verb.
   async function readPageWrite(c: Context): Promise<PageWrite | Response> {
@@ -475,7 +503,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     });
     if (rejection) return c.json({ error: rejection.error }, rejection.status);
 
-    const input = ((await c.req.json().catch(() => null)) ?? {}) as Record<string, unknown>;
+    const input = await readRequestBody(c);
     const pagePath = toPagePath(typeof input.page === "string" ? input.page : "");
     if (!pagePath) return c.json({ error: "missing page" }, 400);
 
@@ -489,7 +517,12 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
     const { input } = write;
     const body = typeof input.body === "string" ? input.body.trim() : "";
-    if (!body) return c.json({ error: "a comment needs a body" }, 400);
+    if (!body) {
+      if (isFormPost(c)) {
+        return c.redirect(`/${write.pagePath}`, 303);
+      }
+      return c.json({ error: "a comment needs a body" }, 400);
+    }
 
     // The hash is the Comment's binding, so anything that isn't one is dropped
     // rather than written: an unbindable Comment is better than a Comment bound
@@ -529,6 +562,10 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
    * Every one of them is the same frame — guard and parse the write, run one
    * `core` command against the Sidecar, answer with the Page's whole Conversation
    * list — so the frame is here and each route below is only what it decides.
+   *
+   * Form posts (application/x-www-form-urlencoded) redirect back to the Page as
+   * a POST-redirect-GET, so the no-JS path re-renders the rail from the Sidecar
+   * (ADR-0034). JSON posts keep the existing API response.
    */
   // Generic in the path so Hono's own inference still reaches `c.req.param`:
   // a route declared with `:id` gets a `string` back for it, not `string |
@@ -544,9 +581,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       try {
         await command(c, write);
       } catch (err) {
+        if (isFormPost(c)) {
+          return c.redirect(`/${write.pagePath}`, 303);
+        }
         return refused(c, err);
       }
 
+      if (isFormPost(c)) {
+        return c.redirect(`/${write.pagePath}`, 303);
+      }
       return respondWithConversations(c, write.pagePath);
     });
   }
@@ -570,23 +613,33 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
         )
       : null;
 
-    await createConversation(sidecar, {
-      pagePath: write.pagePath,
-      body: write.body,
-      anchor,
-      author,
-      // Which directory the Sidecar files it under, and the whole of what makes
-      // it private (ADR-0019). The browser reader is always a person: agents
-      // reach the Sidecar through the CLI, not through this server.
-      visibility: visibilityOf(write.input),
-      // The hash the browser was given when the Page was rendered, handed back
-      // rather than recomputed — that is what makes it the state the reader
-      // actually commented on. Provenance is read live, as it is everywhere else
-      // locally (CONTEXT "Provenance").
-      ...(write.contentHash ? { contentHash: write.contentHash } : {}),
-      provenance: await getProvenance(opts.rootDir),
-    });
+    try {
+      await createConversation(sidecar, {
+        pagePath: write.pagePath,
+        body: write.body,
+        anchor,
+        author,
+        // Which directory the Sidecar files it under, and the whole of what
+        // makes it private (ADR-0019). The browser reader is always a person: agents
+        // reach the Sidecar through the CLI, not through this server.
+        visibility: visibilityOf(write.input),
+        // The hash the browser was given when the Page was rendered, handed back
+        // rather than recomputed — that is what makes it the state the reader
+        // actually commented on. Provenance is read live, as it is everywhere else
+        // locally (CONTEXT "Provenance").
+        ...(write.contentHash ? { contentHash: write.contentHash } : {}),
+        provenance: await getProvenance(opts.rootDir),
+      });
+    } catch (err) {
+      if (isFormPost(c)) {
+        return c.redirect(`/${write.pagePath}`, 303);
+      }
+      return refused(c, err);
+    }
 
+    if (isFormPost(c)) {
+      return c.redirect(`/${write.pagePath}`, 303);
+    }
     return respondWithConversations(c, write.pagePath);
   });
 
@@ -601,9 +654,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
         author,
       });
     } catch (err) {
+      if (isFormPost(c)) {
+        return c.redirect(`/${write.pagePath}`, 303);
+      }
       return refused(c, err);
     }
 
+    if (isFormPost(c)) {
+      return c.redirect(`/${write.pagePath}`, 303);
+    }
     return respondWithConversations(c, write.pagePath);
   });
 
@@ -632,13 +691,15 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
   writeRoute("/__conversations/:id/resolve", (c, write) => {
     // Strictly a boolean: anything else is a caller that meant one of the two
-    // and cannot be assumed into the other.
-    if (typeof write.input.resolved !== "boolean") {
+    // and cannot be assumed into the other. Form posts send strings, so we
+    // normalise before testing.
+    const resolved = formBool(write.input.resolved);
+    if (resolved === undefined) {
       throw new ConversationError("invalid", "resolved must be true or false");
     }
     return setResolved(sidecar, {
       conversationId: c.req.param("id"),
-      resolved: write.input.resolved,
+      resolved,
       author,
     });
   });
@@ -666,17 +727,19 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     });
   });
 
-  writeRoute("/__conversations/:id/comments/:commentId/reactions", (c, write) =>
-    setReaction(sidecar, {
+  writeRoute("/__conversations/:id/comments/:commentId/reactions", (c, write) => {
+    const on = formBool(write.input.on);
+    return setReaction(sidecar, {
       conversationId: c.req.param("id"),
       commentId: c.req.param("commentId"),
       emoji: typeof write.input.emoji === "string" ? write.input.emoji : "",
       author,
       // Absent means toggle, which is what a click on a chip means. A caller
-      // that knows the state it wants says so.
-      ...(typeof write.input.on === "boolean" ? { on: write.input.on } : {}),
-    }),
-  );
+      // that knows the state it wants says so. Form posts send strings, so we
+      // normalise before deciding whether to pass it on.
+      ...(on !== undefined ? { on } : {}),
+    });
+  });
 
   writeRoute("/__conversations/:id/delete", (c) =>
     deleteConversation(sidecar, {
@@ -702,16 +765,18 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
       );
     }
 
-    const ids: unknown = write.input.commentIds;
-    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {
-      throw new ConversationError("invalid", "commentIds must be a list of Comment ids");
-    }
-
+    const ids = formStrings(write.input.commentIds);
     const summary = typeof write.input.summary === "string" ? write.input.summary : "";
+    if (ids.length === 0 && !summary.trim()) {
+      throw new ConversationError(
+        "invalid",
+        "commentIds must be a list of Comment ids or a summary must be provided",
+      );
+    }
 
     return promoteConversation(sidecar, {
       conversationId: c.req.param("id"),
-      commentIds: ids as string[],
+      commentIds: ids,
       ...(summary.trim() ? { summary } : {}),
       author,
     });

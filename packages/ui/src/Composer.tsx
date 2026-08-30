@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import type { FormAction } from "./port.js";
 
 interface ComposerProps {
   /** Label shown above the textarea */
@@ -16,6 +17,12 @@ interface ComposerProps {
   autoFocus?: boolean;
   /** Submit button caption (idle state); defaults to "Comment". */
   submitLabel?: string;
+  /**
+   * When present, the Composer renders as a real `<form>` with this action,
+   * method and hidden fields, so it submits without JavaScript. The consumer
+   * supplies it; the layer never constructs a URL (ADR-0030).
+   */
+  formAction?: FormAction;
   /**
    * What the textarea starts with. Read once, on mount: a Composer whose text
    * could be replaced from outside mid-sentence would be a Composer that types
@@ -38,6 +45,7 @@ export function Composer({
   isSubmitting = false,
   error = null,
   submitLabel = "Comment",
+  formAction,
   autoFocus = true,
   initialBody = "",
   onBodyChange,
@@ -80,9 +88,21 @@ export function Composer({
   }
 
   const canSubmit = body.trim().length > 0 && (!needsName || name.trim().length > 0);
+  // When the Composer renders a real `<form>` for the no-JavaScript path, the
+  // submit button must stay enabled: the browser sends the field values whether
+  // or not Preact's input handlers ran (ADR-0034). The server still validates.
+  const submitDisabled = formAction ? Boolean(isSubmitting) : !canSubmit || isSubmitting;
 
   return (
-    <form class="composer" onSubmit={(e) => void handleSubmit(e)}>
+    <form
+      class="composer"
+      action={formAction?.action}
+      method={formAction?.method}
+      onSubmit={(e) => void handleSubmit(e)}
+    >
+      {formAction?.hidden.map((field) => (
+        <input key={field.name} type="hidden" name={field.name} value={field.value} />
+      ))}
       {label && <div class="composer-label">{label}</div>}
       {quote && (
         <div class="composer-quote" title={quote}>
@@ -103,6 +123,7 @@ export function Composer({
       )}
       <textarea
         ref={textareaRef}
+        name="body"
         value={body}
         placeholder={placeholder}
         onInput={(e) => changeBody((e.target as HTMLTextAreaElement).value)}
@@ -110,7 +131,7 @@ export function Composer({
       />
       {error && <div class="composer-error">{error}</div>}
       <div class="composer-footer">
-        <button class="btn-primary" type="submit" disabled={!canSubmit || isSubmitting}>
+        <button class="btn-primary" type="submit" disabled={submitDisabled}>
           {isSubmitting ? "Posting…" : submitLabel}
         </button>
         {onCancel && (
