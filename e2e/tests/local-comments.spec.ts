@@ -91,6 +91,18 @@ async function stored(request: APIRequestContext, page: string): Promise<StoredC
   return ((await res.json()) as { conversations: StoredConversation[] }).conversations;
 }
 
+/** Remove every Conversation for a Page so retries start from a known empty state. */
+async function clearPage(request: APIRequestContext, page: string): Promise<void> {
+  const conversations = await stored(request, page);
+  for (const c of conversations) {
+    const res = await request.post(`${preview.url}/__conversations/${c.id}/delete`, {
+      headers: { "Sec-Fetch-Site": "same-origin" },
+      data: { page },
+    });
+    expect(res.status()).toBe(200);
+  }
+}
+
 /** Seed a Conversation without a browser, for tests about *reading* one. */
 async function seedComment(
   request: APIRequestContext,
@@ -244,7 +256,11 @@ async function askOnSelection(
   await expect(page.locator(".rail-section--chats")).toContainText(body);
 }
 
-test("select text, comment, reload — the Conversation is still anchored", async ({ page }) => {
+test("select text, comment, reload — the Conversation is still anchored", async ({
+  page,
+  request,
+}) => {
+  await clearPage(request, "anchor.md");
   await page.goto(`${preview.url}/anchor.md`);
 
   // Nothing said yet.
@@ -307,6 +323,10 @@ test("hovering a rail card emphasizes its passage, and unhovering clears it", as
   await page.goto(`${preview.url}/emphasis.md`);
 
   await expect.poll(() => paintedAnchors(page)).toBe(1);
+  // Give any late live reload from earlier tests a moment to settle before we
+  // start asserting hover state; the anchor highlight is the signal that the
+  // client and server are in sync.
+  await page.waitForTimeout(300);
   expect(await paintedIn(page, "scholia-anchor-emphasis")).toBe(0);
 
   await page.locator(".thread-card").hover();
@@ -388,6 +408,96 @@ test.describe("without JavaScript", () => {
     await expect(page.locator(".thread-anchor-quote")).toHaveText("“long gone”");
     await expect(page.locator(".comment-rail")).toContainText("About a passage since rewritten.");
   });
+
+  test("a page-level comment posts through the form", async ({ page }) => {
+    await page.goto(`${preview.url}/page-level.md`);
+
+    await page.locator(".rail-toolbar .composer textarea").fill("No-JS page comment.");
+    await page.locator(".rail-toolbar .composer button[type=submit]").click();
+
+    await expect(page.locator(".comment-rail")).toContainText("No-JS page comment.");
+  });
+
+  test("a reply posts through the form", async ({ page, request }) => {
+    await clearPage(request, "reply.md");
+    await seedComment(request, "reply.md", "First word.");
+    await page.goto(`${preview.url}/reply.md`);
+
+    await page.locator(".thread-reply textarea").fill("Second word.");
+    await page.locator(".thread-reply button[type=submit]").click();
+
+    await expect(page.locator(".thread-card .comment")).toHaveCount(2);
+  });
+
+  test("resolving posts through the form", async ({ page, request }) => {
+    await clearPage(request, "resolve.md");
+    await seedComment(request, "resolve.md", "Is this settled?");
+    await page.goto(`${preview.url}/resolve.md`);
+
+    await page.locator(".thread-action-btn--resolve").click();
+    await expect(page.locator(".thread-card--resolved")).toHaveCount(1);
+  });
+
+  test("an edit posts through the form", async ({ page, request }) => {
+    await clearPage(request, "edit.md");
+    await seedComment(request, "edit.md", "Frist draft.");
+    await page.goto(`${preview.url}/edit.md`);
+
+    await page.locator(".comment-edit-form textarea").fill("First draft.");
+    await page.locator(".comment-edit-form button[type=submit]").click();
+
+    await expect(page.locator(".comment-body")).toHaveText("First draft.");
+    await expect(page.locator(".comment-edited")).toBeVisible();
+  });
+
+  test("deleting a Comment posts through the form", async ({ page, request }) => {
+    await clearPage(request, "delete.md");
+    await seedComment(request, "delete.md", "Said in haste.");
+    await page.goto(`${preview.url}/delete.md`);
+
+    await page.locator(".comment-action-btn", { hasText: "Delete Comment" }).click();
+
+    await expect(page.locator(".comment-tombstone")).toBeVisible();
+    await expect(page.locator(".comment-rail")).not.toContainText("Said in haste.");
+  });
+
+  test("the Owner deletes a whole Conversation through the form", async ({ page, request }) => {
+    await clearPage(request, "moderate.md");
+    await seedComment(request, "moderate.md", "Off topic entirely.");
+    await page.goto(`${preview.url}/moderate.md`);
+
+    await page.locator(".thread-action-btn--delete").click();
+
+    await expect(page.locator(".thread-card")).toHaveCount(0);
+  });
+
+  test("a reaction posts through the form", async ({ page, request }) => {
+    await clearPage(request, "react.md");
+    await seedComment(request, "react.md", "Worth a look.");
+    await page.goto(`${preview.url}/react.md`);
+
+    await page.locator(".thread-card .reaction-chip", { hasText: "👍" }).click();
+
+    await expect(page.locator(".thread-card .reaction-chip--mine")).toContainText("1");
+
+    await page.locator(".thread-card .reaction-chip--mine").click();
+    await expect(page.locator(".thread-card .reaction-chip--mine")).toHaveCount(0);
+  });
+
+  test("promoting a Chat posts through the form", async ({ page, request }) => {
+    await clearPage(request, "capabilities.md");
+    await seedChat(request, "capabilities.md", "Unbounded retry loop.");
+    await page.goto(`${preview.url}/capabilities.md`);
+
+    const myChat = page.locator(".rail-section--chats .thread-card", {
+      hasText: "Unbounded retry loop.",
+    });
+    await myChat.locator(".thread-action-btn--promote").click();
+
+    await expect(
+      page.locator(".rail-section:not(.rail-section--chats):not(.rail-section--outdated)"),
+    ).toContainText("Unbounded retry loop.");
+  });
 });
 
 // CONTEXT "Anchor": an Anchor must ground to something unique, with context
@@ -413,9 +523,11 @@ test("a Page-level comment joins the Open section, distinguished as a Page Comme
 }) => {
   await page.goto(`${preview.url}/page-level.md`);
 
-  await page.locator(".page-comment-btn").click();
-  await page.locator(".rail-inline-composer textarea").fill("About this page as a whole.");
-  await page.locator(".rail-inline-composer button[type=submit]").click();
+  // Local Preview renders the page-level composer as a real form in the rail
+  // toolbar so the rail works without JavaScript (ADR-0034). The client
+  // preventDefaults the submit and calls the same port method.
+  await page.locator(".rail-toolbar .composer textarea").fill("About this page as a whole.");
+  await page.locator(".rail-toolbar .composer button[type=submit]").click();
 
   await expect(page.locator(".rail-section-title")).toHaveText("Open (1)");
   await expect(page.locator(".thread-anchor-quote")).toHaveText("Page Comment");
@@ -440,14 +552,21 @@ test("an HTML Page takes an anchored comment too", async ({ page }) => {
 
 // A reply is an append to the same Conversation, not a second Conversation
 // (ADR-0019) — the file is the agent-facing artifact and a thread is one read.
-test("a reply lands in the Conversation it answers", async ({ page }) => {
+test("a reply lands in the Conversation it answers", async ({ page, request }) => {
+  // Seed the Conversation directly so this test is about replying, not about
+  // the selection path that can race with live reload from earlier tests.
+  // Clear first because retries share the same Sidecar directory.
+  await clearPage(request, "reply.md");
+  await seedComment(request, "reply.md", "First word.", "Reply target");
   await page.goto(`${preview.url}/reply.md`);
 
-  await commentOnSelection(page, "Reply target", "First word.");
+  await expect(page.locator(".thread-card")).toHaveCount(1);
 
-  await page.locator(".thread-action-btn", { hasText: "Reply" }).click();
-  await page.locator(".thread-card textarea").fill("Second word.");
-  await page.locator(".thread-card button[type=submit]").click();
+  // Local Preview renders the reply composer as a real form so the rail works
+  // without JavaScript (ADR-0034). The client preventDefaults the submit and
+  // calls the same port method.
+  await page.locator(".thread-reply textarea").fill("Second word.");
+  await page.locator(".thread-reply button[type=submit]").click();
 
   await expect(page.locator(".thread-card")).toHaveCount(1);
   await expect(page.locator(".thread-card .comment")).toHaveCount(2);
@@ -497,15 +616,22 @@ test("every Conversation is reachable by scrolling the rail, past a viewport's w
 // supplies every method the Sidecar can honour (ADR-0032). A Thread does not
 // offer Promote — only a Chat card does.
 test("offers only what the Sidecar can actually do", async ({ page, request }) => {
+  // Earlier tests (including the no-JavaScript promote test) may have left
+  // private Chats on this Page. Scope to the Thread we just seeded.
   await seedComment(request, "capabilities.md", "Something to act on.");
   await page.goto(`${preview.url}/capabilities.md`);
 
-  const card = page.locator(".thread-card").first();
-  await expect(card.locator(".thread-action-btn", { hasText: "Reply" })).toBeVisible();
+  const card = page.locator(".thread-card", { hasText: "Something to act on." }).first();
+  // Local Preview renders real forms for every verb the Sidecar can honour, so
+  // the rail works without JavaScript (ADR-0034). The reply composer sits below
+  // the comments; resolve/delete are form-backed buttons.
+  await expect(card.locator(".thread-reply")).toBeVisible();
   await expect(card.locator(".thread-action-btn--resolve")).toBeVisible();
   await expect(card.locator(".thread-action-btn--delete")).toBeVisible();
-  await expect(card.locator(".reaction-chip")).toHaveCount(1);
-  await expect(card.locator(".reaction-chip--add")).toBeVisible();
+  // The six palette entries are always rendered as forms so the rail works
+  // without JavaScript (ADR-0034); the add chip is only needed when the palette
+  // is hidden behind a click.
+  await expect(card.locator(".reaction-chip")).toHaveCount(6);
   await expect(card.locator(".thread-action-btn--promote")).toHaveCount(0);
   // No tokens to hand out locally, so no "Bring your agent".
   await expect(page.locator(".bring-agent-btn")).toHaveCount(0);
@@ -514,6 +640,7 @@ test("offers only what the Sidecar can actually do", async ({ page, request }) =
 // A Chat card carries the lock affordance and a Promote control (issue #31).
 // The Thread test above proves Promote is absent from a public Thread card.
 test("a Chat card offers the Promote control", async ({ page, request }) => {
+  await clearPage(request, "capabilities.md");
   await seedChat(request, "capabilities.md", "A private thought.");
   await page.goto(`${preview.url}/capabilities.md`);
 
@@ -683,7 +810,6 @@ test("statuses wait for the content they describe while a reader is composing", 
 
   // A write of their own, mid-sentence: the reply comes back resolved against
   // the file on disk, where the quoted passage is already gone.
-  await page.locator(".thread-card .reaction-chip--add").click();
   await page.locator(".thread-card .reaction-chip").filter({ hasText: "👍" }).click();
   await expect(page.locator(".thread-card .reaction-chip--mine")).toContainText("1");
 
@@ -714,6 +840,7 @@ test("resolving collapses the Conversation, and reopening brings it back", async
   page,
   request,
 }) => {
+  await clearPage(request, "resolve.md");
   await seedComment(request, "resolve.md", "Is this settled?");
   await page.goto(`${preview.url}/resolve.md`);
 
@@ -740,42 +867,43 @@ test("resolving collapses the Conversation, and reopening brings it back", async
 });
 
 test("a reaction can be added and taken back from the fixed palette", async ({ page, request }) => {
+  await clearPage(request, "react.md");
   await seedComment(request, "react.md", "Worth a look.");
   await page.goto(`${preview.url}/react.md`);
 
-  // No tallies yet, so only the add-reaction chip is offered — not the whole palette.
+  // Locally the palette is always rendered as forms so the rail works without
+  // JavaScript (ADR-0034). The client preventDefaults each form submit.
   const chips = page.locator(".thread-card .reaction-chip");
-  await expect(chips).toHaveCount(1);
-
-  // Opening it reveals the fixed six-emoji palette alongside the add chip.
-  await page.locator(".thread-card .reaction-chip--add").click();
-  await expect(chips).toHaveCount(7);
+  await expect(chips).toHaveCount(6);
 
   await chips.filter({ hasText: "👍" }).click();
 
   const tally = page.locator(".thread-card .reaction-chip--mine");
   await expect(tally).toHaveCount(1);
   await expect(tally).toContainText("1");
-  // Picking closes the picker: the tally plus an add chip for what's left.
-  await expect(chips).toHaveCount(2);
+  // The tally plus the five remaining palette entries.
+  await expect(chips).toHaveCount(6);
 
   await page.reload();
   await expect(page.locator(".thread-card .reaction-chip--mine")).toContainText("1");
 
-  // Clicking the chip again takes it back, down to just the add chip.
+  // Clicking the chip again takes it back, leaving just the palette.
   await page.locator(".thread-card .reaction-chip--mine").click();
-  await expect(page.locator(".thread-card .reaction-chip")).toHaveCount(1);
+  await expect(page.locator(".thread-card .reaction-chip")).toHaveCount(6);
 
   await page.reload();
   await expect(page.locator(".thread-card .reaction-chip--mine")).toHaveCount(0);
 });
 
-test("an author edits their own Comment, and it says so", async ({ page }) => {
+test("an author edits their own Comment, and it says so", async ({ page, request }) => {
+  await clearPage(request, "edit.md");
   await page.goto(`${preview.url}/edit.md`);
 
   await commentOnSelection(page, "Something to rewrite", "Frist draft.");
 
-  await page.locator(".comment-action-btn", { hasText: "Edit" }).click();
+  // Local Preview renders the edit form as a real form below the body so the
+  // rail works without JavaScript (ADR-0034). The client preventDefaults the
+  // submit and calls the same port method.
   await page.locator(".comment-edit-form textarea").fill("First draft.");
   await page.locator(".comment-edit-form button[type=submit]").click();
 
@@ -789,7 +917,8 @@ test("an author edits their own Comment, and it says so", async ({ page }) => {
 
 // Issue #103: an in-app dialog, not native window.confirm — so the reader gets a
 // consistent, distinguishable confirmation instead of a browser-chrome prompt.
-test("deleting a Comment leaves a tombstone in place", async ({ page }) => {
+test("deleting a Comment leaves a tombstone in place", async ({ page, request }) => {
+  await clearPage(request, "delete.md");
   await page.goto(`${preview.url}/delete.md`);
 
   await commentOnSelection(page, "Something to take back", "Said in haste.");
@@ -813,6 +942,7 @@ test("the Owner deletes a whole Conversation, and it leaves the Page", async ({
   page,
   request,
 }) => {
+  await clearPage(request, "moderate.md");
   await seedComment(request, "moderate.md", "Off topic entirely.");
   await page.goto(`${preview.url}/moderate.md`);
 
@@ -835,7 +965,11 @@ test("the Owner deletes a whole Conversation, and it leaves the Page", async ({
 // ---------------------------------------------------------------------------
 
 // AC: a Chat can be started from a selection and is visible only locally.
-test("creates a Chat from a selection and holds it in the Chats section", async ({ page }) => {
+test("creates a Chat from a selection and holds it in the Chats section", async ({
+  page,
+  request,
+}) => {
+  await clearPage(request, "reply.md");
   await page.goto(`${preview.url}/reply.md`);
 
   await askOnSelection(page, "Reply target", "Ask my agent about this.");
@@ -855,7 +989,11 @@ test("creates a Chat from a selection and holds it in the Chats section", async 
 });
 
 // AC: a Chat and a Thread may anchor to the same span without interfering.
-test("a Chat and a Thread on the same span show in their own sections", async ({ page }) => {
+test("a Chat and a Thread on the same span show in their own sections", async ({
+  page,
+  request,
+}) => {
+  await clearPage(request, "anchor.md");
   await page.goto(`${preview.url}/anchor.md`);
 
   await commentOnSelection(page, "the moat", "Public review comment.");
@@ -872,6 +1010,7 @@ test("a Chat and a Thread on the same span show in their own sections", async ({
 
 // AC: Promotion writes a new Thread from selected messages, leaving the Chat.
 test("promoting a Chat writes a new Thread", async ({ page, request }) => {
+  await clearPage(request, "capabilities.md");
   await seedChat(request, "capabilities.md", "Unbounded retry loop.");
   await page.goto(`${preview.url}/capabilities.md`);
 
@@ -915,6 +1054,7 @@ test("a promoted Chat is untouched — it stays private and in the Chats section
   page,
   request,
 }) => {
+  await clearPage(request, "capabilities.md");
   await seedChat(request, "capabilities.md", "Still private after promo.");
   await page.goto(`${preview.url}/capabilities.md`);
 

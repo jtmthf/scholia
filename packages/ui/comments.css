@@ -207,6 +207,18 @@
   border-top: 1px solid var(--border);
 }
 
+.thread-action-form,
+.comment-action-form,
+.reaction-form {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+}
+
+.thread-reply .composer {
+  border-top: none;
+}
+
 .thread-action-btn {
   background: none;
   border: 1px solid var(--border);

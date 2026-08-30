@@ -1,10 +1,75 @@
 import { useState } from "preact/hooks";
 import { useComments } from "./port.js";
+import type { FormAction } from "./port.js";
 import { REACTION_PALETTE, type ReactionGroup } from "./types.js";
 
 interface ReactionsProps {
   commentId: string;
   reactions: ReactionGroup[];
+}
+
+interface ReactionButtonProps {
+  emoji: string;
+  reactionAction?: FormAction | null;
+  pending: string | null;
+  mine?: boolean;
+  count?: number;
+  authors?: string[];
+  onToggle: (emoji: string) => void | Promise<void>;
+}
+
+function ReactionButton({
+  emoji,
+  reactionAction,
+  pending,
+  mine,
+  count,
+  authors,
+  onToggle,
+}: ReactionButtonProps) {
+  if (!reactionAction) {
+    return (
+      <button
+        key={emoji}
+        class={`reaction-chip${mine ? " reaction-chip--mine" : ""}`}
+        aria-pressed={mine}
+        title={authors?.join(", ")}
+        disabled={pending !== null}
+        onClick={() => void onToggle(emoji)}
+      >
+        {emoji}
+        {count !== undefined && <span class="reaction-chip__count">{count}</span>}
+      </button>
+    );
+  }
+  return (
+    <form
+      key={emoji}
+      class="reaction-form"
+      action={reactionAction.action}
+      method={reactionAction.method}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void onToggle(emoji);
+      }}
+    >
+      {reactionAction.hidden.map((field) => (
+        <input key={field.name} type="hidden" name={field.name} value={field.value} />
+      ))}
+      <input type="hidden" name="emoji" value={emoji} />
+      <input type="hidden" name="on" value={mine ? "false" : "true"} />
+      <button
+        class={`reaction-chip${mine ? " reaction-chip--mine" : ""}`}
+        aria-pressed={mine}
+        title={authors?.join(", ")}
+        disabled={pending !== null}
+        type="submit"
+      >
+        {emoji}
+        {count !== undefined && <span class="reaction-chip__count">{count}</span>}
+      </button>
+    </form>
+  );
 }
 
 export function Reactions({ commentId, reactions }: ReactionsProps) {
@@ -13,6 +78,7 @@ export function Reactions({ commentId, reactions }: ReactionsProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   // A port that can't record a Reaction is a surface without them (see CommentsPort).
   const canReact = port.toggleReaction !== undefined;
+  const reactionAction = port.formAction?.("react", commentId);
 
   // Build a map of emoji → ReactionGroup for all palette entries.
   const grouped = new Map<string, ReactionGroup>();
@@ -61,49 +127,47 @@ export function Reactions({ commentId, reactions }: ReactionsProps) {
   // they're left out here rather than offered a second time.
   const remaining = REACTION_PALETTE.filter((emoji) => !used.includes(emoji));
 
+  const buttonProps = {
+    reactionAction,
+    pending,
+    onToggle: handleToggle,
+  };
+
   return (
     <div class="reactions">
       {used.map((emoji) => {
         const group = grouped.get(emoji)!;
         return (
-          <button
+          <ReactionButton
             key={emoji}
-            class={`reaction-chip${group.mine ? " reaction-chip--mine" : ""}`}
-            aria-pressed={group.mine}
-            title={group.authors.join(", ")}
-            disabled={pending !== null}
-            onClick={() => void handleToggle(emoji)}
-          >
-            {emoji}
-            <span class="reaction-chip__count">{group.count}</span>
-          </button>
+            emoji={emoji}
+            mine={group.mine}
+            count={group.count}
+            authors={group.authors}
+            {...buttonProps}
+          />
         );
       })}
-      {remaining.length > 0 && (
-        <button
-          class="reaction-chip reaction-chip--add"
-          aria-expanded={pickerOpen}
-          aria-haspopup="true"
-          aria-label="Add reaction"
-          title="Add reaction"
-          onClick={() => setPickerOpen((open) => !open)}
-        >
-          +
-        </button>
-      )}
-      {pickerOpen &&
-        remaining.map((emoji) => (
-          <button
-            key={emoji}
-            class="reaction-chip"
-            aria-pressed={false}
-            title={`React with ${emoji}`}
-            disabled={pending !== null}
-            onClick={() => void handleToggle(emoji)}
-          >
-            {emoji}
-          </button>
-        ))}
+      {reactionAction
+        ? remaining.map((emoji) => <ReactionButton key={emoji} emoji={emoji} {...buttonProps} />)
+        : remaining.length > 0 && (
+            <>
+              <button
+                class="reaction-chip reaction-chip--add"
+                aria-expanded={pickerOpen}
+                aria-haspopup="true"
+                aria-label="Add reaction"
+                title="Add reaction"
+                onClick={() => setPickerOpen((open) => !open)}
+              >
+                +
+              </button>
+              {pickerOpen &&
+                remaining.map((emoji) => (
+                  <ReactionButton key={emoji} emoji={emoji} {...buttonProps} />
+                ))}
+            </>
+          )}
     </div>
   );
 }

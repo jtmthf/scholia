@@ -3,6 +3,7 @@ import { render } from "preact-render-to-string";
 import type { Heading, NavNode, Provenance } from "@scholia/core";
 import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
 import { CHATS_NOTE, EMPTY_NOTE, OUTDATED_NOTE, PROMOTE_NOTE } from "./comment-copy.js";
+import { buildFormAction } from "./form-action.js";
 import { splitByVisibility } from "../client/comments/visibility.js";
 
 export interface CommentsInfo {
@@ -207,34 +208,36 @@ function Colophon({ info }: { info: ColophonInfo | null }) {
 // client adds is the parts that need a live DOM — selecting text, highlighting
 // an Anchor, posting — by hydrating this exact markup.
 //
-// The port the rail is *rendered* under, not one it can act through.
-//
 // Every method Local Preview supplies in the browser is present here, rejecting,
 // because @scholia/ui reads an absent method as "this surface doesn't have that
 // affordance" — and a control the server left out would have to appear when the
-// client hydrates, which is a rail that changes shape under the reader. Nothing
-// can be reached anyway until something is clicked, and clicking needs the
-// JavaScript that replaces this port.
+// client hydrates, which is a rail that changes shape under the reader. The
+// forms back the same verbs, so the markup is identical on both sides and
+// hydration reshapes nothing (ADR-0034).
 const inert = () => Promise.reject(new Error("not interactive until the page loads"));
 
-const SSR_PORT: CommentsPort = {
-  displayName: null,
-  canModerate: false,
-  addComment: inert,
-  toggleReaction: inert,
-  setResolved: inert,
-  deleteConversation: inert,
-};
-
-// Editing and deleting a Comment are the Owner's alone on the local path, so
-// they are present only when this reader is one — matching the port the client
-// builds, because a control the server left out would otherwise appear the
-// moment the page hydrates.
 function portFor(comments: CommentsInfo): CommentsPort {
+  const conversationOf = (commentId: string): string => {
+    const owner = comments.conversations.find((c) => c.comments.some((cm) => cm.id === commentId));
+    if (!owner) throw new Error("That comment is no longer on this page. Reload and try again.");
+    return owner.id;
+  };
+
+  const formAction: CommentsPort["formAction"] = (verb, id) =>
+    buildFormAction(
+      { pagePath: comments.pagePath, contentHash: comments.contentHash, conversationOf },
+      verb,
+      id,
+    );
+
   return {
-    ...SSR_PORT,
     displayName: comments.displayName,
     canModerate: comments.canModerate,
+    addComment: inert,
+    toggleReaction: inert,
+    setResolved: inert,
+    deleteConversation: inert,
+    formAction,
     ...(comments.canModerate ? { editComment: inert, deleteComment: inert, promote: inert } : {}),
   };
 }

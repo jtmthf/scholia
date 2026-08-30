@@ -71,6 +71,14 @@ export function ConversationCard({
   const canResolve = port.setResolved !== undefined;
   const canPromote = promotable && port.promote !== undefined;
 
+  const replyAction = port.formAction?.("reply", conversation.id);
+  const resolveAction = port.formAction?.(
+    conversation.resolved ? "reopen" : "resolve",
+    conversation.id,
+  );
+  const deleteConversationAction = port.formAction?.("delete-conversation", conversation.id);
+  const promoteAction = port.formAction?.("promote", conversation.id);
+
   async function deleteConversation() {
     if (!port.deleteConversation) return;
     await port.deleteConversation(conversation.id);
@@ -176,8 +184,8 @@ export function ConversationCard({
             <div class="resolved-by">Resolved by {conversation.resolvedBy}</div>
           )}
 
-          {replying ? (
-            <div onClick={(e) => e.stopPropagation()}>
+          {(replying || replyAction) && (
+            <div class="thread-reply" onClick={(e) => e.stopPropagation()}>
               <Composer
                 placeholder="Reply…"
                 submitLabel="Reply"
@@ -185,40 +193,106 @@ export function ConversationCard({
                 currentName={viewerName ?? undefined}
                 isSubmitting={submitting}
                 error={error}
+                formAction={replyAction}
+                autoFocus={false}
                 onSubmit={submitReply}
-                onCancel={() => setReplying(false)}
+                onCancel={replyAction ? undefined : () => setReplying(false)}
               />
             </div>
-          ) : (
+          )}
+          {!replying && (
             <div class="thread-actions" onClick={(e) => e.stopPropagation()}>
-              <button class="thread-action-btn" onClick={() => setReplying(true)}>
-                Reply
-              </button>
-              {canPromote && (
-                <button
-                  class="thread-action-btn thread-action-btn--promote"
-                  onClick={() => setPromoting(true)}
-                >
-                  Promote
+              {!replyAction && (
+                <button class="thread-action-btn" onClick={() => setReplying(true)}>
+                  Reply
                 </button>
               )}
-              {canResolve && (
-                <button
-                  class="thread-action-btn thread-action-btn--resolve"
-                  onClick={() => void toggleResolved()}
-                >
-                  {conversation.resolved ? "Reopen" : "Resolve"}
-                </button>
-              )}
-              {canModerate && (
-                <button
-                  class="thread-action-btn thread-action-btn--delete"
-                  title="Owner moderation — delete this entire Conversation"
-                  onClick={() => setDeleting(true)}
-                >
-                  Delete Conversation
-                </button>
-              )}
+              {canPromote &&
+                (promoteAction ? (
+                  <form
+                    class="thread-action-form"
+                    action={promoteAction.action}
+                    method={promoteAction.method}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setPromoting(true);
+                    }}
+                  >
+                    {promoteAction.hidden.map((field) => (
+                      <input key={field.name} type="hidden" name={field.name} value={field.value} />
+                    ))}
+                    {conversation.comments.map((comment) => (
+                      <input key={comment.id} type="hidden" name="commentIds" value={comment.id} />
+                    ))}
+                    <button class="thread-action-btn thread-action-btn--promote" type="submit">
+                      Promote
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    class="thread-action-btn thread-action-btn--promote"
+                    onClick={() => setPromoting(true)}
+                  >
+                    Promote
+                  </button>
+                ))}
+              {canResolve &&
+                (resolveAction ? (
+                  <form
+                    class="thread-action-form"
+                    action={resolveAction.action}
+                    method={resolveAction.method}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void toggleResolved();
+                    }}
+                  >
+                    {resolveAction.hidden.map((field) => (
+                      <input key={field.name} type="hidden" name={field.name} value={field.value} />
+                    ))}
+                    <button class="thread-action-btn thread-action-btn--resolve" type="submit">
+                      {conversation.resolved ? "Reopen" : "Resolve"}
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    class="thread-action-btn thread-action-btn--resolve"
+                    onClick={() => void toggleResolved()}
+                  >
+                    {conversation.resolved ? "Reopen" : "Resolve"}
+                  </button>
+                ))}
+              {canModerate &&
+                (deleteConversationAction ? (
+                  <form
+                    class="thread-action-form"
+                    action={deleteConversationAction.action}
+                    method={deleteConversationAction.method}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setDeleting(true);
+                    }}
+                  >
+                    {deleteConversationAction.hidden.map((field) => (
+                      <input key={field.name} type="hidden" name={field.name} value={field.value} />
+                    ))}
+                    <button
+                      class="thread-action-btn thread-action-btn--delete"
+                      type="submit"
+                      title="Owner moderation — delete this entire Conversation"
+                    >
+                      Delete Conversation
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    class="thread-action-btn thread-action-btn--delete"
+                    title="Owner moderation — delete this entire Conversation"
+                    onClick={() => setDeleting(true)}
+                  >
+                    Delete Conversation
+                  </button>
+                ))}
             </div>
           )}
         </>

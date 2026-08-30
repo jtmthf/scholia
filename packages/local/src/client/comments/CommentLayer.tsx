@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
 import type { SelectionCandidate } from "@scholia/bridge";
 import { CHATS_NOTE, EMPTY_NOTE, OUTDATED_NOTE, PROMOTE_NOTE } from "../../render/comment-copy.js";
+import { buildFormAction } from "../../render/form-action.js";
 import { splitByVisibility } from "./visibility.js";
 import { liveReloadGate } from "../live-reload.js";
 import * as api from "./api.js";
@@ -183,6 +184,20 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
     return owner.id;
   }
 
+  const formAction: CommentsPort["formAction"] = useCallback(
+    (verb, id) =>
+      buildFormAction(
+        {
+          pagePath: data.pagePath,
+          contentHash: data.contentHash,
+          conversationOf,
+        },
+        verb,
+        id,
+      ),
+    [data.pagePath, data.contentHash, conversations],
+  );
+
   const port = useMemo<CommentsPort>(
     () => ({
       // Git already knows who the reader is (CONTEXT "Identity"), so the Composer
@@ -191,6 +206,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
       // The server decided this per request: the reader at this machine is the
       // Owner, a Tunnel guest is not (CONTEXT "Owner", ADR-0022).
       canModerate: data.canModerate,
+      formAction,
       async addComment(conversationId, { body }) {
         receive(await api.addComment({ pagePath: data.pagePath, conversationId, body }));
       },
@@ -330,6 +346,7 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
         onActivate={activate}
         onEmphasize={emphasize}
         onNewPageComment={() => composeOn(null, "public")}
+        onSubmitPageComment={submitDraft}
         outdatedNote={OUTDATED_NOTE}
         emptyNote={EMPTY_NOTE}
         chatsNote={CHATS_NOTE}
