@@ -68,6 +68,7 @@ export function ConversationCard({
   // Absent port methods are surfaces this consumer doesn't have — the control
   // isn't rendered rather than rendered and failing (see CommentsPort).
   const canModerate = port.canModerate && port.deleteConversation !== undefined;
+  const canReply = port.addComment !== undefined;
   const canResolve = port.setResolved !== undefined;
   const canPromote = promotable && port.promote !== undefined;
 
@@ -89,6 +90,7 @@ export function ConversationCard({
   const viewerName = port.displayName;
 
   async function submitReply(body: string, displayName: string) {
+    if (!port.addComment) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -109,6 +111,136 @@ export function ConversationCard({
       // ignore — state stays as-is
     }
   }
+
+  // Everything below the header, and the whole of what a resolved
+  // Conversation folds away: the Comments, who settled it, the reply
+  // Composer and the actions. One definition, rendered either bare or inside
+  // the disclosure, so the two never drift apart.
+  const details = (
+    <>
+      <div class="thread-body" onClick={(e) => e.stopPropagation()}>
+        {conversation.comments.map((c) => (
+          <Comment key={c.id} comment={c} />
+        ))}
+      </div>
+
+      {conversation.resolvedBy && conversation.resolved && (
+        <div class="resolved-by">Resolved by {conversation.resolvedBy}</div>
+      )}
+
+      {(replying || replyAction) && (
+        <div class="thread-reply" onClick={(e) => e.stopPropagation()}>
+          <Composer
+            placeholder="Reply…"
+            submitLabel="Reply"
+            needsName={!viewerName}
+            currentName={viewerName ?? undefined}
+            isSubmitting={submitting}
+            error={error}
+            formAction={replyAction}
+            autoFocus={false}
+            onSubmit={submitReply}
+            onCancel={replyAction ? undefined : () => setReplying(false)}
+          />
+        </div>
+      )}
+      {!replying && (
+        <div class="thread-actions" onClick={(e) => e.stopPropagation()}>
+          {!replyAction && canReply && (
+            <button class="thread-action-btn" onClick={() => setReplying(true)}>
+              Reply
+            </button>
+          )}
+          {canPromote &&
+            (promoteAction ? (
+              <form
+                class="thread-action-form"
+                action={promoteAction.action}
+                method={promoteAction.method}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setPromoting(true);
+                }}
+              >
+                {promoteAction.hidden.map((field) => (
+                  <input key={field.name} type="hidden" name={field.name} value={field.value} />
+                ))}
+                {conversation.comments.map((comment) => (
+                  <input key={comment.id} type="hidden" name="commentIds" value={comment.id} />
+                ))}
+                <button class="thread-action-btn thread-action-btn--promote" type="submit">
+                  Promote
+                </button>
+              </form>
+            ) : (
+              <button
+                class="thread-action-btn thread-action-btn--promote"
+                onClick={() => setPromoting(true)}
+              >
+                Promote
+              </button>
+            ))}
+          {canResolve &&
+            (resolveAction ? (
+              <form
+                class="thread-action-form"
+                action={resolveAction.action}
+                method={resolveAction.method}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void toggleResolved();
+                }}
+              >
+                {resolveAction.hidden.map((field) => (
+                  <input key={field.name} type="hidden" name={field.name} value={field.value} />
+                ))}
+                <button class="thread-action-btn thread-action-btn--resolve" type="submit">
+                  {conversation.resolved ? "Reopen" : "Resolve"}
+                </button>
+              </form>
+            ) : (
+              <button
+                class="thread-action-btn thread-action-btn--resolve"
+                onClick={() => void toggleResolved()}
+              >
+                {conversation.resolved ? "Reopen" : "Resolve"}
+              </button>
+            ))}
+          {canModerate &&
+            (deleteConversationAction ? (
+              <form
+                class="thread-action-form"
+                action={deleteConversationAction.action}
+                method={deleteConversationAction.method}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setDeleting(true);
+                }}
+              >
+                {deleteConversationAction.hidden.map((field) => (
+                  <input key={field.name} type="hidden" name={field.name} value={field.value} />
+                ))}
+                <button
+                  class="thread-action-btn thread-action-btn--delete"
+                  type="submit"
+                  title="Owner moderation — delete this entire Conversation"
+                >
+                  Delete Conversation
+                </button>
+              </form>
+            ) : (
+              <button
+                class="thread-action-btn thread-action-btn--delete"
+                title="Owner moderation — delete this entire Conversation"
+                onClick={() => setDeleting(true)}
+              >
+                Delete Conversation
+              </button>
+            ))}
+        </div>
+      )}
+    </>
+  );
 
   const cls =
     `thread-card${active ? " thread-card--active" : ""}` +
@@ -161,141 +293,30 @@ export function ConversationCard({
         </div>
       )}
 
-      {conversation.resolved && !expanded ? (
-        <div
-          class="thread-collapsed-summary"
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded(true);
-          }}
+      {conversation.resolved ? (
+        // A settled Conversation folds away, and folds back — a real disclosure
+        // rather than a one-way "show" (issue #117). `<details>` is what makes
+        // both halves true at once: it opens and it closes, it takes focus and
+        // the keyboard, it announces its own expanded state, and it still works
+        // with the client bundle blocked, which a click handler cannot. That
+        // last point is why the Comments stay in the document while closed
+        // rather than being left out of it (ADR-0034).
+        <details
+          class="thread-collapsible"
+          open={expanded}
+          onToggle={(e) => setExpanded(e.currentTarget.open)}
         >
-          {conversation.comments.length} Comment
-          {conversation.comments.length === 1 ? "" : "s"} — show
-        </div>
+          <summary class="thread-collapsed-summary" onClick={(e) => e.stopPropagation()}>
+            <span class="thread-collapsed-caret" aria-hidden="true">
+              ▸
+            </span>
+            {conversation.comments.length} Comment
+            {conversation.comments.length === 1 ? "" : "s"}
+          </summary>
+          {details}
+        </details>
       ) : (
-        <>
-          <div class="thread-body" onClick={(e) => e.stopPropagation()}>
-            {conversation.comments.map((c) => (
-              <Comment key={c.id} comment={c} />
-            ))}
-          </div>
-
-          {conversation.resolvedBy && conversation.resolved && (
-            <div class="resolved-by">Resolved by {conversation.resolvedBy}</div>
-          )}
-
-          {(replying || replyAction) && (
-            <div class="thread-reply" onClick={(e) => e.stopPropagation()}>
-              <Composer
-                placeholder="Reply…"
-                submitLabel="Reply"
-                needsName={!viewerName}
-                currentName={viewerName ?? undefined}
-                isSubmitting={submitting}
-                error={error}
-                formAction={replyAction}
-                autoFocus={false}
-                onSubmit={submitReply}
-                onCancel={replyAction ? undefined : () => setReplying(false)}
-              />
-            </div>
-          )}
-          {!replying && (
-            <div class="thread-actions" onClick={(e) => e.stopPropagation()}>
-              {!replyAction && (
-                <button class="thread-action-btn" onClick={() => setReplying(true)}>
-                  Reply
-                </button>
-              )}
-              {canPromote &&
-                (promoteAction ? (
-                  <form
-                    class="thread-action-form"
-                    action={promoteAction.action}
-                    method={promoteAction.method}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      setPromoting(true);
-                    }}
-                  >
-                    {promoteAction.hidden.map((field) => (
-                      <input key={field.name} type="hidden" name={field.name} value={field.value} />
-                    ))}
-                    {conversation.comments.map((comment) => (
-                      <input key={comment.id} type="hidden" name="commentIds" value={comment.id} />
-                    ))}
-                    <button class="thread-action-btn thread-action-btn--promote" type="submit">
-                      Promote
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    class="thread-action-btn thread-action-btn--promote"
-                    onClick={() => setPromoting(true)}
-                  >
-                    Promote
-                  </button>
-                ))}
-              {canResolve &&
-                (resolveAction ? (
-                  <form
-                    class="thread-action-form"
-                    action={resolveAction.action}
-                    method={resolveAction.method}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void toggleResolved();
-                    }}
-                  >
-                    {resolveAction.hidden.map((field) => (
-                      <input key={field.name} type="hidden" name={field.name} value={field.value} />
-                    ))}
-                    <button class="thread-action-btn thread-action-btn--resolve" type="submit">
-                      {conversation.resolved ? "Reopen" : "Resolve"}
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    class="thread-action-btn thread-action-btn--resolve"
-                    onClick={() => void toggleResolved()}
-                  >
-                    {conversation.resolved ? "Reopen" : "Resolve"}
-                  </button>
-                ))}
-              {canModerate &&
-                (deleteConversationAction ? (
-                  <form
-                    class="thread-action-form"
-                    action={deleteConversationAction.action}
-                    method={deleteConversationAction.method}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      setDeleting(true);
-                    }}
-                  >
-                    {deleteConversationAction.hidden.map((field) => (
-                      <input key={field.name} type="hidden" name={field.name} value={field.value} />
-                    ))}
-                    <button
-                      class="thread-action-btn thread-action-btn--delete"
-                      type="submit"
-                      title="Owner moderation — delete this entire Conversation"
-                    >
-                      Delete Conversation
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    class="thread-action-btn thread-action-btn--delete"
-                    title="Owner moderation — delete this entire Conversation"
-                    onClick={() => setDeleting(true)}
-                  >
-                    Delete Conversation
-                  </button>
-                ))}
-            </div>
-          )}
-        </>
+        details
       )}
 
       {promoting && (

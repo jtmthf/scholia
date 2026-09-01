@@ -54,7 +54,11 @@ already runs on, so there is no second code path to keep in step.
 
 The hosted viewer keeps the inert port for now. It has an API Token and a client-minted
 Viewer identity in the mix (CONTEXT "Viewer"), and a form post has to carry both; that is
-its own decision and its own issue, not a free consequence of this one.
+its own decision and its own issue, not a free consequence of this one. That issue is
+#111, and
+[ADR-0038](./0038-hosted-viewer-renders-a-read-only-rail-until-hydration.md) settles it:
+the hosted server render supplies a port that can only read, so the controls are left out
+until hydration rather than rendered inert.
 
 The routes call the application layer (ADR-0020) rather than reaching past it, so a form
 post is a third _caller_ of the verb set and not a third implementation of it. It is not an

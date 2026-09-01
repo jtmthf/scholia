@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { CommentsProvider, Rail, type ConversationDTO } from "@scholia/ui";
+import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
 import type { SiteMeta } from "../api.js";
 import { useChats, useConversations } from "../data/queries.js";
 import { useCommentsPort } from "../data/comments-port.js";
+import { useHydrated } from "../data/hydrated.js";
 import { useViewer } from "../data/identity.js";
 import { sitePath } from "../routes.js";
 import { NewConversationComposer, type DraftConversation } from "./NewConversationComposer.js";
@@ -12,6 +13,11 @@ import { candidateToAnchor, useContentBridge } from "./use-content-bridge.js";
 // A stable empty list: the anchor-highlight effect keys off list identity, so a
 // fresh `[]` per render would re-resolve every Anchor on every render.
 const NONE: ConversationDTO[] = [];
+
+// The port the server renders through: every Conversation, and nothing that
+// writes (issue #111, ADR-0038). One shared instance, so the render before
+// hydration is identical every time.
+const READ_ONLY: CommentsPort = { displayName: null, canModerate: false };
 
 interface PageViewProps {
   site: SiteMeta;
@@ -63,7 +69,14 @@ export function PageView({
     anchored,
   });
 
-  const port = useCommentsPort(slug, currentPath, ownerToken);
+  // Until this tree has hydrated there is no Viewer and no Owner token to act
+  // with, so the rail is handed a port that can only read and renders as the
+  // reading surface it is — rather than a full set of controls that silently do
+  // nothing (issue #111, ADR-0038). The entry points the *rail* owns go the same
+  // way: starting a Page Comment and minting an agent token are both writes.
+  const hydrated = useHydrated();
+  const livePort = useCommentsPort(slug, currentPath, ownerToken);
+  const port = hydrated ? livePort : READ_ONLY;
   const [draft, setDraft] = useState<DraftConversation | null>(null);
   const selection = bridge.selection;
 
@@ -96,8 +109,12 @@ export function PageView({
           activeConversationId={bridge.activeConversationId}
           onActivate={bridge.activate}
           onEmphasize={bridge.emphasize}
-          onNewPageComment={() => setDraft({ anchor: null, mode: "thread" })}
-          onBringAgent={onBringAgent}
+          {...(hydrated
+            ? {
+                onNewPageComment: () => setDraft({ anchor: null, mode: "thread" }),
+                onBringAgent,
+              }
+            : {})}
           outdatedOrigin={outdatedOrigin(slug)}
           outdatedNote="These Threads no longer match the Latest Version."
           pageLevelComposer={

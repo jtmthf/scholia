@@ -47,6 +47,7 @@ export {
 
 // Rendered-text extraction: the string cross-Version migration matches against (M6).
 export { renderedText } from "./ingest/rendered-text.js";
+export { markdownText } from "./ingest/markdown-text.js";
 
 // Source-level line diff between two Versions of a Page (M6, CONTEXT "Diff").
 export { diffLines, type DiffLine, type DiffLineType, type LineDiff } from "./diff/lines.js";

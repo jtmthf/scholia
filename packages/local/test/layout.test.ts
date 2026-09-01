@@ -329,6 +329,23 @@ test("the pre-paint theme script is emitted unescaped", () => {
   expect(html).not.toContain("localStorage.getItem(&#39;scholia-theme&#39;)");
 });
 
+// Issue #114: the toggle used to render one glyph and one label in both
+// themes, so nothing about it said which theme was on. The server cannot know
+// the theme — it is localStorage plus `prefers-color-scheme` — so both faces
+// ship and CSS shows the one that matches, which keeps it true with the client
+// bundle blocked as well as before it boots.
+test("the theme toggle carries a face per theme, each naming its theme", () => {
+  const html = renderPage(FULL);
+  const toggle = /<button[^>]*id="scholia-theme-toggle"[\s\S]*?<\/button>/.exec(html)?.[0] ?? "";
+
+  expect(toggle).toContain("theme-toggle-face--light");
+  expect(toggle).toContain("theme-toggle-face--dark");
+  expect(toggle).toContain("Light theme");
+  expect(toggle).toContain("Dark theme");
+  // A single fixed name across both states is the bug; nothing may reintroduce it.
+  expect(toggle).not.toContain("Toggle dark mode");
+});
+
 test("the document opens with a doctype", () => {
   expect(renderPage(FULL).startsWith("<!doctype html>")).toBe(true);
 });

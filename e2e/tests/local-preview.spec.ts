@@ -216,6 +216,24 @@ test("the theme toggle flips the color scheme and remembers it", async ({ page }
   await expect(html).toHaveClass(wasDark ? /^(?!.*\bdark\b)/ : /\bdark\b/);
 });
 
+// Issue #114: one glyph and one label in both themes told the reader nothing
+// about which theme was on. The name comes from whichever face CSS is showing,
+// so asserting it is asserting that exactly one face is visible.
+test("the theme toggle names the theme it is in, and says so to assistive tech", async ({
+  page,
+}) => {
+  await page.goto(`${preview.url}/`);
+  const toggle = page.locator("#scholia-theme-toggle");
+  const startedDark = await page.locator("html").evaluate((el) => el.classList.contains("dark"));
+
+  await expect(toggle).toHaveAccessibleName(startedDark ? "Dark theme" : "Light theme");
+  await expect(toggle).toHaveAttribute("aria-pressed", startedDark ? "true" : "false");
+
+  await toggle.click();
+  await expect(toggle).toHaveAccessibleName(startedDark ? "Light theme" : "Dark theme");
+  await expect(toggle).toHaveAttribute("aria-pressed", startedDark ? "false" : "true");
+});
+
 // The scrollspy watches a band near the top of the viewport, not the whole of
 // it, so "in view" here means parked inside that band — an anchor jump that
 // lands a heading flush against y=0 is above it and deliberately reads as

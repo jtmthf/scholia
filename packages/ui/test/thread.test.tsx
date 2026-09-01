@@ -67,15 +67,21 @@ describe("ConversationCard", () => {
       comments: [comment({ id: "a" }), comment({ id: "b", body: "second" })],
     });
 
-    it("collapses to a comment count, hiding the bodies", () => {
+    it("collapses to a comment count behind a closed disclosure", () => {
       const html = render(
         <ConversationCard conversation={resolved} active={false} onActivate={() => {}} />,
       );
 
       expect(html).toContain("thread-card--resolved");
       expect(html).toContain("Resolved");
-      expect(html).toContain("2 Comments — show");
-      expect(html).not.toContain("second");
+      expect(html).toContain("2 Comments");
+      // Issue #117: a real disclosure, so it opens *and* closes, is reachable
+      // from the keyboard, and works before the client bundle boots — the
+      // Comments are in the document, closed, rather than absent from it.
+      expect(html).toContain("<summary");
+      expect(html).toContain("<details");
+      expect(html).not.toContain("<details open");
+      expect(html).toContain("second");
     });
 
     it("singularises the collapsed count for one Comment", () => {
@@ -87,7 +93,20 @@ describe("ConversationCard", () => {
         />,
       );
 
-      expect(html).toContain("1 Comment — show");
+      expect(html).toContain("1 Comment<");
+    });
+
+    it("leaves an open Conversation with no disclosure to close", () => {
+      const html = render(
+        <ConversationCard
+          conversation={conversation({ resolved: false })}
+          active={false}
+          onActivate={() => {}}
+        />,
+      );
+
+      expect(html).not.toContain("<details");
+      expect(html).not.toContain("thread-collapsed-summary");
     });
   });
 

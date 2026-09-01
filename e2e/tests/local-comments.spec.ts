@@ -28,6 +28,7 @@ const SEED = {
     "",
   ].join("\n"),
   "reply.md": "# Reply\n\nReply target.\n",
+  "collapse.md": "# Collapse\n\nA Conversation that gets settled.\n",
   "gone.md": "# Gone\n\nThis Page says nothing the seeded Anchor quotes.\n",
   "dim.md": "# Dim\n\nSomething about a passage now settled.\n",
   "emphasis.md": "# Emphasis\n\nSomething about a passage worth emphasis.\n",
@@ -38,6 +39,7 @@ const SEED = {
   "compose.md": "# Compose\n\nThe passage a reader is writing about.\n",
   "restore.md": "# Restore\n\nA passage worth returning to.\n",
   "resume.md": "# Resume\n\nA passage let go of again.\n",
+  "dismiss.md": "# Dismiss\n\nA passage the reader keeps writing about.\n",
   "drift.md": "# Drift\n\nA passage that will not survive the edit.\n",
   "hold-status.md":
     "# Hold Status\n\nA passage that is about to be deleted.\n\nA passage that stays put.\n",
@@ -438,6 +440,27 @@ test.describe("without JavaScript", () => {
     await expect(page.locator(".thread-card--resolved")).toHaveCount(1);
   });
 
+  // Issue #117: a settled Conversation folds away behind a `<details>`, which is
+  // the browser's own control — so it still opens and closes here, where a click
+  // handler would do nothing and the Conversation would be unreadable.
+  test("a resolved Conversation still folds open and shut", async ({ page, request }) => {
+    await clearPage(request, "collapse.md");
+    await seedComment(request, "collapse.md", "Settled, but still readable.");
+    await page.goto(`${preview.url}/collapse.md`);
+    await page.locator(".thread-action-btn--resolve").click();
+
+    const body = page.locator(".thread-card--resolved .thread-body");
+    await expect(page.locator(".thread-collapsed-summary")).toBeVisible();
+    await expect(body).toBeHidden();
+
+    await page.locator(".thread-collapsed-summary").click();
+    await expect(body).toBeVisible();
+
+    // The half that was missing before: it closes again.
+    await page.locator(".thread-collapsed-summary").click();
+    await expect(body).toBeHidden();
+  });
+
   test("an edit posts through the form", async ({ page, request }) => {
     await clearPage(request, "edit.md");
     await seedComment(request, "edit.md", "Frist draft.");
@@ -731,6 +754,46 @@ test("a draft is still there after the page is rebuilt from scratch", async ({ p
   await expect(page.locator(".floating-composer-panel")).toHaveCount(0);
 });
 
+// Issue #113: taking the update used to be the only exit from the notice, which
+// is the one thing a reader mid-draft may not want to do. Dismissing leaves the
+// update exactly where it was — still held, still waiting — and nothing is lost
+// by it, because a held update lands by itself once composing ends.
+test("the changed-Page notice can be dismissed without taking the update", async ({ page }) => {
+  await page.goto(`${preview.url}/dismiss.md`);
+  const article = page.locator("article.markdown-body");
+  const notice = page.locator("#scholia-content-changed");
+
+  await selectForComment(page, "A passage the reader keeps writing about", 0);
+  await page.locator("#scholia-comment-selection").click();
+  await composer(page).fill("Still thinking.");
+
+  await preview.write(
+    "dismiss.md",
+    "# Dismiss\n\nA passage the reader keeps writing about, once.\n",
+  );
+  await expect(notice).toBeVisible();
+
+  await page.locator(".content-changed-dismiss").click();
+  await expect(notice).toHaveCount(0);
+  // Dismissed, not taken: the content is still the one the draft was written
+  // over, and the draft is untouched.
+  await expect(article).not.toContainText("once");
+  await expect(composer(page)).toHaveValue("Still thinking.");
+
+  // The dismissal covers the update it was about, so a further change under the
+  // same held swap does not re-raise it.
+  await preview.write(
+    "dismiss.md",
+    "# Dismiss\n\nA passage the reader keeps writing about, twice.\n",
+  );
+  await expect(article).not.toContainText("twice");
+  await expect(notice).toHaveCount(0);
+
+  // And the update is still there to land the moment composing ends.
+  await page.locator(".floating-composer-panel button", { hasText: "Cancel" }).click();
+  await expect(article).toContainText("twice");
+});
+
 test("reloads resume by themselves once composing ends", async ({ page }) => {
   await page.goto(`${preview.url}/resume.md`);
 
@@ -856,9 +919,14 @@ test("resolving collapses the Conversation, and reopening brings it back", async
   await expect(page.locator(".thread-card--resolved")).toHaveCount(1);
   await expect(page.locator(".thread-collapsed-summary")).toBeVisible();
 
-  // Expanding names who settled it, and offers the way back.
+  // Expanding names who settled it, and offers the way back — and folds shut
+  // again, which it would not before issue #117.
   await page.locator(".thread-collapsed-summary").click();
   await expect(page.locator(".resolved-by")).toBeVisible();
+  await page.locator(".thread-collapsed-summary").click();
+  await expect(page.locator(".resolved-by")).toBeHidden();
+
+  await page.locator(".thread-collapsed-summary").click();
   await page.locator(".thread-action-btn--resolve").click();
 
   await expect(page.locator(".thread-card--resolved")).toHaveCount(0);

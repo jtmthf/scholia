@@ -74,6 +74,28 @@ describe("rendering a Site URL", () => {
     expect(html).not.toContain("composer-name-row");
   });
 
+  // Issue #111: the hosted rail SSR'd every action control under an inert port,
+  // so Reply, Resolve, the reaction chips and "Comment on this page" all rendered
+  // and did nothing — no form, no feedback, no disabled state — until the client
+  // booted. Hosted writes need an API Token and a client-minted Viewer, neither of
+  // which the server render has (ADR-0034 scoped the form path to Local Preview),
+  // so the server supplies a port that can only read and the controls are left out
+  // until hydration puts them in.
+  it("renders Conversations without controls that cannot work yet", async () => {
+    api = stubApi({ site: siteFixture(), conversations: [threadFixture()] });
+
+    const { html } = await render("http://localhost:5173/s/abc123", DEV_ASSETS);
+
+    // The Conversation itself is fully readable — that half is ADR-0031's promise.
+    expect(html).toContain("This claim needs a citation.");
+
+    expect(html).not.toContain("thread-action-btn");
+    expect(html).not.toContain("reaction-chip");
+    expect(html).not.toContain("comment-action-btn");
+    expect(html).not.toContain("page-comment-btn");
+    expect(html).not.toContain("bring-agent-btn");
+  });
+
   it("embeds the prefetched cache so the client doesn't refetch it", async () => {
     api = stubApi({ site: siteFixture(), conversations: [threadFixture()] });
 

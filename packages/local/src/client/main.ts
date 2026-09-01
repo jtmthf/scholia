@@ -205,11 +205,23 @@ function setTheme(dark: boolean): void {
   } catch {
     /* ignore */
   }
+  reflectTheme(dark);
   void renderMermaid();
+}
+
+// The toggle's glyph and its name are swapped by CSS off the `dark` class, so
+// the only state left to carry is the pressed one (issue #114). It is set from
+// here rather than server-rendered because the server cannot know the theme,
+// and a wrong `aria-pressed` is worse than none.
+function reflectTheme(dark: boolean): void {
+  document
+    .getElementById("scholia-theme-toggle")
+    ?.setAttribute("aria-pressed", dark ? "true" : "false");
 }
 
 function initTheme(): void {
   const toggle = document.getElementById("scholia-theme-toggle");
+  reflectTheme(isDark());
   toggle?.addEventListener("click", () => setTheme(!isDark()));
 }
 

@@ -5,6 +5,7 @@ import { extractHeadings } from "../util/headings.js";
 import { classifyFile, isDoc, toUrlPath } from "../util/paths.js";
 import { readHtmlMeta } from "../ingest/html.js";
 import { renderedText } from "../ingest/rendered-text.js";
+import { markdownText } from "../ingest/markdown-text.js";
 import { humanize } from "../util/text.js";
 import { disambiguateSiblings } from "./disambiguate.js";
 import { compareEntryPaths } from "./manifest.js";
@@ -87,9 +88,9 @@ export async function scanTree(root: string): Promise<ScanResult> {
           } else {
             const parsed = parseFrontmatter(raw);
             fm = parsed.data;
-            content = parsed.content;
-            headings = extractHeadings(content);
+            headings = extractHeadings(parsed.content);
             docTitle = headings.find((h) => h.depth === 1)?.text;
+            content = markdownText(parsed.content);
           }
         } catch {
           // Unreadable file — skip its metadata but still list it.

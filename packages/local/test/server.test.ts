@@ -136,6 +136,34 @@ test("the /search endpoint returns matching documents as JSON", async ({ tmp, se
   expect(hits.some((h: { path: string }) => h.path.startsWith("/topic.md"))).toBe(true);
 });
 
+// Issue #116: a snippet is cut from what the reader sees, so a hit on a
+// Markdown Page must never hand back `**bold**` or `[label](./target.md)`.
+test("search snippets carry prose, not markdown syntax", async ({ tmp, serve }) => {
+  await tmp.write("README.md", "# Home\n");
+  await tmp.write("topic.md", "# Topic\n\n**Throwaway.** A [xylophone](./x.md) sits here.\n");
+  const { url } = await serve();
+
+  const hits = (await (await fetch(`${url}/search?q=xylophone`)).json()) as Array<{
+    path: string;
+    snippet: string;
+  }>;
+  const hit = hits.find((h) => h.path.startsWith("/topic.md"));
+  expect(hit?.snippet).toContain("Throwaway. A xylophone sits here.");
+  expect(hit?.snippet).not.toContain("**");
+  expect(hit?.snippet).not.toContain("](");
+});
+
+test("single-file mode strips markdown from snippets too", async ({ tmp, serve }) => {
+  const file = await tmp.write("solo.md", "# Solo\n\n**Throwaway.** A xylophone sits here.\n");
+  const { url } = await serve({ singleFile: file });
+
+  const hits = (await (await fetch(`${url}/search?q=xylophone`)).json()) as Array<{
+    snippet: string;
+  }>;
+  expect(hits[0]?.snippet).toContain("Throwaway. A xylophone sits here.");
+  expect(hits[0]?.snippet).not.toContain("**");
+});
+
 // Issue #115: a browser requests this path on its own, independent of the
 // <link rel="icon"> in the head, so it needs an answer even when the served
 // root has no such file.

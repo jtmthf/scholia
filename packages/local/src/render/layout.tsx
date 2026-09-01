@@ -357,13 +357,24 @@ function Document(opts: LayoutOptions) {
               />
               <div id="scholia-search-results" class="search-results" hidden />
             </div>
-            <button
-              id="scholia-theme-toggle"
-              class="theme-toggle"
-              type="button"
-              aria-label="Toggle dark mode"
-            >
-              ◐
+            {/* Two faces, one per theme, and CSS shows the one that matches
+                (issue #114). The server has no way to know which theme is on —
+                it is localStorage plus `prefers-color-scheme`, both read in the
+                pre-paint script above — so a single server-rendered glyph and
+                label could only ever describe one of the two. Each face carries
+                its own accessible name, so the button is named for the theme it
+                is in whether or not the client bundle ever boots; `aria-pressed`
+                is added by `initTheme` in the client, which is also the only
+                thing that makes the button do anything. */}
+            <button id="scholia-theme-toggle" class="theme-toggle" type="button">
+              <span class="theme-toggle-face theme-toggle-face--light">
+                <span aria-hidden="true">☀</span>
+                <span class="visually-hidden">Light theme</span>
+              </span>
+              <span class="theme-toggle-face theme-toggle-face--dark">
+                <span aria-hidden="true">☾</span>
+                <span class="visually-hidden">Dark theme</span>
+              </span>
             </button>
           </div>
         </header>
