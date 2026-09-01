@@ -212,20 +212,24 @@ a:hover {
   margin: 0 auto;
   padding: 0 var(--space-5);
 }
+/* The article carries a floor (issue #112): Nav, Outline and the rail keep
+   their fixed widths, so below it the grid overflows and the page scrolls
+   horizontally rather than crush the reading column to nothing. The proper
+   intermediate collapse is #61's. */
 body.has-nav .layout {
-  grid-template-columns: var(--layout-nav-width) minmax(0, 1fr) var(--layout-outline-width);
+  grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--layout-outline-width);
   gap: var(--layout-gap);
 }
 /* The comment rail is another column, and the sheet gets more room to hold it —
    a Conversation has to sit beside the passage it is about, not below it. */
 body.has-comments .layout {
   max-width: 1760px;
-  grid-template-columns: minmax(0, 1fr) var(--rail-width);
+  grid-template-columns: minmax(var(--layout-content-min-width), 1fr) var(--rail-width);
   gap: var(--layout-gap);
 }
 body.has-comments.has-nav .layout {
   grid-template-columns:
-    var(--layout-nav-width) minmax(0, 1fr) var(--layout-outline-width)
+    var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--layout-outline-width)
     var(--rail-width);
 }
 /* The rail's own box is the scroll container (not the document, which the sticky
@@ -249,12 +253,12 @@ body.has-comments.has-nav .layout {
 
 @media (max-width: 1000px) {
   body.has-nav .layout {
-    grid-template-columns: var(--layout-nav-width) minmax(0, 1fr);
+    grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr);
   }
   /* The Outline goes before the rail does: the rail is the reason the reader is
      here, the Outline is a convenience. */
   body.has-comments.has-nav .layout {
-    grid-template-columns: var(--layout-nav-width) minmax(0, 1fr) var(--rail-width);
+    grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--rail-width);
   }
   .outline {
     display: none;

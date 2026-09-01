@@ -47,6 +47,10 @@ const SEED = {
   // the Outline is already on the page: live reload replaces the regions it
   // finds, and one that isn't rendered yet has nothing to replace.
   "live.md": "# Live\n\nOriginal body text.\n\n## Original Section\n\nSection body.\n",
+  // Owned by the article-floor test (issue #112). Has a heading so the
+  // Outline column renders, and the test seeds a Page-level Conversation to
+  // bring the comment rail's fourth column in.
+  "layout.md": "# Layout\n\nA Page measured at narrow widths.\n\n## Section\n\nBody.\n",
 };
 
 let preview: LocalPreview;
@@ -137,6 +141,52 @@ test.describe("server-rendered chrome", () => {
     await expect(page.locator("nav.breadcrumb a")).toHaveCount(0);
     // A single top-level Page has no h2/h3, so there is no Outline to show.
     await expect(page.locator("nav.outline")).toHaveCount(0);
+  });
+});
+
+test.describe("the article column's floor (issue #112)", () => {
+  // The four-column grid only appears when the Page has both Nav (always) and
+  // the comment rail (only when a Conversation exists). Seed a page-level
+  // Comment so layout.md renders `body.has-nav.has-comments`.
+  test.beforeAll(async ({ request }) => {
+    const res = await request.post(`${preview.url}/__conversations`, {
+      headers: { "Sec-Fetch-Site": "same-origin" },
+      data: { page: "layout.md", body: "A note on the layout." },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test("Nav, Outline and rail never starve the article below its floor", async ({ page }) => {
+    await page.goto(`${preview.url}/layout.md`);
+    const article = page.locator("article.markdown-body");
+    await expect(article).toBeVisible();
+
+    // Four-column layout at 1100px: the article is the only track allowed to
+    // shrink, so without a floor it collapses to ~132px. The issue decides that
+    // a 132px reading column is a defect; the accepted cost past the 464px
+    // floor is that the grid overflows horizontally instead.
+    await page.setViewportSize({ width: 1100, height: 800 });
+    const desktopBox = await article.boundingBox();
+    expect(desktopBox).not.toBeNull();
+    expect(desktopBox!.width).toBeGreaterThanOrEqual(464);
+
+    await expect(page.locator("nav.nav")).toBeVisible();
+    await expect(page.locator("nav.outline")).toBeVisible();
+    await expect(page.locator("#scholia-comments")).toBeVisible();
+
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeGreaterThan(1100);
+
+    // Single-column mobile layout: the floor only applies to the multi-column
+    // grid rules, so a 480px viewport still gives the article ~432px and no
+    // forced horizontal scroll.
+    await page.setViewportSize({ width: 480, height: 800 });
+    const mobileBox = await article.boundingBox();
+    expect(mobileBox).not.toBeNull();
+    expect(mobileBox!.width).toBeGreaterThanOrEqual(320);
+
+    const mobileScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(mobileScrollWidth).toBeLessThanOrEqual(480);
   });
 });
 

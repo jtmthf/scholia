@@ -81,6 +81,10 @@
   --layout-sheet-padding-block: 64px;
   --layout-sheet-padding-inline: 56px;
   --layout-measure: 668px; /* article text measure, ~68ch */
+
+  /* Derived, not pinned by ADR-0016 (issue #112): 464px ≈ 58ch — the
+     reading column never narrower than this. */
+  --layout-content-min-width: 464px;
 }
 
 html.dark {
