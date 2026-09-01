@@ -217,7 +217,9 @@ a:hover {
    horizontally rather than crush the reading column to nothing. The proper
    intermediate collapse is #61's. */
 body.has-nav .layout {
-  grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--layout-outline-width);
+  grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(
+      --layout-outline-width
+    );
   gap: var(--layout-gap);
 }
 /* The comment rail is another column, and the sheet gets more room to hold it —
@@ -258,7 +260,9 @@ body.has-comments.has-nav .layout {
   /* The Outline goes before the rail does: the rail is the reason the reader is
      here, the Outline is a convenience. */
   body.has-comments.has-nav .layout {
-    grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--rail-width);
+    grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(
+        --rail-width
+      );
   }
   .outline {
     display: none;
