@@ -69,6 +69,17 @@ test("collects DocRecords with extracted headings", async ({ tmp }) => {
   expect(home?.headings.map((h) => h.text)).toEqual(["Home", "Details"]);
 });
 
+test("indexes a Markdown Page's prose, not its markup", async ({ tmp }) => {
+  // A DocRecord's body is what search matches and cuts snippets out of, so it
+  // holds the words a reader sees rather than the syntax that produces them
+  // (issue #116) — the same thing `renderedText` already gives an HTML Page.
+  await tmp.write("README.md", "# Home\n\n**Throwaway.** See [ADR-0002](./0002-x.md).\n");
+
+  const { docs } = await scanTree(tmp.root);
+  const home = docs.find((d) => d.urlPath === "/README.md");
+  expect(home?.body).toBe("Home\n\nThrowaway. See ADR-0002.");
+});
+
 test("sets a subtitle on sibling files that share an identical title, using their filename", async ({
   tmp,
 }) => {

@@ -251,9 +251,32 @@ describe("Rail", () => {
     expect(withoutModeration).not.toContain("thread-action-btn--delete");
 
     const withModeration = render(full, stubPort({ canModerate: true }));
-    // The resolved Conversation is collapsed, so its delete action is hidden; the
-    // other four expanded cards show the control.
-    expect(occurrences(withModeration, "thread-action-btn--delete")).toBe(4);
+    // Every card carries it, the resolved one included: since issue #117 its
+    // actions are folded inside a closed disclosure rather than left out of the
+    // document, so they are in the markup and out of sight.
+    expect(occurrences(withModeration, "thread-action-btn--delete")).toBe(5);
+  });
+
+  // ADR-0038: a consumer that cannot write yet supplies a port with no methods,
+  // and the rail is a reading surface — every Conversation, no controls. This is
+  // the rule the hosted viewer's server render relies on (issue #111).
+  it("renders every Conversation and no controls for a port that can only read", () => {
+    const html = render(
+      <Rail
+        conversations={[anchored, resolved, outdated]}
+        chats={[]}
+        activeConversationId={null}
+        onActivate={() => {}}
+      />,
+      { displayName: null, canModerate: false },
+    );
+
+    expect(occurrences(html, 'class="thread-card')).toBe(3);
+    expect(html).toContain("This claim needs a citation.");
+    expect(html).not.toContain("thread-action-btn");
+    expect(html).not.toContain("comment-action-btn");
+    expect(html).not.toContain("reaction-chip");
+    expect(html).not.toContain("page-comment-btn");
   });
 
   it("renders a Chat's Comments, not just its header", () => {

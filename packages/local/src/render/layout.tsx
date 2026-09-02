@@ -357,13 +357,33 @@ function Document(opts: LayoutOptions) {
               />
               <div id="scholia-search-results" class="search-results" hidden />
             </div>
+            {/* Two faces, one per theme, and CSS shows the one that matches
+                (issue #114). The server has no way to know which theme is on —
+                it is localStorage plus `prefers-color-scheme`, both read in the
+                pre-paint script above — so a single server-rendered glyph and
+                label could only ever describe one of the two. Each face carries
+                its own accessible name, so the button is named for the theme it
+                is in whether or not the client bundle ever boots; `aria-pressed`
+                starts at `false` and is corrected by `initTheme` in the client.
+                False is the right server answer rather than a guess: the chrome's
+                dark mode is the `dark` class alone, which only the pre-paint
+                script sets — so a page whose script never runs is a light page,
+                and the one reader who is stuck with this value is the one it is
+                true for. */}
             <button
               id="scholia-theme-toggle"
               class="theme-toggle"
               type="button"
-              aria-label="Toggle dark mode"
+              aria-pressed="false"
             >
-              ◐
+              <span class="theme-toggle-face theme-toggle-face--light">
+                <span aria-hidden="true">☀</span>
+                <span class="visually-hidden">Light theme</span>
+              </span>
+              <span class="theme-toggle-face theme-toggle-face--dark">
+                <span aria-hidden="true">☾</span>
+                <span class="visually-hidden">Dark theme</span>
+              </span>
             </button>
           </div>
         </header>

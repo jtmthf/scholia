@@ -188,15 +188,45 @@
   padding: 4px 0;
 }
 
+/* A resolved Conversation's disclosure (issue #117). It used to be bare
+   lowercase text that only ever opened; it is a `<details>` now, so it reads and
+   behaves like the control it always was — in both directions, and from the
+   keyboard. */
 .thread-collapsed-summary {
-  padding: 4px 10px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 8px 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
   font-size: 12px;
   color: var(--muted);
   cursor: pointer;
   user-select: none;
+  /* The default disclosure triangle is replaced by our own caret, which can be
+     positioned and rotated with the rest of the control. */
+  list-style: none;
+}
+.thread-collapsed-summary::-webkit-details-marker {
+  display: none;
 }
 .thread-collapsed-summary:hover {
   color: var(--fg);
+  border-color: var(--muted);
+}
+.thread-collapsed-summary:focus-visible {
+  outline: 2px solid var(--nav-active-fg);
+  outline-offset: 1px;
+}
+.thread-collapsed-caret {
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.thread-collapsible[open] > .thread-collapsed-summary > .thread-collapsed-caret {
+  transform: rotate(90deg);
 }
 
 .thread-actions {

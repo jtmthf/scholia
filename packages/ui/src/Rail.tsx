@@ -28,8 +28,12 @@ interface RailProps {
    * (e.g. a surface that hasn't wired up its content bridge yet).
    */
   onEmphasize?: (id: string | null) => void;
-  /** Start a new page-level (un-anchored) Thread. */
-  onNewPageComment: () => void;
+  /**
+   * Start a new page-level (un-anchored) Thread. Omit where the surface cannot
+   * write — the entry point is left out rather than rendered and inert, the same
+   * rule the port's optional methods run on (ADR-0038).
+   */
+  onNewPageComment?: () => void;
   /**
    * When a page-level comment form is submitted with JavaScript running. The
    * rail renders the form when the port supplies `formAction`; without JS the
@@ -149,15 +153,15 @@ export function Rail({
               if (onSubmitPageComment) {
                 void onSubmitPageComment(body);
               } else {
-                onNewPageComment();
+                onNewPageComment?.();
               }
             }}
           />
-        ) : (
+        ) : onNewPageComment ? (
           <button class="page-comment-btn" onClick={onNewPageComment}>
             💬 Comment on this page
           </button>
-        )}
+        ) : null}
         {onBringAgent && (
           <button
             class="bring-agent-btn"

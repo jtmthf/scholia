@@ -50,7 +50,9 @@ export interface FormAction {
  *   pattern as `Rail`'s optional `onBringAgent`: where a method is absent, the
  *   affordance that would call it isn't rendered at all, rather than rendered and
  *   failing. Local Preview supplies everything the Sidecar can write; the hosted
- *   viewer omits the forms it has no token surface for.
+ *   viewer supplies nothing at all until it has hydrated, because the credentials
+ *   a hosted write needs only exist in the browser (ADR-0038). Every method is
+ *   optional for that reason — a port with none of them is a reading surface.
  *
  * Methods reject with an `Error` whose message is fit to show a reader; the
  * component that initiated the call renders it inline.
@@ -64,8 +66,12 @@ export interface CommentsPort {
   /**
    * Post a reply. `displayName` is what the reader just typed — empty when they
    * already have one, in which case the port falls back to the stored name.
+   *
+   * Omit to render Conversations without a Reply affordance. A surface that
+   * cannot write at all omits this along with everything else, and the rail
+   * renders as the reading surface it is (ADR-0038).
    */
-  addComment(conversationId: string, input: { body: string; displayName: string }): Promise<void>;
+  addComment?(conversationId: string, input: { body: string; displayName: string }): Promise<void>;
   /** Omit to render Comments without an Edit affordance. */
   editComment?(commentId: string, input: { body: string }): Promise<void>;
   /** Omit to render Comments without a Delete affordance. */

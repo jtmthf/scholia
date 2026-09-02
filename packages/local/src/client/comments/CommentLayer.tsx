@@ -43,6 +43,11 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
   // yet — see the hold below.
   const [engaged, setEngaged] = useState(false);
   const [contentChanged, setContentChanged] = useState(false);
+  // Dismissing the notice puts away *this* waiting update, not every future one
+  // (issue #113). It lasts exactly as long as the update it dismissed: the
+  // reader is not told twice about one thing they have already answered, and the
+  // update they left waiting still lands by itself once they stop composing.
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
 
   // A live reload re-renders this island with a fresh `data` from the server, so
   // the Conversations it was mounted with have to give way to the ones the
@@ -111,7 +116,13 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
   useEffect(() => {
     const gate = liveReloadGate();
     if (!gate) return;
-    const sync = (): void => setContentChanged(gate.pending());
+    const sync = (): void => {
+      const waiting = gate.pending();
+      setContentChanged(waiting);
+      // Nothing is waiting any more, so the update that was dismissed is spent
+      // and the next one to wait is a fresh offer.
+      if (!waiting) setNoticeDismissed(false);
+    };
     sync();
     return gate.subscribe(sync);
   }, []);
@@ -396,7 +407,12 @@ export function CommentLayer({ data, content }: CommentLayerProps) {
           }}
         />
       )}
-      {contentChanged && <ContentChangedNotice onTake={() => liveReloadGate()?.take()} />}
+      {contentChanged && !noticeDismissed && (
+        <ContentChangedNotice
+          onTake={() => liveReloadGate()?.take()}
+          onDismiss={() => setNoticeDismissed(true)}
+        />
+      )}
     </CommentsProvider>
   );
 }

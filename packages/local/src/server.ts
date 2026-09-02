@@ -21,6 +21,7 @@ import {
   isValidHash,
   readHtmlMeta,
   renderedText,
+  markdownText,
   appendComment,
   ConversationError,
   createConversation,
@@ -251,7 +252,10 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
           urlPath: toUrlPath(opts.rootDir, file),
           fsPath: file,
           title,
-          body: html ? renderedText(raw) : content,
+          // Search matches and snippets read the words a reader sees, not the
+          // syntax that produces them (issue #116) — per Page kind, the same
+          // way `scanTree` does it for directory mode.
+          body: html ? renderedText(raw) : markdownText(content),
           headings,
         },
       ];

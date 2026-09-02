@@ -129,6 +129,32 @@ a:hover {
   padding: 6px 10px;
   line-height: 1;
 }
+/* Which theme is on is decided in the browser, so which face shows is decided
+   here rather than in the server render (issue #114). The hidden face is
+   `display: none`, not merely invisible, so it is out of the accessibility tree
+   too and the button has exactly one accessible name at a time. */
+.theme-toggle-face--dark {
+  display: none;
+}
+:root.dark .theme-toggle-face--light {
+  display: none;
+}
+:root.dark .theme-toggle-face--dark {
+  display: inline;
+}
+
+/* Available to assistive technology, absent from the page. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ---- Search ---- */
 .search {
@@ -695,7 +721,20 @@ html.dark .markdown-alert-caution {
    itself once nothing is being composed. */
 .content-changed-notice {
   position: fixed;
-  left: var(--space-4);
+  /* Bottom-centre over the reading column, not the bottom-left corner it used to
+     sit in (issue #113): that corner is the Nav's, and a notice parked on the Nav
+     covers the way out of the Page it is about.
+
+     The article's centre is not the window's — the grid puts the Nav to its left
+     and the Outline and the rail to its right, so it sits off-centre by half the
+     difference between the two sides. Each side declares the track it adds
+     below, and the rules that drop a track at a breakpoint zero it again, so
+     this stays true through every column arrangement `.layout` has. */
+  --notice-nav: 0px;
+  --notice-outline: 0px;
+  --notice-rail: 0px;
+  left: calc(50% + (var(--notice-nav) - var(--notice-outline) - var(--notice-rail)) / 2);
+  transform: translateX(-50%);
   bottom: var(--space-4);
   /* Under the floating Composer (9998) — the draft is what matters, and the
      notice must never sit over the words being written. */
@@ -730,6 +769,50 @@ html.dark .markdown-alert-caution {
   background: var(--color-accent);
   color: var(--color-paper);
   border-color: var(--color-accent);
+}
+body.has-nav .content-changed-notice {
+  --notice-nav: calc(var(--layout-nav-width) + var(--layout-gap));
+  --notice-outline: calc(var(--layout-outline-width) + var(--layout-gap));
+}
+body.has-comments .content-changed-notice {
+  --notice-rail: calc(var(--rail-width) + var(--layout-gap));
+}
+/* Mirrors `.layout`'s own breakpoints: the Outline column goes at 1000px, and
+   below 720px every column does — the Nav becomes an overlay drawer and the rail
+   stacks under the article. */
+@media (max-width: 1000px) {
+  body.has-nav .content-changed-notice {
+    --notice-outline: 0px;
+  }
+}
+@media (max-width: 720px) {
+  .content-changed-notice {
+    --notice-nav: 0px;
+    --notice-outline: 0px;
+    --notice-rail: 0px;
+  }
+}
+
+.content-changed-dismiss {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-muted);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.content-changed-dismiss:hover {
+  background: var(--color-rule);
+  color: var(--color-ink);
 }
 
 /* ---- Mermaid ---- */
