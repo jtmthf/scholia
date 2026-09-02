@@ -344,6 +344,10 @@ test("the theme toggle carries a face per theme, each naming its theme", () => {
   expect(toggle).toContain("Dark theme");
   // A single fixed name across both states is the bug; nothing may reintroduce it.
   expect(toggle).not.toContain("Toggle dark mode");
+  // The server can only be right about the untoggled case, and it is: the chrome's
+  // dark mode is the `dark` class, which only the pre-paint script sets, so a page
+  // whose script never runs is light. The client corrects it at boot.
+  expect(toggle).toContain('aria-pressed="false"');
 });
 
 test("the document opens with a doctype", () => {

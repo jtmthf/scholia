@@ -37,6 +37,13 @@ describe("markdownText", () => {
     expect(markdownText("A <kbd>key</kbd> press.")).toBe("A key press.");
   });
 
+  test("keeps a raw HTML block's items apart rather than running them together", () => {
+    // The difference between the derived-text extractor and the anchor-matching
+    // one: the latter concatenates text nodes with nothing between them, so
+    // these two items would index as the single word "onetwo".
+    expect(markdownText("<ul><li>one</li><li>two</li></ul>\n")).toBe("one\ntwo");
+  });
+
   test("keeps a table's cells", () => {
     const table = "| Package | Role |\n| --- | --- |\n| `core` | Domain logic |\n";
     expect(markdownText(table)).toContain("Domain logic");

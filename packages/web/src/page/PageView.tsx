@@ -17,7 +17,7 @@ const NONE: ConversationDTO[] = [];
 // The port the server renders through: every Conversation, and nothing that
 // writes (issue #111, ADR-0038). One shared instance, so the render before
 // hydration is identical every time.
-const READ_ONLY: CommentsPort = { displayName: null, canModerate: false };
+const READ_ONLY_PORT: CommentsPort = { displayName: null, canModerate: false };
 
 interface PageViewProps {
   site: SiteMeta;
@@ -76,7 +76,7 @@ export function PageView({
   // way: starting a Page Comment and minting an agent token are both writes.
   const hydrated = useHydrated();
   const livePort = useCommentsPort(slug, currentPath, ownerToken);
-  const port = hydrated ? livePort : READ_ONLY;
+  const port = hydrated ? livePort : READ_ONLY_PORT;
   const [draft, setDraft] = useState<DraftConversation | null>(null);
   const selection = bridge.selection;
 
@@ -109,12 +109,8 @@ export function PageView({
           activeConversationId={bridge.activeConversationId}
           onActivate={bridge.activate}
           onEmphasize={bridge.emphasize}
-          {...(hydrated
-            ? {
-                onNewPageComment: () => setDraft({ anchor: null, mode: "thread" }),
-                onBringAgent,
-              }
-            : {})}
+          onNewPageComment={hydrated ? () => setDraft({ anchor: null, mode: "thread" }) : undefined}
+          onBringAgent={hydrated ? onBringAgent : undefined}
           outdatedOrigin={outdatedOrigin(slug)}
           outdatedNote="These Threads no longer match the Latest Version."
           pageLevelComposer={

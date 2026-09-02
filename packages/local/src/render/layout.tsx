@@ -364,9 +364,18 @@ function Document(opts: LayoutOptions) {
                 label could only ever describe one of the two. Each face carries
                 its own accessible name, so the button is named for the theme it
                 is in whether or not the client bundle ever boots; `aria-pressed`
-                is added by `initTheme` in the client, which is also the only
-                thing that makes the button do anything. */}
-            <button id="scholia-theme-toggle" class="theme-toggle" type="button">
+                starts at `false` and is corrected by `initTheme` in the client.
+                False is the right server answer rather than a guess: the chrome's
+                dark mode is the `dark` class alone, which only the pre-paint
+                script sets — so a page whose script never runs is a light page,
+                and the one reader who is stuck with this value is the one it is
+                true for. */}
+            <button
+              id="scholia-theme-toggle"
+              class="theme-toggle"
+              type="button"
+              aria-pressed="false"
+            >
               <span class="theme-toggle-face theme-toggle-face--light">
                 <span aria-hidden="true">☀</span>
                 <span class="visually-hidden">Light theme</span>

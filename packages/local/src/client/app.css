@@ -721,11 +721,19 @@ html.dark .markdown-alert-caution {
    itself once nothing is being composed. */
 .content-changed-notice {
   position: fixed;
-  /* Bottom-centre, not the bottom-left corner it used to sit in (issue #113):
-     that corner is the Nav's, and a notice parked on the Nav covers the way out
-     of the Page it is about. Centring puts it over the reading column instead,
-     where it is out of the way of both. */
-  left: 50%;
+  /* Bottom-centre over the reading column, not the bottom-left corner it used to
+     sit in (issue #113): that corner is the Nav's, and a notice parked on the Nav
+     covers the way out of the Page it is about.
+
+     The article's centre is not the window's — the grid puts the Nav to its left
+     and the Outline and the rail to its right, so it sits off-centre by half the
+     difference between the two sides. Each side declares the track it adds
+     below, and the rules that drop a track at a breakpoint zero it again, so
+     this stays true through every column arrangement `.layout` has. */
+  --notice-nav: 0px;
+  --notice-outline: 0px;
+  --notice-rail: 0px;
+  left: calc(50% + (var(--notice-nav) - var(--notice-outline) - var(--notice-rail)) / 2);
   transform: translateX(-50%);
   bottom: var(--space-4);
   /* Under the floating Composer (9998) — the draft is what matters, and the
@@ -762,6 +770,29 @@ html.dark .markdown-alert-caution {
   color: var(--color-paper);
   border-color: var(--color-accent);
 }
+body.has-nav .content-changed-notice {
+  --notice-nav: calc(var(--layout-nav-width) + var(--layout-gap));
+  --notice-outline: calc(var(--layout-outline-width) + var(--layout-gap));
+}
+body.has-comments .content-changed-notice {
+  --notice-rail: calc(var(--rail-width) + var(--layout-gap));
+}
+/* Mirrors `.layout`'s own breakpoints: the Outline column goes at 1000px, and
+   below 720px every column does — the Nav becomes an overlay drawer and the rail
+   stacks under the article. */
+@media (max-width: 1000px) {
+  body.has-nav .content-changed-notice {
+    --notice-outline: 0px;
+  }
+}
+@media (max-width: 720px) {
+  .content-changed-notice {
+    --notice-nav: 0px;
+    --notice-outline: 0px;
+    --notice-rail: 0px;
+  }
+}
+
 .content-changed-dismiss {
   flex: 0 0 auto;
   display: flex;

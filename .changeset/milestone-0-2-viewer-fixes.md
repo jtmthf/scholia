@@ -2,7 +2,7 @@
 "scholia": patch
 ---
 
-Fix four rail and chrome affordances that showed the wrong state, or none.
+Fix five rail and chrome affordances that showed the wrong state, or none.
 
 - **Search snippets read as prose, not markdown** — a Markdown Page is indexed by the text a reader sees (a new `markdownText`, the counterpart to `renderedText` for HTML Pages), so a hit no longer shows `# Anchor` or `[ADR-0002](./…)`, and a query that straddles a marker now matches. (#116)
 - **The theme toggle says which theme it is in** — one glyph and one label per theme, swapped by CSS off the same class the pre-paint script sets, plus `aria-pressed`. (#114)
