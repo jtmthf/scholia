@@ -45,18 +45,30 @@ function darkBlock(css: string): string {
 const light = declared(styles.slice(0, styles.indexOf("@media (prefers-color-scheme: dark)")));
 const dark = declared(darkBlock(styles));
 
+/** Is `name` given a dark value — itself, or by every variable it defers to? */
+function hasDarkValue(name: string, seen: Set<string>): boolean {
+  if (dark.has(name)) return true;
+  if (seen.has(name)) return false; // a cycle answers nothing
+  seen.add(name);
+  const deferredTo = [...(light.get(name) ?? "").matchAll(/var\(\s*(--[a-z0-9-]+)/g)].map(
+    (m) => m[1]!,
+  );
+  return deferredTo.length > 0 && deferredTo.every((next) => hasDarkValue(next, seen));
+}
+
 describe("the hosted viewer's answer to the comment layer's palette contract", () => {
   it("covers every name @scholia/ui reads", () => {
     expect(contract.length).toBeGreaterThan(0);
     expect(contract.filter((name) => !light.has(name))).toEqual([]);
   });
 
-  it("re-states, in dark, every name whose light value is a literal", () => {
-    // A name defined as `var(--bg)` follows the six viewer variables the dark
-    // block already overrides; a name pinned to a hex does not, and staying light
-    // in dark mode is exactly how #c0392b survived unadjusted for two schemes.
-    const pinned = contract.filter((name) => !light.get(name)!.startsWith("var("));
-    expect(pinned.length).toBeGreaterThan(0);
-    expect(pinned.filter((name) => !dark.has(name))).toEqual([]);
+  it("gives every name a dark value, through however many variables it defers to", () => {
+    // A name pinned to a hex has to be restated in the dark block; a name defined
+    // as `var(--x)` is covered only if `--x` is — and `--x` may itself defer again.
+    // Following the chain is the point: `--scholia-comment-warning: var(--outdated-fg)`
+    // looks restated and is not, and staying light in dark mode is exactly how
+    // #c0392b survived unadjusted for two schemes.
+    const uncovered = contract.filter((name) => !hasDarkValue(name, new Set()));
+    expect(uncovered).toEqual([]);
   });
 });

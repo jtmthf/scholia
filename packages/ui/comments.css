@@ -60,6 +60,12 @@
   );
 
   /* ---- Derived from the above ---- */
+  /* A solid button deepens on hover by leaning toward the text colour, which is
+     darker in a light scheme and lighter in a dark one — so one formula moves the
+     right way in both, where the pinned second literal it replaces did not.
+     Agent leans the other way on purpose: it defaults to `--color-ink`, which IS
+     the text colour, so leaning toward it would be a hover that does nothing. A
+     control already at full contrast eases instead of deepening. */
   --sc-accent-hover: color-mix(in srgb, var(--sc-accent) 85%, var(--sc-fg));
   --sc-agent-hover: color-mix(in srgb, var(--sc-agent) 85%, var(--sc-bg));
   --sc-danger-hover: color-mix(in srgb, var(--sc-danger) 85%, var(--sc-fg));

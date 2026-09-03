@@ -155,10 +155,15 @@ move, and the decision takes two of them.
     (`#58a6ff`) with dark text instead of `#1f6feb` with white — the viewer had two blues
     for one role — and `.floating-ask-btn` keeps its purple but takes dark text. Both are
     also the more legible: 7.2:1 against 4.6:1, and 5.5:1 against a failing 3.3:1.
-  - Their hovers follow, since hover is now derived from the accent
-    (`color-mix(accent 85%, fg)`) rather than pinned to a second literal.
-    Everything else — the agent badge, "Ask", the Chats section, private cards, Outdated
-    labels, and every grey — is byte-identical.
+  - Their hovers follow, since hover is derived now rather than pinned to a second
+    literal. One hover reverses direction: `.floating-ask-btn:hover` mixed toward black
+    and now eases toward the ground, so in light it lightens where it used to darken —
+    the deliberate consequence of the agent rule above, not a side effect.
+
+  Everything else is byte-identical: the agent badge, the Chats section, private cards,
+  Outdated labels, the whole Conversation card, the composer, and every grey. "Ask" keeps
+  its purple ground — only its label colour and hover direction move, both listed above.
+
 - **Local Preview restates nothing**, and its rail follows the theme toggle, which it did
   not before.
 - **The contract is tested as text, not as pixels.** `packages/ui/test/palette.test.ts`
