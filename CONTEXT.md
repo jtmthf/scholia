@@ -41,6 +41,18 @@ _Avoid_: toc, table of contents, on this page, minimap
 The block at the foot of a Page recording where it came from: its path, when it last changed, and its Provenance. Named for the publication note at the end of a manuscript, and placed there for the same reason — it is a provenance record, not part of the reading path, so it sits after the text rather than above it.
 _Avoid_: footer, metadata, page info
 
+**Rail**:
+The surface alongside the Page holding its Conversations, and the last of the three side
+surfaces to yield width — Outline first, then Nav, then the Rail (ADR-0039). Conceptually
+it is the _margin_, which is what the product is named for; the word is avoided because it
+collides with CSS `margin` everywhere the code would say it. Always mounted, even on a Page
+with no Conversations, because it is the comment layer's hydration boundary and the target
+live reload writes an agent's first Comment into; what is conditional is its column, which
+an un-commented Page does not pay for. Below the width where a column fits without
+narrowing the reading measure it becomes an overlay, opened by clicking the annotated
+passage.
+_Avoid_: sidebar, panel, comments pane, gutter, drawer
+
 **Focus**:
 A reading state in which Nav and Outline are both collapsed, leaving the Page and its Conversations. Nav and Outline are each independently dismissible; Focus is the single command that clears both and remembers what was open, so leaving it restores the reader's own layout rather than a default. It is addressable, so a link can open straight into an uncluttered read.
 _Avoid_: zen, distraction-free, reader mode, fullscreen
