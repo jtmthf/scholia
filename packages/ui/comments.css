@@ -1,51 +1,69 @@
 /* ============================================================
    Comment rail + affordances — the @scholia/ui comment layer
 
-   Palette contract: the consumer supplies these variables, because the palette
-   belongs to the surrounding surface, not to the comment layer (the hosted viewer
-   and Local Preview do not share one). Every rule below resolves colour through
-   them or through the aliases declared in the :root block that follows:
+   Palette contract (ADR-0041). Every colour below resolves through one of these
+   fifteen names, and every one of them defaults to a @scholia/theme token — so a
+   consumer that imports the theme and this file renders correctly with no palette
+   of its own, and a consumer with a palette of its own answers the contract:
 
-     --bg  --fg  --muted  --border  --chrome-bg
-     --nav-hover  --nav-active-bg  --nav-active-fg
+     Surface  --scholia-comment-bg          the card / composer ground
+              --scholia-comment-fg          text on it
+              --scholia-comment-muted       secondary text, hairline hover
+              --scholia-comment-border      hairlines
+              --scholia-comment-chrome-bg   the rail behind the cards
+              --scholia-comment-hover       a hovered row's ground
+              --scholia-comment-accent      focus, active card, primary action
+              --scholia-comment-accent-bg   the accent as a wash
+              --scholia-comment-accent-fg   text on a solid accent
+
+     Roles    --scholia-comment-agent       agent + private Chat
+              --scholia-comment-agent-fg    text on a solid agent colour
+              --scholia-comment-danger      Delete, and the Owner tier
+              --scholia-comment-danger-fg   text on a solid danger colour
+              --scholia-comment-warning     Outdated
+              --scholia-comment-warning-bg  the Outdated label's ground
+
+   The names are read exactly once each, in the :root block below, into the
+   private --sc-* aliases the rules use. That indirection is deliberate: it makes
+   an override work whatever order the consumer's stylesheet lands in, where a
+   plain default would lose to whichever :root the cascade saw last.
+
+   Light and dark come from wherever the contract is answered — @scholia/theme
+   switches on `html.dark`, the hosted viewer on `prefers-color-scheme` — so this
+   file states no scheme of its own.
    ============================================================ */
 
-/* Additional variables for the comment layer */
 :root {
   --rail-width: 320px;
-  --rail-bg: var(--chrome-bg);
-  --comment-bg: var(--bg);
-  --comment-border: var(--border);
+
+  /* ---- The contract, read once ---- */
+  --sc-bg: var(--scholia-comment-bg, var(--color-paper));
+  --sc-fg: var(--scholia-comment-fg, var(--color-ink));
+  --sc-muted: var(--scholia-comment-muted, var(--color-muted));
+  --sc-border: var(--scholia-comment-border, var(--color-rule));
+  --sc-chrome-bg: var(--scholia-comment-chrome-bg, var(--color-surface));
+  --sc-hover: var(--scholia-comment-hover, color-mix(in srgb, var(--color-ink) 6%, transparent));
+  --sc-accent: var(--scholia-comment-accent, var(--color-accent));
+  --sc-accent-bg: var(
+    --scholia-comment-accent-bg,
+    color-mix(in srgb, var(--color-accent) 12%, transparent)
+  );
+  --sc-accent-fg: var(--scholia-comment-accent-fg, var(--color-paper));
+  --sc-agent: var(--scholia-comment-agent, var(--color-ink));
+  --sc-agent-fg: var(--scholia-comment-agent-fg, var(--color-paper));
+  --sc-danger: var(--scholia-comment-danger, var(--color-danger));
+  --sc-danger-fg: var(--scholia-comment-danger-fg, var(--color-paper));
+  --sc-warning: var(--scholia-comment-warning, var(--color-warning));
+  --sc-warning-bg: var(
+    --scholia-comment-warning-bg,
+    color-mix(in srgb, var(--color-warning) 14%, var(--color-paper))
+  );
+
+  /* ---- Derived from the above ---- */
+  --sc-accent-hover: color-mix(in srgb, var(--sc-accent) 85%, var(--sc-fg));
+  --sc-agent-hover: color-mix(in srgb, var(--sc-agent) 85%, var(--sc-bg));
+  --sc-danger-hover: color-mix(in srgb, var(--sc-danger) 85%, var(--sc-fg));
   --comment-radius: 6px;
-  --comment-avatar-size: 28px;
-  --agent-badge-bg: #8250df;
-  --agent-badge-fg: #ffffff;
-  --owner-tier-fg: #cf222e;
-  --resolved-bg: var(--nav-hover);
-  --reaction-active-bg: #ddf4ff;
-  --reaction-active-border: #54aeff;
-  --reaction-active-fg: #0550ae;
-  --floating-btn-bg: #0969da;
-  --floating-btn-fg: #ffffff;
-  --floating-btn-hover-bg: #0550ae;
-  --composer-bg: var(--bg);
-  --tombstone-fg: var(--muted);
-  --outdated-label-fg: #9a6700;
-  --outdated-label-bg: #fff8c5;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --agent-badge-bg: #a371f7;
-    --agent-badge-fg: #0d1117;
-    --owner-tier-fg: #ff7b72;
-    --reaction-active-bg: #0c2d6b;
-    --reaction-active-border: #388bfd;
-    --reaction-active-fg: #79c0ff;
-    --floating-btn-bg: #1f6feb;
-    --floating-btn-hover-bg: #388bfd;
-    --outdated-label-fg: #d29922;
-    --outdated-label-bg: #272115;
-  }
 }
 
 /* ── Rail ──────────────────────────────────────────────────── */
@@ -56,8 +74,8 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--rail-bg);
+  border-left: 1px solid var(--sc-border);
+  background: var(--sc-chrome-bg);
 }
 
 .rail-section {
@@ -66,9 +84,9 @@
 
 .rail-inline-composer {
   margin: 8px 8px 4px;
-  border: 1px solid var(--comment-border);
+  border: 1px solid var(--sc-border);
   border-radius: var(--comment-radius);
-  background: var(--comment-bg);
+  background: var(--sc-bg);
   overflow: hidden;
 }
 .rail-inline-composer .composer {
@@ -81,7 +99,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--sc-muted);
   padding: 4px 12px 8px;
   margin: 0;
 }
@@ -89,7 +107,7 @@
 .rail-empty {
   padding: 32px 16px;
   text-align: center;
-  color: var(--muted);
+  color: var(--sc-muted);
   font-size: 13px;
 }
 
@@ -102,9 +120,9 @@
   margin: 8px 12px;
   padding: 7px 12px;
   background: transparent;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sc-border);
   border-radius: var(--comment-radius);
-  color: var(--muted);
+  color: var(--sc-muted);
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
@@ -114,33 +132,33 @@
     color 0.1s;
 }
 .page-comment-btn:hover {
-  border-color: var(--nav-active-fg);
-  color: var(--fg);
+  border-color: var(--sc-accent);
+  color: var(--sc-fg);
 }
 
 /* ── Thread card ───────────────────────────────────────────── */
 
 .thread-card {
   margin: 4px 8px;
-  border: 1px solid var(--comment-border);
+  border: 1px solid var(--sc-border);
   border-radius: var(--comment-radius);
-  background: var(--comment-bg);
+  background: var(--sc-bg);
   overflow: hidden;
   cursor: pointer;
   transition: border-color 0.1s;
 }
 .thread-card:hover {
-  border-color: var(--nav-active-fg);
+  border-color: var(--sc-accent);
 }
 .thread-card--active {
-  border-color: var(--nav-active-fg);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nav-active-fg) 20%, transparent);
+  border-color: var(--sc-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sc-accent) 20%, transparent);
 }
 .thread-card--resolved {
   opacity: 0.65;
 }
 .thread-card--outdated .thread-anchor-quote {
-  color: var(--outdated-label-fg);
+  color: var(--sc-warning);
 }
 
 .thread-header {
@@ -149,14 +167,14 @@
   gap: 6px;
   padding: 8px 10px 4px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--sc-muted);
 }
 
 .thread-anchor-label {
   display: inline-block;
   padding: 2px 6px;
-  background: var(--outdated-label-bg);
-  color: var(--outdated-label-fg);
+  background: var(--sc-warning-bg);
+  color: var(--sc-warning);
   border-radius: 4px;
   font-size: 11px;
   font-weight: 600;
@@ -177,8 +195,8 @@
 .thread-resolved-badge {
   margin-left: auto;
   font-size: 11px;
-  background: var(--nav-active-bg);
-  color: var(--nav-active-fg);
+  background: var(--sc-accent-bg);
+  color: var(--sc-accent);
   padding: 1px 6px;
   border-radius: 999px;
   white-space: nowrap;
@@ -198,10 +216,10 @@
   gap: 6px;
   margin: 0 8px 6px;
   padding: 4px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sc-border);
   border-radius: 4px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--sc-muted);
   cursor: pointer;
   user-select: none;
   /* The default disclosure triangle is replaced by our own caret, which can be
@@ -212,11 +230,11 @@
   display: none;
 }
 .thread-collapsed-summary:hover {
-  color: var(--fg);
-  border-color: var(--muted);
+  color: var(--sc-fg);
+  border-color: var(--sc-muted);
 }
 .thread-collapsed-summary:focus-visible {
-  outline: 2px solid var(--nav-active-fg);
+  outline: 2px solid var(--sc-accent);
   outline-offset: 1px;
 }
 .thread-collapsed-caret {
@@ -234,7 +252,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px 8px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--sc-border);
 }
 
 .thread-action-form,
@@ -251,9 +269,9 @@
 
 .thread-action-btn {
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sc-border);
   border-radius: 4px;
-  color: var(--muted);
+  color: var(--sc-muted);
   font-size: 12px;
   font-family: inherit;
   padding: 3px 8px;
@@ -263,8 +281,8 @@
     border-color 0.1s;
 }
 .thread-action-btn:hover {
-  color: var(--fg);
-  border-color: var(--muted);
+  color: var(--sc-fg);
+  border-color: var(--sc-muted);
 }
 .thread-action-btn--resolve {
   margin-left: auto;
@@ -276,7 +294,7 @@
   padding: 6px 10px;
 }
 .comment + .comment {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--sc-border);
 }
 
 .comment-header {
@@ -289,7 +307,7 @@
 .identity-name {
   font-size: 12px;
   font-weight: 600;
-  color: var(--fg);
+  color: var(--sc-fg);
 }
 
 .identity-badge--agent {
@@ -297,8 +315,8 @@
   align-items: center;
   font-size: 10px;
   font-weight: 600;
-  background: var(--agent-badge-bg);
-  color: var(--agent-badge-fg);
+  background: var(--sc-agent);
+  color: var(--sc-agent-fg);
   padding: 1px 5px;
   border-radius: 4px;
   letter-spacing: 0.02em;
@@ -307,32 +325,32 @@
 .identity-tier--owner {
   font-size: 10px;
   font-weight: 600;
-  color: var(--owner-tier-fg);
+  color: var(--sc-danger);
 }
 
 .comment-timestamp {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--sc-muted);
   margin-left: auto;
 }
 
 .comment-edited {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--sc-muted);
   font-style: italic;
 }
 
 .comment-body {
   font-size: 13px;
   line-height: 1.5;
-  color: var(--fg);
+  color: var(--sc-fg);
   word-break: break-word;
   white-space: pre-wrap;
 }
 
 .comment-tombstone {
   font-size: 12px;
-  color: var(--tombstone-fg);
+  color: var(--sc-muted);
   font-style: italic;
 }
 
@@ -346,7 +364,7 @@
 .comment-action-btn {
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--sc-muted);
   font-size: 11px;
   font-family: inherit;
   padding: 2px 4px;
@@ -357,8 +375,8 @@
     background 0.1s;
 }
 .comment-action-btn:hover {
-  color: var(--fg);
-  background: var(--nav-hover);
+  color: var(--sc-fg);
+  background: var(--sc-hover);
 }
 
 /* ── Reactions ─────────────────────────────────────────────── */
@@ -374,8 +392,8 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: var(--nav-hover);
-  border: 1px solid var(--border);
+  background: var(--sc-hover);
+  border: 1px solid var(--sc-border);
   border-radius: 999px;
   padding: 2px 7px;
   font-size: 12px;
@@ -386,12 +404,12 @@
   user-select: none;
 }
 .reaction-chip:hover {
-  border-color: var(--muted);
+  border-color: var(--sc-muted);
 }
 .reaction-chip--mine {
-  background: var(--reaction-active-bg);
-  border-color: var(--reaction-active-border);
-  color: var(--reaction-active-fg);
+  background: var(--sc-accent-bg);
+  border-color: var(--sc-accent);
+  color: var(--sc-accent);
 }
 /* A tally on a surface that cannot record Reactions: shown, because it is part of
    what the Comment says, but never offered as something to click. */
@@ -399,14 +417,14 @@
   cursor: default;
 }
 .reaction-chip--static:hover {
-  border-color: var(--border);
+  border-color: var(--sc-border);
 }
 .reaction-chip__count {
   font-size: 11px;
   font-weight: 600;
 }
 .reaction-chip--add {
-  color: var(--muted);
+  color: var(--sc-muted);
   font-weight: 600;
 }
 
@@ -427,15 +445,15 @@
 /* ── Composer (reply box + new thread) ─────────────────────── */
 
 .composer {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--sc-border);
   padding: 8px 10px;
-  background: var(--composer-bg);
+  background: var(--sc-bg);
 }
 
 .composer-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--sc-muted);
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -444,7 +462,7 @@
 .composer-quote {
   font-size: 12px;
   font-style: italic;
-  color: var(--muted);
+  color: var(--sc-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -456,10 +474,10 @@
   width: 100%;
   min-height: 64px;
   resize: vertical;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--sc-bg);
+  border: 1px solid var(--sc-border);
   border-radius: 4px;
-  color: var(--fg);
+  color: var(--sc-fg);
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
@@ -469,7 +487,7 @@
 .composer textarea:focus,
 .comment-edit-form textarea:focus {
   outline: none;
-  border-color: var(--nav-active-fg);
+  border-color: var(--sc-accent);
 }
 
 .composer-name-row {
@@ -481,23 +499,23 @@
 
 .composer-name-row label {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--sc-muted);
   flex: 0 0 auto;
 }
 
 .composer-name-row input {
   flex: 1;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--sc-bg);
+  border: 1px solid var(--sc-border);
   border-radius: 4px;
-  color: var(--fg);
+  color: var(--sc-fg);
   font-family: inherit;
   font-size: 13px;
   padding: 4px 8px;
 }
 .composer-name-row input:focus {
   outline: none;
-  border-color: var(--nav-active-fg);
+  border-color: var(--sc-accent);
 }
 
 .composer-footer {
@@ -508,8 +526,8 @@
 }
 
 .btn-primary {
-  background: var(--floating-btn-bg);
-  color: var(--floating-btn-fg);
+  background: var(--sc-accent);
+  color: var(--sc-accent-fg);
   border: none;
   border-radius: 4px;
   padding: 5px 12px;
@@ -519,7 +537,7 @@
   transition: background 0.1s;
 }
 .btn-primary:hover {
-  background: var(--floating-btn-hover-bg);
+  background: var(--sc-accent-hover);
 }
 .btn-primary:disabled {
   opacity: 0.5;
@@ -528,9 +546,9 @@
 
 .btn-secondary {
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sc-border);
   border-radius: 4px;
-  color: var(--fg);
+  color: var(--sc-fg);
   padding: 4px 10px;
   font-size: 13px;
   font-family: inherit;
@@ -540,15 +558,15 @@
     color 0.1s;
 }
 .btn-secondary:hover {
-  border-color: var(--muted);
-  color: var(--muted);
+  border-color: var(--sc-muted);
+  color: var(--sc-muted);
 }
 
 /* A destructive confirmation, e.g. ConfirmDialog's Delete — solid red rather than
    the outline .thread-action-btn--delete uses, since this is the point of no return. */
 .btn-danger {
-  background: #c0392b;
-  color: #fff;
+  background: var(--sc-danger);
+  color: var(--sc-danger-fg);
   border: none;
   border-radius: 4px;
   padding: 5px 12px;
@@ -558,7 +576,7 @@
   transition: background 0.1s;
 }
 .btn-danger:hover {
-  background: color-mix(in srgb, #c0392b 85%, black);
+  background: var(--sc-danger-hover);
 }
 .btn-danger:disabled {
   opacity: 0.5;
@@ -567,7 +585,7 @@
 
 .composer-error {
   font-size: 11px;
-  color: var(--owner-tier-fg);
+  color: var(--sc-danger);
   margin-top: 2px;
 }
 
@@ -576,8 +594,8 @@
 .floating-action-btn {
   position: fixed;
   z-index: 9999;
-  background: var(--floating-btn-bg);
-  color: var(--floating-btn-fg);
+  background: var(--sc-accent);
+  color: var(--sc-accent-fg);
   border: none;
   border-radius: 6px;
   padding: 6px 14px;
@@ -592,7 +610,7 @@
   pointer-events: auto;
 }
 .floating-action-btn:hover {
-  background: var(--floating-btn-hover-bg);
+  background: var(--sc-accent-hover);
   transform: translateY(-1px);
 }
 
@@ -601,8 +619,8 @@
 .floating-composer-panel {
   position: fixed;
   z-index: 9998;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--sc-bg);
+  border: 1px solid var(--sc-border);
   border-radius: var(--comment-radius);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   width: 300px;
@@ -618,7 +636,7 @@
 
 .resolved-by {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--sc-muted);
   padding: 2px 10px 6px;
   font-style: italic;
 }
@@ -641,9 +659,9 @@
   margin: 0 12px 8px;
   padding: 7px 12px;
   background: transparent;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sc-border);
   border-radius: var(--comment-radius);
-  color: var(--muted);
+  color: var(--sc-muted);
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
@@ -653,31 +671,31 @@
     color 0.1s;
 }
 .bring-agent-btn:hover {
-  border-color: var(--agent-badge-bg);
-  color: var(--fg);
+  border-color: var(--sc-agent);
+  color: var(--sc-fg);
 }
 
 /* ── Private Chats section + card ──────────────────────────── */
 
 .rail-section--chats {
-  background: color-mix(in srgb, var(--agent-badge-bg) 6%, transparent);
-  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--sc-agent) 6%, transparent);
+  border-bottom: 1px solid var(--sc-border);
 }
 
 .rail-chats-note {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--sc-muted);
   padding: 0 12px 6px;
   margin: 0;
   font-style: italic;
 }
 
 .thread-card--private {
-  border-color: color-mix(in srgb, var(--agent-badge-bg) 45%, var(--comment-border));
-  background: color-mix(in srgb, var(--agent-badge-bg) 4%, var(--comment-bg));
+  border-color: color-mix(in srgb, var(--sc-agent) 45%, var(--sc-border));
+  background: color-mix(in srgb, var(--sc-agent) 4%, var(--sc-bg));
 }
 .thread-card--private:hover {
-  border-color: var(--agent-badge-bg);
+  border-color: var(--sc-agent);
 }
 
 .thread-lock {
@@ -686,25 +704,28 @@
   flex: 0 0 auto;
 }
 
+/* Promotion is the one control in a Chat that makes something public, so it wears
+   the public accent rather than the ink the rest of the private card is drawn in —
+   otherwise it sits beside Resolve as a second grey outline and reads as its peer. */
 .thread-action-btn--promote {
-  color: var(--agent-badge-bg);
-  border-color: color-mix(in srgb, var(--agent-badge-bg) 45%, var(--border));
+  color: var(--sc-accent);
+  border-color: color-mix(in srgb, var(--sc-accent) 45%, var(--sc-border));
 }
 .thread-action-btn--promote:hover {
-  color: var(--agent-badge-fg);
-  background: var(--agent-badge-bg);
-  border-color: var(--agent-badge-bg);
+  color: var(--sc-accent-fg);
+  background: var(--sc-accent);
+  border-color: var(--sc-accent);
 }
 
 /* Owner-only moderation delete (M9). */
 .thread-action-btn--delete {
-  color: #c0392b;
-  border-color: color-mix(in srgb, #c0392b 45%, var(--border));
+  color: var(--sc-danger);
+  border-color: color-mix(in srgb, var(--sc-danger) 45%, var(--sc-border));
 }
 .thread-action-btn--delete:hover {
-  color: #fff;
-  background: #c0392b;
-  border-color: #c0392b;
+  color: var(--sc-danger-fg);
+  background: var(--sc-danger);
+  border-color: var(--sc-danger);
 }
 
 /* ── Floating selection actions (Comment + Ask) ────────────── */
@@ -723,10 +744,10 @@
 
 /* "🔒 Ask" — the private-Chat sibling of the public "Comment" button. */
 .floating-ask-btn {
-  background: var(--agent-badge-bg);
+  background: var(--sc-agent);
 }
 .floating-ask-btn:hover {
-  background: color-mix(in srgb, var(--agent-badge-bg) 80%, black);
+  background: var(--sc-agent-hover);
 }
 
 /* ── Dialog shell (DialogShell, shared by Promote and ConfirmDialog) ───────
@@ -749,8 +770,8 @@
 
 .promote-dialog,
 .dialog {
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--sc-bg);
+  border: 1px solid var(--sc-border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   width: 460px;
@@ -773,14 +794,14 @@
 .dialog-title {
   font-weight: 600;
   font-size: 13px;
-  color: var(--fg);
+  color: var(--sc-fg);
 }
 
 .promote-note,
 .dialog-message {
   font-size: 12px;
   line-height: 1.5;
-  color: var(--muted);
+  color: var(--sc-muted);
   margin: 0;
 }
 
@@ -790,7 +811,7 @@
   gap: 4px;
   overflow-y: auto;
   max-height: 240px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--sc-border);
   border-radius: 4px;
   padding: 6px;
 }
@@ -806,17 +827,17 @@
   cursor: pointer;
 }
 .promote-comment:hover {
-  background: var(--nav-hover);
+  background: var(--sc-hover);
 }
 
 .promote-comment-author {
   font-weight: 600;
-  color: var(--fg);
+  color: var(--sc-fg);
   white-space: nowrap;
 }
 
 .promote-comment-body {
-  color: var(--fg);
+  color: var(--sc-fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -830,17 +851,17 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--muted);
+  color: var(--sc-muted);
 }
 
 .promote-summary {
   width: 100%;
   min-height: 56px;
   resize: vertical;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--sc-bg);
+  border: 1px solid var(--sc-border);
   border-radius: 4px;
-  color: var(--fg);
+  color: var(--sc-fg);
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
@@ -849,7 +870,7 @@
 }
 .promote-summary:focus {
   outline: none;
-  border-color: var(--nav-active-fg);
+  border-color: var(--sc-accent);
 }
 
 .promote-footer,
@@ -864,7 +885,7 @@
 .dialog-close {
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--sc-muted);
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
@@ -873,5 +894,5 @@
   transition: color 0.1s;
 }
 .dialog-close:hover {
-  color: var(--fg);
+  color: var(--sc-fg);
 }

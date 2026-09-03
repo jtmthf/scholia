@@ -242,7 +242,7 @@
 /* ── Outdated rail section (comments.css companions) ───────── */
 
 .rail-section--outdated .rail-section-title {
-  color: var(--outdated-label-fg);
+  color: var(--scholia-comment-warning);
 }
 .rail-outdated-note {
   margin: 0 16px 8px;
@@ -256,7 +256,7 @@
   display: inline-block;
   margin: 0 16px 2px;
   font-size: 0.75rem;
-  color: var(--outdated-label-fg);
+  color: var(--scholia-comment-warning);
   text-decoration: none;
 }
 .outdated-origin:hover {

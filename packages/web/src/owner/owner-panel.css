@@ -52,8 +52,8 @@
   cursor: not-allowed;
 }
 .owner-state-btn--active {
-  border-color: var(--floating-btn-bg);
-  background: color-mix(in srgb, var(--floating-btn-bg) 12%, transparent);
+  border-color: var(--nav-active-fg);
+  background: color-mix(in srgb, var(--nav-active-fg) 12%, transparent);
 }
 .owner-state-label {
   font-size: 13px;

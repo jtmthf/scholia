@@ -8,6 +8,28 @@
   --nav-active-bg: #dce4ed;
   --nav-active-fg: #0969da;
   --nav-width: 240px;
+
+  /* @scholia/ui's palette contract (ADR-0041), answered in the viewer's own
+     Primer-ish terms. The comment layer defaults to @scholia/theme's editorial
+     palette; this block is what keeps the hosted rail looking like the chrome
+     around it, and it is the whole of the divergence ADR-0016 deferred — when
+     the viewer adopts @scholia/theme (issue #162's neighbourhood), it is one
+     block to delete, not a hunt through four stylesheets. */
+  --scholia-comment-bg: var(--bg);
+  --scholia-comment-fg: var(--fg);
+  --scholia-comment-muted: var(--muted);
+  --scholia-comment-border: var(--border);
+  --scholia-comment-chrome-bg: var(--chrome-bg);
+  --scholia-comment-hover: var(--nav-hover);
+  --scholia-comment-accent: var(--nav-active-fg);
+  --scholia-comment-accent-bg: var(--nav-active-bg);
+  --scholia-comment-accent-fg: #ffffff;
+  --scholia-comment-agent: #8250df;
+  --scholia-comment-agent-fg: #ffffff;
+  --scholia-comment-danger: #cf222e;
+  --scholia-comment-danger-fg: #ffffff;
+  --scholia-comment-warning: #9a6700;
+  --scholia-comment-warning-bg: #fff8c5;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -19,6 +41,16 @@
     --nav-hover: #1c2128;
     --nav-active-bg: #1c2f4d;
     --nav-active-fg: #58a6ff;
+
+    /* The surface half of the contract tracks the six variables above, so only
+       the roles are restated here. */
+    --scholia-comment-accent-fg: #0d1117;
+    --scholia-comment-agent: #a371f7;
+    --scholia-comment-agent-fg: #0d1117;
+    --scholia-comment-danger: #ff7b72;
+    --scholia-comment-danger-fg: #0d1117;
+    --scholia-comment-warning: #d29922;
+    --scholia-comment-warning-bg: #272115;
   }
 }
 

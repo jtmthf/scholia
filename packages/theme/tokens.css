@@ -26,6 +26,14 @@
   --color-surface: #efe9df; /* the desk: backdrop behind the sheet, unfilled Nav/Outline, code blocks */
   --color-ink: #221f19; /* body text */
 
+  /* ---- Status palette ---- */
+  /* Two hues for states the accent must not be mistaken for. ADR-0016 already
+     moved Caution off `#cf222e` because it sat close enough to the oxblood accent
+     to read as a link; these are that decision, named, so a destructive control
+     and an Outdated Conversation state it once instead of each restating a hex. */
+  --color-danger: #a8144a; /* cooler crimson: destructive, never confusable with the accent */
+  --color-warning: #9a6700; /* ochre: Outdated, and anything else awaiting attention */
+
   /* ---- Type families ---- */
   /* Pair with type.css, which declares the @font-face rules for the
      " Variable" families below; the rest of each stack is fallback only. */
@@ -99,6 +107,10 @@ html.dark {
   /* ---- Palette (derived) ---- */
   --color-surface: #0e0d09;
   --color-ink: #f3ede2;
+
+  /* ---- Status palette ---- */
+  --color-danger: #ff6b9d;
+  --color-warning: #d29922;
 
   /* Type scale, radii, spacing, and layout are scheme-independent and
      inherit from :root. */

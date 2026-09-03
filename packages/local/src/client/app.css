@@ -10,8 +10,9 @@
 @import "@scholia/theme/tokens.css";
 @import "@scholia/theme/type.css";
 /* The comment layer (ADR-0030). It ships its stylesheet as an export rather than
-   importing it, so the consumer decides where it lands — here, after the theme
-   so the palette contract below is already defined when its rules resolve. */
+   importing it, so the consumer decides where it lands. Its palette contract
+   (ADR-0041) defaults to the tokens imported above, so order does not matter
+   here and Local Preview restates nothing. */
 @import "@scholia/ui/comments.css";
 
 :root {
@@ -23,38 +24,16 @@
   --mark-bg: #fff3b0;
   --mark-fg: #1f2328;
 
-  /* @scholia/ui's palette contract, answered in @scholia/theme's terms. The
-     comment layer resolves every colour through these because the palette
-     belongs to the surrounding surface: the hosted viewer's and Local Preview's
-     editorial identity (ADR-0016) are different palettes on purpose. */
-  --bg: var(--color-paper);
-  --fg: var(--color-ink);
-  --muted: var(--color-muted);
-  --border: var(--color-rule);
-  --chrome-bg: var(--color-surface);
-  --nav-hover: color-mix(in srgb, var(--color-ink) 6%, transparent);
-  --nav-active-bg: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  --nav-active-fg: var(--color-accent);
+  /* @scholia/ui's palette contract is answered by @scholia/theme itself now
+     (ADR-0041): the comment layer defaults every colour to a token from the
+     import above, so Local Preview supplies nothing and the rail follows the
+     scheme toggle for free. */
 }
 
 html.dark {
   --topbar-bg: color-mix(in srgb, var(--color-surface) 90%, transparent);
   --mark-bg: #bb8009;
   --mark-fg: #ffffff;
-
-  /* comments.css declares its own dark values under `prefers-color-scheme`, but
-     Local Preview's dark mode is a class the reader can toggle against their OS
-     setting — so the ones that would otherwise stay light are restated here. */
-  --agent-badge-bg: #a371f7;
-  --agent-badge-fg: #0d1117;
-  --owner-tier-fg: #ff7b72;
-  --reaction-active-bg: #0c2d6b;
-  --reaction-active-border: #388bfd;
-  --reaction-active-fg: #79c0ff;
-  --floating-btn-bg: #1f6feb;
-  --floating-btn-hover-bg: #388bfd;
-  --outdated-label-fg: #d29922;
-  --outdated-label-bg: #272115;
 }
 
 * {
@@ -312,7 +291,7 @@ body.has-comments.has-nav .layout {
   }
   #scholia-comments .comment-rail {
     border-left: none;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--color-rule);
   }
   body.has-nav .menu-toggle {
     display: inline-flex;
