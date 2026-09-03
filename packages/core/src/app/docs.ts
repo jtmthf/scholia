@@ -385,6 +385,13 @@ const DOCS_STYLES = `
   h3 { font-size: .95rem; font-weight: 600; margin: 1.5rem 0 .25rem; font-family: ui-monospace, monospace; }
   p, ul, ol, table, pre { margin: .6rem 0; }
   ul, ol { margin-left: 1.4rem; }
+  a { color: #a03328; text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { text-decoration-thickness: 2px; }
+  a:focus-visible { outline: 2px solid #a03328; outline-offset: 2px; border-radius: 2px; }
+  /* rehype-autolink-headings wraps the heading, so the anchor *is* the heading
+     text (plugins.ts, behavior: "wrap") — it takes the heading's colour rather
+     than a link's, or every heading reads as a link. */
+  h1 a, h2 a, h3 a { color: inherit; text-decoration: none; }
   code { font-family: ui-monospace, monospace; font-size: .85em; background: #f0f0f0;
          padding: .1em .3em; border-radius: 3px; }
   pre { background: #f0f0f0; border-radius: 5px; padding: .75rem 1rem; overflow-x: auto;
