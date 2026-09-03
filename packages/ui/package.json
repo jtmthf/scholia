@@ -21,6 +21,7 @@
     "preact": "^10.29.2"
   },
   "devDependencies": {
+    "@scholia/theme": "workspace:*",
     "@scholia/tsconfig": "workspace:*",
     "@scholia/vitest-config": "workspace:*",
     "preact-render-to-string": "^6.7.0",

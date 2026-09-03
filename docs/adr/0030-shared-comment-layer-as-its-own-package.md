@@ -61,6 +61,13 @@ surrounding surface supplies, and names that contract at the top of the file. Th
 hosted viewer's palette and `@scholia/theme`'s editorial identity (ADR-0016) are
 different palettes on purpose; the comment layer belongs to neither.
 
+> **Amended by [ADR-0041](./0041-the-comment-layers-palette-defaults-to-the-theme.md)
+> (issue #75).** A contract with no shared source was answered differently by each
+> consumer, and the second one got it wrong silently. The consumer may still supply the
+> palette — the names are `--scholia-comment-*` now — but every one of them **defaults to
+> a `@scholia/theme` token**, so a consumer that imports only the theme renders correctly.
+> `@scholia/ui` still imports no stylesheet and still depends on `preact` alone.
+
 ## Consequences
 
 - Local Preview can adopt the comment layer without Vite, and without depending on
