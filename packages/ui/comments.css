@@ -745,6 +745,9 @@
 /* "🔒 Ask" — the private-Chat sibling of the public "Comment" button. */
 .floating-ask-btn {
   background: var(--sc-agent);
+  /* Restated rather than inherited from .floating-action-btn: this button's ground
+     is the agent colour, so its text has to be the agent colour's counterpart. */
+  color: var(--sc-agent-fg);
 }
 .floating-ask-btn:hover {
   background: var(--sc-agent-hover);

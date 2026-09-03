@@ -137,7 +137,7 @@ move, and the decision takes two of them.
   internals (`--outdated-label-fg`, `--floating-btn-bg`) and read the contract or the
   viewer's own variables instead. When the viewer adopts `@scholia/theme`, that block goes
   and the editorial defaults take over.
-- **Four hosted affordances change appearance, and 79 of 83 comment-layer classes do not.**
+- **Five hosted affordances change appearance, and the other 78 of 83 comment-layer classes do not.**
   Measured by rendering every class in `comments.css` under the old and new stylesheets and
   diffing computed `color` / `background-color` / `border-color` in both schemes, resting
   and hovered. Every change is a duplicated hue collapsing onto one contract name, not a
@@ -150,9 +150,11 @@ move, and the decision takes two of them.
   - `.reaction-chip--mine` takes the accent wash (`#dce4ed` ground, `#0969da` border and
     text) in place of its own pale blue (`#ddf4ff` / `#54aeff` / `#0550ae`), matching the
     resolved badge, which already used that wash.
-  - In **dark only**, `.btn-primary` and `.floating-action-btn` take the nav accent
-    (`#58a6ff`) with dark text rather than `#1f6feb` with white — the viewer had two blues
-    for one role, and the surviving one is also the more legible: 7.2:1 against 4.6:1.
+  - In **dark only**, text on a solid ground takes the scheme's own counterpart rather
+    than a pinned white. `.btn-primary` and `.floating-action-btn` become the nav accent
+    (`#58a6ff`) with dark text instead of `#1f6feb` with white — the viewer had two blues
+    for one role — and `.floating-ask-btn` keeps its purple but takes dark text. Both are
+    also the more legible: 7.2:1 against 4.6:1, and 5.5:1 against a failing 3.3:1.
   - Their hovers follow, since hover is now derived from the accent
     (`color-mix(accent 85%, fg)`) rather than pinned to a second literal.
     Everything else — the agent badge, "Ask", the Chats section, private cards, Outdated
