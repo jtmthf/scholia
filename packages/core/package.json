@@ -11,6 +11,10 @@
       "browser": "./dist/browser.js",
       "default": "./dist/index.js"
     },
+    "./conversation": {
+      "types": "./dist/src/conversation/index.d.ts",
+      "default": "./dist/conversation/index.js"
+    },
     "./test/helpers/anchor-corpus.js": "./test/helpers/anchor-corpus.ts"
   },
   "scripts": {

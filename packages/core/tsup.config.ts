@@ -1,7 +1,11 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: { index: "src/index.ts", browser: "src/browser.ts" },
+  entry: {
+    index: "src/index.ts",
+    browser: "src/browser.ts",
+    "conversation/index": "src/conversation/index.ts",
+  },
   format: ["esm"],
   platform: "node",
   target: "node22",

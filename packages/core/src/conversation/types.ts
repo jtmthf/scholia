@@ -33,6 +33,21 @@ export type Visibility = "public" | "private";
 export type AuthorKind = "human" | "agent";
 
 /**
+ * The author of any Comment or Reaction (CONTEXT "Identity").
+ *
+ * A display name, a kind (human | agent), a tier (owner | viewer), an optional
+ * `onBehalfOf` for agents acting on someone's behalf, and a source distinguishing
+ * native Scholia authors from synthesized GitHub imports.
+ */
+export interface Identity {
+  name: string;
+  kind: "human" | "agent";
+  tier: "owner" | "viewer";
+  onBehalfOf?: string;
+  source: "native" | "github";
+}
+
+/**
  * The immutable Conversation header (document 0 in the multi-document YAML
  * stream per ADR-0019). Written once at creation and never modified.
  */
