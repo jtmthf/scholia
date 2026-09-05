@@ -62,7 +62,7 @@ export interface Anchor {
   css?: string;
 }
 
-export interface Identity {
+export interface IdentityRow {
   name: string;
   kind: "human" | "agent";
   tier: "owner" | "viewer";
@@ -168,7 +168,7 @@ export const comments = pgTable("comments", {
   versionId: uuid("version_id")
     .notNull()
     .references(() => versions.id),
-  author: jsonb("author").$type<Identity>().notNull(),
+  author: jsonb("author").$type<IdentityRow>().notNull(),
   origin: commentOrigin("origin").notNull().default("scholia"),
   body: text("body").notNull(),
   editedAt: timestamp("edited_at", { withTimezone: true }),
@@ -231,7 +231,7 @@ export const reactions = pgTable("reactions", {
   commentId: uuid("comment_id")
     .notNull()
     .references(() => comments.id, { onDelete: "cascade" }),
-  author: jsonb("author").$type<Identity>().notNull(),
+  author: jsonb("author").$type<IdentityRow>().notNull(),
   emoji: text("emoji").notNull(),
   // M5 deviation from PLAN §3: authorViewerId enables reaction TOGGLE keyed by
   // (commentId, emoji, viewerId) for anonymous Viewer identity (CONTEXT "Viewer").

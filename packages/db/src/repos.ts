@@ -25,7 +25,7 @@ import {
   viewerState,
   type Anchor,
   type ContentSource,
-  type Identity,
+  type IdentityRow,
   type MirrorBinding,
   type Provenance,
 } from "./schema.js";
@@ -769,7 +769,7 @@ export interface CreateConversationInput {
   firstComment: {
     versionId: string;
     body: string;
-    author: Identity;
+    author: IdentityRow;
     authorViewerId: string | null;
     /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
     mentions?: string[];
@@ -855,7 +855,7 @@ export async function createConversation(
 // inside the caller's transaction. Latest supplied name wins (reflects renames).
 async function persistViewerDisplayName(
   tx: DbOrTx,
-  author: Identity,
+  author: IdentityRow,
   authorViewerId: string | null,
 ): Promise<void> {
   if (author.kind !== "human" || !authorViewerId) return;
@@ -881,7 +881,7 @@ export interface AddCommentInput {
   conversationId: string;
   versionId: string;
   body: string;
-  author: Identity;
+  author: IdentityRow;
   authorViewerId: string | null;
   /** @-mention targets parsed from the body (M7, CONTEXT "Mention"). */
   mentions?: string[];
@@ -1032,7 +1032,7 @@ export interface ReactionGroup {
 // direct-fetch duplicate) so "who reacted" stays available wherever "how many"
 // is.
 export function groupReactions(
-  rows: Array<{ emoji: string; author: Identity; authorViewerId: string | null }>,
+  rows: Array<{ emoji: string; author: IdentityRow; authorViewerId: string | null }>,
   viewerId: string | null,
 ): ReactionGroup[] {
   const groups = new Map<string, { count: number; mine: boolean; authors: string[] }>();
@@ -1059,7 +1059,7 @@ export async function toggleReaction(
     commentId: string;
     emoji: string;
     viewerId: string;
-    author: Identity;
+    author: IdentityRow;
   },
 ): Promise<ReactionGroup[]> {
   // Check if the viewer already reacted with this emoji.
@@ -1108,7 +1108,7 @@ async function buildReactionGroups(
 
 export interface CommentDTO {
   id: string;
-  author: Identity;
+  author: IdentityRow;
   body: string;
   createdAt: string;
   editedAt: string | null;
@@ -1350,7 +1350,7 @@ export interface PromoteConversationInput {
   keepCommentIds: string[];
   /** Optional summary prepended as a new visible comment. */
   summary?: string;
-  summaryAuthor: Identity;
+  summaryAuthor: IdentityRow;
   summaryAuthorViewerId: string | null;
 }
 
@@ -1448,7 +1448,7 @@ export interface SiteCommentDTO {
   version: number;
   /** Ordinal of the Version the Conversation was created on. */
   createdOrdinal: number;
-  author: Identity;
+  author: IdentityRow;
   body: string;
   createdAt: string;
   editedAt: string | null;

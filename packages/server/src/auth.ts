@@ -1,11 +1,6 @@
 import type { Context } from "hono";
-import {
-  getSiteBySlug,
-  resolveViewerToken,
-  verifyOwnerToken,
-  type Identity,
-  type SiteRow,
-} from "@scholia/db";
+import { getSiteBySlug, resolveViewerToken, verifyOwnerToken, type SiteRow } from "@scholia/db";
+import type { Identity } from "@scholia/core";
 import type { AppDeps } from "./config.js";
 import { hashToken } from "./tokens.js";
 

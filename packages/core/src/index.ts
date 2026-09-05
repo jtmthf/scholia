@@ -134,6 +134,7 @@ export type {
   CommentId,
   Visibility,
   AuthorKind,
+  Identity,
   ConversationHeader,
   CommentEvent,
   EditedEvent,

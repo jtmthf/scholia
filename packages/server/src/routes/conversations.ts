@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { mapSmIdsToSourceRange, parseMentions, type SourceMap } from "@scholia/core";
+import { mapSmIdsToSourceRange, parseMentions, type Identity, type SourceMap } from "@scholia/core";
 import {
   addComment,
   createConversation,
@@ -25,7 +25,6 @@ import {
   type Anchor,
   type ConversationDTO,
   type ConversationMeta,
-  type Identity,
   type ReactionGroup,
   type SiteCommentDTO,
 } from "@scholia/db";

@@ -14,9 +14,8 @@ import {
   findPRBackedSites,
   getLatestVersionId,
   setResolved,
-  type Identity,
 } from "@scholia/db";
-import type { BlobStore, Anchor, TextQuote } from "@scholia/core";
+import type { BlobStore, Anchor, Identity, TextQuote } from "@scholia/core";
 import { schema } from "@scholia/db";
 import { and, eq } from "drizzle-orm";
 import type { InboundEvent } from "@scholia/github";

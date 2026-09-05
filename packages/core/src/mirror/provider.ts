@@ -12,15 +12,12 @@
 
 import type { Anchor } from "../anchor/types.js";
 
-// ---- Identity (mirrors `@scholia/db` Identity structurally; re-declared for core purity) ----
+// ---- Identity (domain type from conversation/types.js; aliased for the mirror port) ----
 
-export interface MirrorIdentity {
-  name: string;
-  kind: "human" | "agent";
-  tier: "owner" | "viewer";
-  onBehalfOf?: string;
-  source: "native" | "github";
-}
+import type { Identity } from "../conversation/types.js";
+
+/** Alias for `Identity` — kept for backward compatibility with the mirror port's existing field types. */
+export type MirrorIdentity = Identity;
 
 // ---- Provenance (mirrors `@scholia/db` Provenance) ----
 
