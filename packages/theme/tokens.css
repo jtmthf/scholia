@@ -81,14 +81,27 @@
   --space-9: 64px;
 
   /* ---- Layout (pinned) ---- */
-  /* "Sheet on desk": Nav / content / Outline three-column grid. */
+  /* "Sheet on desk": Nav / content / Outline three-column grid, plus the
+     Rail (ADR-0039). --layout-measure is the pin: it fixes the article's
+     text width directly. --layout-content-width used to carry the pin
+     instead, but nothing read it — the width that actually rendered came
+     from subtracting the sheet's inline padding back out of it, which only
+     coincidentally landed on the same 668px (issue #157). See "Layout
+     (derived)" below for the inversion. */
   --layout-nav-width: 260px;
-  --layout-content-width: 780px;
   --layout-outline-width: 220px;
   --layout-gap: 40px;
   --layout-sheet-padding-block: 64px;
   --layout-sheet-padding-inline: 56px;
   --layout-measure: 668px; /* article text measure, ~68ch */
+  --rail-width: 320px; /* the comment Rail's column width (ADR-0039) */
+
+  /* ---- Layout (derived) ---- */
+  /* The sheet's own box-sizing is border-box (app.css), so its max-width
+     must be the measure plus the sheet's inline padding on each side for
+     the rendered text to land on the measure exactly, rather than by
+     coincidence. Evaluates to 780px. */
+  --layout-content-width: calc(var(--layout-measure) + 2 * var(--layout-sheet-padding-inline));
 
   /* Derived, not pinned by ADR-0016 (issue #112): 464px ≈ 58ch — the
      reading column never narrower than this. */
