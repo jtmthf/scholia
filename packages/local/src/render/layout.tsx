@@ -332,13 +332,11 @@ function Document(opts: LayoutOptions) {
       <body
         class={[
           opts.showNav ? "has-nav" : "",
-          // The Rail's grid track, not the Rail itself (ADR-0039). The element
-          // below is unconditional on any Page that can be commented on —
-          // `comments` is null only for a render error — because it is the
-          // page's only hydration boundary (ADR-0031) and the element live
-          // reload writes an agent's first Comment into, and `replaceWith`
-          // cannot make an element appear. Only the column is conditional, so
-          // an un-commented Page gives the words back their width.
+          // Not `opts.comments`: that is non-null whenever the Page rendered
+          // at all, so it would put every Page one Conversation away from an
+          // unpaid-for column swap. The grid track is keyed on whether there
+          // is anything to show in it; `#scholia-comments` itself is mounted
+          // unconditionally below, comments or not (ADR-0039, issue #158).
           opts.comments && opts.comments.conversations.length > 0 ? "has-conversations" : "",
         ]
           .filter(Boolean)

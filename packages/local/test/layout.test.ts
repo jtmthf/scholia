@@ -282,12 +282,14 @@ test("a page with nothing to comment on renders no Rail and no comment data", ()
   expect(html).not.toContain("has-conversations");
 });
 
-// ADR-0039 splits two questions that used to be one. The Rail *element* is
-// unconditional on any Page that can be commented on: it is the page's only
-// hydration boundary (ADR-0031) and the element live reload writes an agent's
-// first Comment into, and `replaceWith` cannot make an element appear. What an
-// un-commented Page does not pay for is the grid *track*, which is keyed on
-// `has-conversations` — so the class is absent here and the Rail is not.
+// The class that keys the Rail's grid track (ADR-0039, issue #158) is not the
+// same question as whether the Page has anything to comment on at all: the
+// Rail *element* is unconditional on any Page that can be commented on — it is
+// the page's only hydration boundary (ADR-0031) and the element live reload
+// writes an agent's first Comment into, and `replaceWith` cannot make an
+// element appear. What an un-commented Page does not pay for is the grid
+// *track*, which is keyed on `has-conversations` — so the class is absent here
+// and the Rail is not.
 test("a Page with no Conversations still mounts the Rail, and claims no column", () => {
   const html = renderPage(HTML_PAGE);
   expect(html).toContain(`id="scholia-comments"`);
