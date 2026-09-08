@@ -26,7 +26,7 @@
 
   /* @scholia/ui's palette contract is answered by @scholia/theme itself now
      (ADR-0041): the comment layer defaults every colour to a token from the
-     import above, so Local Preview supplies nothing and the rail follows the
+     import above, so Local Preview supplies nothing and the Rail follows the
      scheme toggle for free. */
 }
 
@@ -302,8 +302,9 @@ body.has-conversations.has-nav .layout {
     display: none;
   }
   body.has-conversations.has-nav .layout {
-    grid-template-columns:
-      var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--rail-width);
+    grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(
+        --rail-width
+      );
   }
 }
 /* Nav yields next. At the page's normal gutter, the requirement is
@@ -816,7 +817,7 @@ html.dark .markdown-alert-caution {
      covers the way out of the Page it is about.
 
      The article's centre is not the window's — the grid puts the Nav to its left
-     and the Outline and the rail to its right, so it sits off-centre by half the
+     and the Outline and the Rail to its right, so it sits off-centre by half the
      difference between the two sides. Each side declares the track it adds
      below, and the rules that drop a track at a breakpoint zero it again, so
      this stays true through every column arrangement `.layout` has. */

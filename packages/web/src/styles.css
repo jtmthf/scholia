@@ -8,6 +8,11 @@
   --nav-active-bg: #dce4ed;
   --nav-active-fg: #0969da;
   --nav-width: 240px;
+  /* @scholia/ui no longer declares this (ADR-0039) — @scholia/theme now pins it
+     at 320px, and every consumer supplies its own copy. The viewer doesn't
+     depend on @scholia/theme (see the palette-contract block below), so this
+     literal has to be kept equal to the theme's by hand until issue #162. */
+  --rail-width: 320px;
   /* The viewer's own Outdated ink. It is also what the comment layer's warning
      resolves to below, but it is declared here, outside that block, because
      versioning.css dresses Outdated affordances of its own that @scholia/ui

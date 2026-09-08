@@ -268,6 +268,21 @@ async function liveReloadSwap(): Promise<void> {
       if (next && prev) prev.replaceWith(next);
     }
 
+    // `<body>`'s classes are not in the swap list above — that list replaces
+    // named elements, and `<body>` is not one of them — so the Rail's grid track
+    // has to be carried across by hand (ADR-0039). Without this the first
+    // Comment on an open Page arrives in a Rail that still has no column. The
+    // Rail *element* is never touched either way.
+    //
+    // Navigate-by-swap (ADR-0028) is not written yet; when it is, it shares this
+    // function, so a navigation between Pages with different Conversation counts
+    // will land the right track for free rather than keeping the previous
+    // Page's.
+    document.body.classList.toggle(
+      "has-conversations",
+      doc.body.classList.contains("has-conversations"),
+    );
+
     // The article's `data-content-hash` names the bytes now on screen, so a
     // Comment started after a reload binds to what the reader can actually see.
     const currentArticle = document.querySelector("article.markdown-body");

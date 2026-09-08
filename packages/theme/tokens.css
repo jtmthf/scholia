@@ -87,7 +87,13 @@
   --space-9: 64px;
 
   /* ---- Layout (pinned) ---- */
-  /* "Sheet on desk": Nav / content / Outline three-column grid. */
+  /* "Sheet on desk": Nav / content / Outline three-column grid, plus the
+     Rail (ADR-0039). --layout-measure is the pin: it fixes the article's
+     text width directly. --layout-content-width used to carry the pin
+     instead, but nothing read it — the width that actually rendered came
+     from subtracting the sheet's inline padding back out of it, which only
+     coincidentally landed on the same 668px (issue #157). See "Layout
+     (derived)" below for the inversion. */
   --layout-nav-width: 260px;
   --layout-outline-width: 220px;
   /* Not `--layout-*`: it names a fact about the comment rail (@scholia/ui,

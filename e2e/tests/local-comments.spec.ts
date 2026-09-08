@@ -44,6 +44,11 @@ const SEED = {
   "hold-status.md":
     "# Hold Status\n\nA passage that is about to be deleted.\n\nA passage that stays put.\n",
   "server-rendered.md": "# Server Rendered\n\nReadable with JavaScript off.\n",
+  // Owned by the conditional-track tests (issue #158, ADR-0039), which measure
+  // the article before and after the Page's *first* Conversation. Another
+  // test's Comment here would make the "before" the "after".
+  "no-rail-column.md": "# No Rail Column\n\nNobody has said anything about this Page yet.\n",
+  "first-comment.md": "# First Comment\n\nA Page an agent is about to comment on.\n",
   "outdated-ssr.md": "# Outdated SSR\n\nNothing here says what the Anchor quotes.\n",
   "capabilities.md": "# Capabilities\n\nOnly what the Sidecar can do.\n",
   "many-comments.md": "# Many Comments\n\nA page with more Conversations than fit in one screen.\n",
@@ -1148,4 +1153,112 @@ test("a promoted Chat is untouched — it stays private and in the Chats section
   await expect(
     page.locator(".rail-section--chats .thread-card", { hasText: "Still private after promo." }),
   ).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// The Rail is always mounted; only its column is conditional (issue #158,
+// ADR-0039).
+//
+// An empty Rail used to cost the reading column 320px on every Page, because
+// one class answered two different questions: "is a Rail mounted" and "does the
+// Rail get a track". These split them. The element stays — it is the page's only
+// hydration boundary (ADR-0031) and the element live reload writes an agent's
+// first Comment into — and the *track* is what an un-commented Page stops paying
+// for.
+
+interface Box {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  width: number;
+}
+
+/** The article's, the Colophon's and the Rail's boxes, in one measurement. */
+function boxes(page: Page): Promise<{ article: Box; colophon: Box; rail: Box }> {
+  return page.evaluate(() => {
+    const box = (selector: string): Box => {
+      const { top, bottom, left, right, width } = document
+        .querySelector(selector)!
+        .getBoundingClientRect();
+      return { top, bottom, left, right, width };
+    };
+    return {
+      article: box("article.markdown-body"),
+      colophon: box(".colophon"),
+      rail: box("#scholia-comments"),
+    };
+  });
+}
+
+test("an un-commented Page mounts the Rail but gives its column back to the words", async ({
+  page,
+  request,
+}) => {
+  await clearPage(request, "no-rail-column.md");
+  await page.setViewportSize({ width: 1512, height: 900 });
+  await page.goto(`${preview.url}/no-rail-column.md`);
+
+  // Mounted, and saying so: the empty state still tells a reader that commenting
+  // exists, and still carries the Composer that works with JavaScript off.
+  await expect(page.locator("#scholia-comments")).toHaveCount(1);
+  await expect(page.locator(".rail-empty")).toContainText("No Conversations yet");
+  await expect(page.locator(".comment-rail .composer textarea")).toBeVisible();
+
+  // But not as a column: it is below the article, not beside it.
+  await expect(page.locator("body")).not.toHaveClass(/has-conversations/);
+  const { article, colophon, rail } = await boxes(page);
+  expect(rail.top).toBeGreaterThanOrEqual(article.bottom - 1);
+
+  // And it follows the Page rather than being parked below the side panes. Nav
+  // is page-height, so a Rail sharing the grid's row sizing with it lands a
+  // screen under the Colophon with nothing in between. This is the pairing that
+  // catches it: SEED gives Nav ~30 entries while `no-rail-column.md` is two
+  // lines, so Nav out-heights the Page by a wide margin.
+  expect(rail.top - colophon.bottom).toBeLessThan(200);
+
+  // And the width it is not taking is the width the article has.
+  await seedComment(request, "no-rail-column.md", "Now it costs something.");
+  await page.reload();
+  await expect(page.locator("body")).toHaveClass(/has-conversations/);
+  const withRail = await boxes(page);
+  expect(withRail.rail.left).toBeGreaterThan(withRail.article.right - 1);
+  expect(withRail.article.width).toBeLessThan(article.width);
+});
+
+// The zero-to-one transition, which is the reason the element is unconditional:
+// `main.ts` swaps with `replaceWith`, which cannot make an element *appear*, so
+// an agent's first Comment on an open Page would never reach the reader if the
+// Rail were rendered only when there was something in it.
+test("an agent's first Comment on an open Page takes the column with no reload", async ({
+  page,
+  request,
+}) => {
+  await clearPage(request, "first-comment.md");
+  await page.setViewportSize({ width: 1512, height: 900 });
+  await page.goto(`${preview.url}/first-comment.md`);
+
+  await expect(page.locator(".rail-empty")).toBeVisible();
+  await expect(page.locator("body")).not.toHaveClass(/has-conversations/);
+
+  // Stamp the mounted element so "the Rail is never replaced" is a claim about
+  // this node, not about one that happens to match the same selector.
+  await page.evaluate(() =>
+    document.getElementById("scholia-comments")!.setAttribute("data-e2e-stamp", "kept"),
+  );
+
+  // A second writer, out-of-process — the agent case (ADR-0019). It reaches the
+  // open preview over the live-reload channel that already exists.
+  await seedComment(request, "first-comment.md", "Found while reading this.");
+
+  await expect(page.locator("body")).toHaveClass(/has-conversations/);
+  await expect(page.locator(".thread-card")).toHaveCount(1);
+  await expect(page.locator(".comment-rail")).toContainText("Found while reading this.");
+
+  // The track arrived with the class: the Rail is beside the article now.
+  const { article, rail } = await boxes(page);
+  expect(rail.left).toBeGreaterThan(article.right - 1);
+
+  // Same node throughout: live reload swapped the data, never the island.
+  await expect(page.locator("#scholia-comments")).toHaveAttribute("data-e2e-stamp", "kept");
 });

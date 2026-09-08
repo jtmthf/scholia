@@ -650,6 +650,7 @@ test("an HTML Page renders in the chrome and takes an anchored comment", async (
   // the class that keys the Rail's grid track is deliberately absent — the
   // element (`#scholia-comments`) is what stays mounted unconditionally.
   expect(html).toContain(`id="scholia-comments"`);
+  expect(html).not.toContain("has-conversations");
   // Its own stylesheet came along, and its content is stamped for anchoring.
   expect(html).toContain("b { color: red }");
   expect(html).toMatch(/<p data-sm="\d+">The anchor is the moat\.<\/p>/);
