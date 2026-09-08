@@ -310,6 +310,20 @@ test("a Page with Conversations claims the Rail's column", () => {
   expect(renderPage(FULL)).toContain(`class="has-nav has-conversations"`);
 });
 
+test("the Nav opens only the current Page's directory ancestors, whose labels link to Entry Pages", () => {
+  const html = renderPage(FULL);
+
+  expect(html).toContain(
+    `<details class="nav-dir" open><summary aria-label="Toggle Guide &amp; Reference"><span class="nav-disclosure" aria-hidden="true">▸</span><a class="nav-dir-link" href="/guide">`,
+  );
+  expect(html).toContain(
+    `<details class="nav-dir" open><summary aria-label="Toggle Deep"><span class="nav-disclosure" aria-hidden="true">▸</span><a class="nav-dir-link" href="/guide/deep">`,
+  );
+  expect(html).toContain(
+    `<details class="nav-dir"><summary aria-label="Toggle Empty"><span class="nav-disclosure" aria-hidden="true">▸</span><a class="nav-dir-link" href="/empty">`,
+  );
+});
+
 test("Previous and Next follow flattened Nav order through directory boundaries", () => {
   const nav: NavNode[] = [
     navNode({ type: "file", title: "Home", urlPath: "/README.md" }),
