@@ -47,10 +47,13 @@ const SEED = {
   // the Outline is already on the page: live reload replaces the regions it
   // finds, and one that isn't rendered yet has nothing to replace.
   "live.md": "# Live\n\nOriginal body text.\n\n## Original Section\n\nSection body.\n",
-  // Owned by the article-floor test (issue #112). Has a heading so the
-  // Outline column renders, and the test seeds a Page-level Conversation to
-  // bring the comment rail's fourth column in.
+  // Owned by the ADR-0039 describe block (issue #159). Has a heading so the
+  // Outline is in play, and the block's `beforeAll` seeds a page-level
+  // Conversation to bring the Rail's column in.
   "layout.md": "# Layout\n\nA Page measured at narrow widths.\n\n## Section\n\nBody.\n",
+  // Owned by the zero-to-one live-reload test (issue #158): starts with
+  // nothing to comment on.
+  "zero-to-one.md": "# Zero To One\n\nNothing has been said about this yet.\n",
 };
 
 let preview: LocalPreview;
@@ -144,10 +147,10 @@ test.describe("server-rendered chrome", () => {
   });
 });
 
-test.describe("the article column's floor (issue #112)", () => {
-  // The four-column grid only appears when the Page has both Nav (always) and
-  // the comment rail (only when a Conversation exists). Seed a page-level
-  // Comment so layout.md renders `body.has-nav.has-conversations`.
+test.describe("ADR-0039: the Rail takes the Outline's track (issue #159)", () => {
+  // The four/three/two-column grids only appear when the Page has a
+  // Conversation (`body.has-conversations`, issue #158) — seed a page-level
+  // Comment so layout.md renders the full arrangement.
   test.beforeAll(async ({ request }) => {
     const res = await request.post(`${preview.url}/__conversations`, {
       headers: { "Sec-Fetch-Site": "same-origin" },
@@ -156,37 +159,106 @@ test.describe("the article column's floor (issue #112)", () => {
     expect(res.status()).toBe(200);
   });
 
-  test("Nav, Outline and rail never starve the article below its floor", async ({ page }) => {
+  // Split a computed `grid-template-columns` (e.g. "260px 780px 220px 320px")
+  // into its tracks, so the arrangement is verified from what the grid
+  // actually computed rather than from the source that produced it.
+  async function trackCount(page: Page): Promise<number> {
+    const value = await page
+      .locator(".layout")
+      .evaluate((el) => getComputedStyle(el).gridTemplateColumns);
+    return value.trim().split(/\s+/).filter(Boolean).length;
+  }
+
+  test("the arrangement at every width matches the ADR-0039 table, verified from computed grid tracks", async ({
+    page,
+  }) => {
+    await page.goto(`${preview.url}/layout.md`);
+    const outline = page.locator("nav.outline");
+    const rail = page.locator("#scholia-comments");
+    const menuToggle = page.locator(".menu-toggle");
+
+    // >= 1748: Nav + sheet + Outline + Rail — four tracks.
+    await page.setViewportSize({ width: 1800, height: 900 });
+    expect(await trackCount(page)).toBe(4);
+    await expect(outline).toBeVisible();
+    await expect(menuToggle).toBeHidden();
+
+    // 1440 - 1748: Nav + sheet + Rail — Outline yields first.
+    await page.setViewportSize({ width: 1600, height: 900 });
+    expect(await trackCount(page)).toBe(3);
+    await expect(outline).toBeHidden();
+    await expect(menuToggle).toBeHidden();
+
+    // 1188 - 1440: sheet + Rail — Nav yields next, but stays reachable
+    // behind the same toggle narrow viewports already use.
+    await page.setViewportSize({ width: 1300, height: 900 });
+    expect(await trackCount(page)).toBe(2);
+    await expect(outline).toBeHidden();
+    await expect(menuToggle).toBeVisible();
+
+    // < 1188: the Rail leaves the column — one track, and the rail's own box
+    // is no longer the sticky scroll container.
+    await page.setViewportSize({ width: 1000, height: 900 });
+    expect(await trackCount(page)).toBe(1);
+    await expect(rail).toBeVisible();
+    expect(await rail.evaluate((el) => getComputedStyle(el).position)).toBe("static");
+
+    // < 720: existing mobile behaviour, unchanged — still one track, the
+    // toggle still reaches Nav, and the rail is still there to read.
+    await page.setViewportSize({ width: 480, height: 900 });
+    expect(await trackCount(page)).toBe(1);
+    await expect(menuToggle).toBeVisible();
+    await expect(rail).toBeVisible();
+  });
+
+  // The promise, not the breakpoint numbers (CLAUDE.md, ADR-0039): asserted
+  // just above and below every threshold in the table, plus a representative
+  // width inside each band, so a token change that moves a number is free to
+  // move this test's numbers with it and still be caught if it breaks the
+  // promise itself.
+  test("the reading measure never breaks, above the mobile breakpoint", async ({ page }) => {
     await page.goto(`${preview.url}/layout.md`);
     const article = page.locator("article.markdown-body");
-    await expect(article).toBeVisible();
 
-    // Four-column layout at 1100px: the article is the only track allowed to
-    // shrink, so without a floor it collapses to ~132px. The issue decides that
-    // a 132px reading column is a defect; the accepted cost past the 464px
-    // floor is that the grid overflows horizontally instead.
-    await page.setViewportSize({ width: 1100, height: 800 });
-    const desktopBox = await article.boundingBox();
-    expect(desktopBox).not.toBeNull();
-    expect(desktopBox!.width).toBeGreaterThanOrEqual(464);
+    const widths = [
+      1920, 1749, 1748, 1747, 1600, 1489, 1488, 1487, 1441, 1440, 1439, 1300, 1189, 1188, 1187,
+      1000, 828, 780,
+    ];
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 900 });
+      const box = await article.boundingBox();
+      expect(box, `width ${width}`).not.toBeNull();
+      expect(box!.width, `width ${width}`).toBeGreaterThanOrEqual(778);
 
-    await expect(page.locator("nav.nav")).toBeVisible();
-    await expect(page.locator("nav.outline")).toBeVisible();
-    await expect(page.locator("#scholia-comments")).toBeVisible();
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(scrollWidth, `width ${width}`).toBeLessThanOrEqual(width);
+    }
+  });
 
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(scrollWidth).toBeGreaterThan(1100);
+  test("the Rail is never clipped mid-word", async ({ page }) => {
+    await page.goto(`${preview.url}/layout.md`);
+    for (const width of [1800, 1600, 1300]) {
+      await page.setViewportSize({ width, height: 900 });
+      const box = await page.locator(".comment-rail").boundingBox();
+      expect(box, `width ${width}`).not.toBeNull();
+      expect(box!.width, `width ${width}`).toBeGreaterThanOrEqual(318);
+    }
+  });
 
-    // Single-column mobile layout: the floor only applies to the multi-column
-    // grid rules, so a 480px viewport still gives the article ~432px and no
-    // forced horizontal scroll.
-    await page.setViewportSize({ width: 480, height: 800 });
-    const mobileBox = await article.boundingBox();
-    expect(mobileBox).not.toBeNull();
-    expect(mobileBox!.width).toBeGreaterThanOrEqual(320);
+  test("a pane taken away by a width change comes back on its own, without the reader re-asking", async ({
+    page,
+  }) => {
+    await page.goto(`${preview.url}/layout.md`);
+    const outline = page.locator("nav.outline");
 
-    const mobileScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(mobileScrollWidth).toBeLessThanOrEqual(480);
+    await page.setViewportSize({ width: 1800, height: 900 });
+    await expect(outline).toBeVisible();
+
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await expect(outline).toBeHidden();
+
+    await page.setViewportSize({ width: 1800, height: 900 });
+    await expect(outline).toBeVisible();
   });
 });
 
@@ -291,4 +363,32 @@ test("live reload picks up a new Page in the Nav", async ({ page }) => {
   await preview.write("guide/appendix.md", "# Appendix\n\nAdded while the preview was running.\n");
 
   await expect(nav.getByRole("link", { name: "Appendix" })).toBeVisible();
+});
+
+// `body.has-conversations` (ADR-0039, issue #158) is exactly the class the
+// swap loop's named-element replacement doesn't reach — `<body>` is never one
+// of the elements it swaps — so this is the one class main.ts syncs by hand.
+// An agent commenting on a Page nobody else has touched (the Sidecar's own
+// files live under the watched tree, so this is a live-reload notification
+// like any other) has to see the Rail's column arrive with no manual reload.
+test("an agent's first Comment on an open, un-commented Page brings the Rail's column in over live reload", async ({
+  page,
+  request,
+}) => {
+  await page.goto(`${preview.url}/zero-to-one.md`);
+  await expect(page.locator("#scholia-comments")).toBeVisible();
+  expect(await page.evaluate(() => document.body.classList.contains("has-conversations"))).toBe(
+    false,
+  );
+
+  const res = await request.post(`${preview.url}/__conversations`, {
+    headers: { "Sec-Fetch-Site": "same-origin" },
+    data: { page: "zero-to-one.md", body: "First word on this Page." },
+  });
+  expect(res.status()).toBe(200);
+
+  await expect(page.locator(".thread-card")).toContainText("First word on this Page.");
+  expect(await page.evaluate(() => document.body.classList.contains("has-conversations"))).toBe(
+    true,
+  );
 });
