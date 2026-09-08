@@ -59,6 +59,9 @@ function conversationAnchoredTo(quote: {
   };
 }
 
+// Windows CI is slow enough on the real render pipeline (41 revisions, each
+// through unified/Shiki) to blow the shared 20s testTimeout even though
+// nothing is hung — give this one room the rest of the suite doesn't need.
 test("Local Preview reaches the corpus's verdict on every edit it labels", async ({ tmp }) => {
   const revisions = await loadRevisions();
   const cases = readCases();
@@ -103,4 +106,4 @@ test("Local Preview reaches the corpus's verdict on every edit it labels", async
   // locatable — fails loudly instead of passing with nothing scored.
   expect(scored).toBe(41);
   expect(disagreements).toEqual([]);
-});
+}, 60000);

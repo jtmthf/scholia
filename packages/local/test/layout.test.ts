@@ -13,9 +13,12 @@ import { canonicalHtml } from "./helpers/canonical-html.js";
 // They were captured from the string-template `layout.ts` this file's subject
 // replaced (issue #25), *before* the Preact SSR rewrite, and survived it byte
 // for byte. Issue #28 is the first change that moved them on purpose: the comment
-// rail is server-rendered chrome now (ADR-0018, ADR-0030), so it is in the
+// Rail is server-rendered chrome now (ADR-0018, ADR-0030), so it is in the
 // goldens, and the article carries the Page path and content hash a Comment binds
-// to. Everything above the article is unchanged from that original capture.
+// to. Everything above the article is unchanged from that original capture —
+// except `<body>`'s class, which ADR-0039 moved on purpose: `has-comments` said
+// "a rail is mounted", `has-conversations` says "the rail has earned a column",
+// and the un-commented HTML Page golden loses the class while keeping the Rail.
 
 function navNode(partial: Partial<NavNode> & Pick<NavNode, "type" | "title" | "urlPath">): NavNode {
   return { fsPath: `/tmp${partial.urlPath}`, order: 0, ...partial };
@@ -272,11 +275,37 @@ test("the article carries the Page path and the content hash it was rendered fro
   expect(html).toContain(`data-content-hash="${"0".repeat(64)}"`);
 });
 
-test("a page with nothing to comment on renders no rail and no comment data", () => {
+test("a page with nothing to comment on renders no Rail and no comment data", () => {
   const html = renderPage(MINIMAL);
   expect(html).not.toContain(`id="scholia-comments"`);
   expect(html).not.toContain(`id="scholia-comments-data"`);
-  expect(html).not.toContain("has-comments");
+  expect(html).not.toContain("has-conversations");
+});
+
+// ADR-0039 splits two questions that used to be one. The Rail *element* is
+// unconditional on any Page that can be commented on: it is the page's only
+// hydration boundary (ADR-0031) and the element live reload writes an agent's
+// first Comment into, and `replaceWith` cannot make an element appear. What an
+// un-commented Page does not pay for is the grid *track*, which is keyed on
+// `has-conversations` — so the class is absent here and the Rail is not.
+test("a Page with no Conversations still mounts the Rail, and claims no column", () => {
+  const html = renderPage(HTML_PAGE);
+  expect(html).toContain(`id="scholia-comments"`);
+  expect(html).toContain(`id="scholia-comments-data"`);
+  expect(html).not.toContain("has-conversations");
+});
+
+// Costing nothing is not the same as saying nothing: the empty Rail still tells
+// a reader that commenting exists, and still carries the no-JS Composer
+// (ADR-0034) that is the only way to write the first Comment without JavaScript.
+test("the empty Rail still says commenting exists", () => {
+  const html = renderPage(HTML_PAGE);
+  expect(html).toContain("No Conversations yet");
+  expect(html).toContain("Comment on this page…");
+});
+
+test("a Page with Conversations claims the Rail's column", () => {
+  expect(renderPage(FULL)).toContain(`class="has-nav has-conversations"`);
 });
 
 // The client hydrates the rail from this rather than fetching it back, so it has

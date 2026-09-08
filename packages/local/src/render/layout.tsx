@@ -330,7 +330,17 @@ function Document(opts: LayoutOptions) {
     <html lang="en">
       <head dangerouslySetInnerHTML={{ __html: head }} />
       <body
-        class={[opts.showNav ? "has-nav" : "", opts.comments ? "has-comments" : ""]
+        class={[
+          opts.showNav ? "has-nav" : "",
+          // The Rail's grid track, not the Rail itself (ADR-0039). The element
+          // below is unconditional on any Page that can be commented on —
+          // `comments` is null only for a render error — because it is the
+          // page's only hydration boundary (ADR-0031) and the element live
+          // reload writes an agent's first Comment into, and `replaceWith`
+          // cannot make an element appear. Only the column is conditional, so
+          // an un-commented Page gives the words back their width.
+          opts.comments && opts.comments.conversations.length > 0 ? "has-conversations" : "",
+        ]
           .filter(Boolean)
           .join(" ")}
       >

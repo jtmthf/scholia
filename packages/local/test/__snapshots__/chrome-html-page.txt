@@ -13,7 +13,7 @@ html lang="en"
     style
       "body { --page-owns-this: 1; }"
     link href="./page.css" rel="stylesheet"
-  body class="has-comments"
+  body class=""
     header class="topbar"
       div class="topbar-inner"
         span class="brand"
