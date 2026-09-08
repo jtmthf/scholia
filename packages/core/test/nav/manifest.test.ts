@@ -5,6 +5,7 @@ import {
   compareEntryPaths,
   type ManifestEntry,
 } from "../../src/nav/manifest.js";
+import { flattenNav } from "../../src/nav/flatten.js";
 import type { NavNode } from "../../src/types.js";
 
 function md(path: string, title?: string): ManifestEntry {
@@ -54,6 +55,26 @@ describe("buildNav", () => {
     expect(byPath["README.md"]).toBe("README.md");
     expect(byPath["AGENTS.md"]).toBe("AGENTS.md");
     expect(byPath["guide.md"]).toBeUndefined();
+  });
+});
+
+describe("flattenNav", () => {
+  test("returns Pages in Nav's depth-first order across directory boundaries", () => {
+    const tree = buildNav([
+      md("README.md", "Home"),
+      md("docs/adr/0001-access.md", "Access"),
+      md("docs/adr/0002-anchors.md", "Anchors"),
+      md("docs/agents/domain.md", "Domain"),
+      md("docs/agents/triage.md", "Triage"),
+    ]);
+
+    expect(flattenNav(tree).map((page) => page.title)).toEqual([
+      "Home",
+      "Access",
+      "Anchors",
+      "Domain",
+      "Triage",
+    ]);
   });
 });
 

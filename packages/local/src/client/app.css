@@ -692,6 +692,40 @@ body.has-conversations.has-nav .layout {
   margin: 0 0.5em 0 -1.4em;
 }
 
+/* ---- Page navigation ----
+ * Flattened Nav is the Site's reading sequence (CONTEXT "Nav"). These links
+ * sit at the end of that sequence's current Page, before the Colophon. */
+.page-navigation {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: var(--layout-content-width);
+  margin: var(--space-7) auto 0;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-rule);
+}
+.page-navigation-link {
+  display: grid;
+  gap: 2px;
+  max-width: 48%;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.page-navigation-link--next {
+  margin-left: auto;
+  text-align: right;
+}
+.page-navigation-link:hover .page-navigation-title {
+  text-decoration: underline;
+}
+.page-navigation-direction {
+  color: var(--color-muted);
+  font-size: var(--font-size-xs);
+}
+.page-navigation-title {
+  font-weight: 600;
+}
+
 /* ---- Colophon ----
  * CONTEXT "Colophon": a provenance record, not part of the reading path — so
  * it sits after the article, quiet and small, and never competes with it. */
