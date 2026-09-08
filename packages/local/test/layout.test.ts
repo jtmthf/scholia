@@ -276,7 +276,18 @@ test("a page with nothing to comment on renders no rail and no comment data", ()
   const html = renderPage(MINIMAL);
   expect(html).not.toContain(`id="scholia-comments"`);
   expect(html).not.toContain(`id="scholia-comments-data"`);
-  expect(html).not.toContain("has-comments");
+  expect(html).not.toContain("has-conversations");
+});
+
+// The class that keys the Rail's grid track (ADR-0039, issue #158) is not
+// the same question as whether the Page has anything to comment on at all:
+// `comments` is non-null whenever the Page rendered, `conversations` is
+// empty until someone says something. `#scholia-comments` stays mounted
+// either way — it is live reload's target for an agent's first Comment.
+test("an un-commented Page mounts the rail but carries no has-conversations class", () => {
+  const html = renderPage({ ...FULL, comments: { ...COMMENTS, conversations: [] } });
+  expect(html).toContain(`id="scholia-comments"`);
+  expect(html).not.toContain("has-conversations");
 });
 
 // The client hydrates the rail from this rather than fetching it back, so it has

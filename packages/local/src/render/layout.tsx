@@ -330,7 +330,15 @@ function Document(opts: LayoutOptions) {
     <html lang="en">
       <head dangerouslySetInnerHTML={{ __html: head }} />
       <body
-        class={[opts.showNav ? "has-nav" : "", opts.comments ? "has-comments" : ""]
+        class={[
+          opts.showNav ? "has-nav" : "",
+          // Not `opts.comments`: that is non-null whenever the Page rendered
+          // at all, so it would put every Page one Conversation away from an
+          // unpaid-for column swap. The grid track is keyed on whether there
+          // is anything to show in it; `#scholia-comments` itself is mounted
+          // unconditionally below, comments or not (ADR-0039, issue #158).
+          opts.comments && opts.comments.conversations.length > 0 ? "has-conversations" : "",
+        ]
           .filter(Boolean)
           .join(" ")}
       >

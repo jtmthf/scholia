@@ -13,6 +13,12 @@
      versioning.css dresses Outdated affordances of its own that @scholia/ui
      knows nothing about — those must survive the block being deleted. */
   --outdated-fg: #9a6700;
+  /* @scholia/ui no longer declares this itself (ADR-0039) — every consumer
+     supplies it. @scholia/theme's copy is 320px; restated here rather than
+     imported for the same reason the palette contract below is restated
+     rather than imported (this viewer has no @scholia/theme dependency yet —
+     issue #162's neighbourhood). */
+  --rail-width: 320px;
 
   /* @scholia/ui's palette contract (ADR-0041), answered in the viewer's own
      Primer-ish terms. The comment layer defaults to @scholia/theme's editorial

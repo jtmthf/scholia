@@ -646,7 +646,10 @@ test("an HTML Page renders in the chrome and takes an anchored comment", async (
   // Inside the chrome, not served as its own document.
   expect(html).toContain("<title>Hand Written</title>");
   expect(html).toContain(`class="markdown-body"`);
-  expect(html).toContain("has-comments");
+  // Not `has-conversations`: nobody has said anything about this Page yet, so
+  // the class that keys the Rail's grid track is deliberately absent — the
+  // element (`#scholia-comments`) is what stays mounted unconditionally.
+  expect(html).toContain(`id="scholia-comments"`);
   // Its own stylesheet came along, and its content is stamped for anchoring.
   expect(html).toContain("b { color: red }");
   expect(html).toMatch(/<p data-sm="\d+">The anchor is the moat\.<\/p>/);
