@@ -147,7 +147,7 @@ test.describe("server-rendered chrome", () => {
 test.describe("the article column's floor (issue #112)", () => {
   // The four-column grid only appears when the Page has both Nav (always) and
   // the comment rail (only when a Conversation exists). Seed a page-level
-  // Comment so layout.md renders `body.has-nav.has-comments`.
+  // Comment so layout.md renders `body.has-nav.has-conversations`.
   test.beforeAll(async ({ request }) => {
     const res = await request.post(`${preview.url}/__conversations`, {
       headers: { "Sec-Fetch-Site": "same-origin" },

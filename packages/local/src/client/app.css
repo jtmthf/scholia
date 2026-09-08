@@ -26,7 +26,7 @@
 
   /* @scholia/ui's palette contract is answered by @scholia/theme itself now
      (ADR-0041): the comment layer defaults every colour to a token from the
-     import above, so Local Preview supplies nothing and the rail follows the
+     import above, so Local Preview supplies nothing and the Rail follows the
      scheme toggle for free. */
 }
 
@@ -217,7 +217,7 @@ a:hover {
   margin: 0 auto;
   padding: 0 var(--space-5);
 }
-/* The article carries a floor (issue #112): Nav, Outline and the rail keep
+/* The article carries a floor (issue #112): Nav, Outline and the Rail keep
    their fixed widths, so below it the grid overflows and the page scrolls
    horizontally rather than crush the reading column to nothing. The proper
    intermediate collapse is #61's. */
@@ -227,29 +227,63 @@ body.has-nav .layout {
     );
   gap: var(--layout-gap);
 }
-/* The comment rail is another column, and the sheet gets more room to hold it —
-   a Conversation has to sit beside the passage it is about, not below it. */
-body.has-comments .layout {
-  max-width: 1760px;
-  grid-template-columns: minmax(var(--layout-content-min-width), 1fr) var(--rail-width);
-  gap: var(--layout-gap);
+/* The Rail element is always mounted; only its track is conditional (ADR-0039).
+ * So the two blocks below answer two different questions, and the first — the
+ * one *without* `has-conversations` — is the un-commented Page, which pays
+ * nothing for a Rail it still has.
+ *
+ * With no Conversations the Rail leaves the columns and stacks under the article
+ * in the article's own column: the words get their width back, and the empty
+ * state still says commenting exists and still carries the Composer a reader
+ * with JavaScript off writes the first Comment in (ADR-0034).
+ *
+ * That second row is the whole difficulty, and `auto 1fr` is what resolves it.
+ * Nav and the Outline are page-height panes — a Nav listing every document is
+ * routinely taller than a short Page — so left in row 1 they would set its
+ * height and park the Rail a screen below the Colophon with nothing in between.
+ * Spanning them across both rows is also what they mean (they belong to the
+ * layout, not to a row of it), but spanning alone only halves the problem:
+ * grid hands a spanning item's excess to every intrinsic track it crosses. A
+ * `1fr` second row takes it instead — an item crossing a flexible track sets
+ * the flex fraction rather than growing the intrinsic tracks — so row 1 stays
+ * exactly as tall as the Page, and a long Nav lengthens only the room beneath
+ * the Rail, which `align-self: start` keeps the Rail out of.
+ *
+ * The rows have to be declared for another reason too: `-1` is the last line of
+ * the *explicit* grid, and with none declared it resolves back to line 1 and
+ * spans nothing. And the panes' columns have to be stated to span at all,
+ * because grid places row-definite items before auto-placed ones — the Outline
+ * would otherwise claim column 2 and evict the article.
+ *
+ * All of it is scoped to `has-nav`, because Nav is the only pane that spans and
+ * so the only one whose height needs somewhere to go. That leaves one page this
+ * says slightly more than it means: a render error mounts no Rail at all
+ * (`comments` is null), and there the second track is empty and costs a row gap
+ * below the article. A Page whose render failed is welcome to it. */
+body.has-nav:not(.has-conversations) .layout {
+  grid-template-rows: auto 1fr;
 }
-body.has-comments.has-nav .layout {
-  grid-template-columns:
-    var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--layout-outline-width)
-    var(--rail-width);
+body.has-nav:not(.has-conversations) .nav-pane {
+  grid-column: 1;
+  grid-row: 1 / -1;
 }
-/* The rail's own box is the scroll container (not the document, which the sticky
-   position keeps it detached from), so a stack of Conversations taller than the
-   viewport stays reachable — the inner `.comment-rail` no longer needs its own
-   overflow, or every card past the fold would sit inside two nested scrollbars. */
+body.has-nav:not(.has-conversations) .outline {
+  grid-column: 3;
+  grid-row: 1 / -1;
+}
+/* Without Nav there are no side columns to span into: the Page is one column,
+   so the Outline simply goes last rather than standing a viewport tall between
+   the words and the Conversations. */
+body:not(.has-nav):not(.has-conversations) .outline {
+  grid-row: 3;
+}
 #scholia-comments {
-  position: sticky;
-  top: var(--topbar-height);
+  grid-column: 1;
   align-self: start;
-  max-height: calc(100vh - var(--topbar-height));
-  overflow-y: auto;
   min-width: 0;
+}
+body.has-nav #scholia-comments {
+  grid-column: 2;
 }
 #scholia-comments .comment-rail {
   width: 100%;
@@ -257,14 +291,48 @@ body.has-comments.has-nav .layout {
   overflow-y: visible;
   flex: 1 1 auto;
 }
+/* Stacked, so the rule that separates the Rail from the article is above it
+   rather than down its side. Only the un-commented state says this: in a column
+   the Rail keeps the border `@scholia/ui` gives it, whose colour a consumer is
+   allowed to set (`--scholia-comment-border`). */
+body:not(.has-conversations) #scholia-comments .comment-rail {
+  border-left: none;
+  border-top: 1px solid var(--color-rule);
+}
+
+/* With Conversations the Rail is another column, and the sheet gets more room to
+   hold it — a Conversation has to sit beside the passage it is about, not below
+   it. */
+body.has-conversations .layout {
+  max-width: 1760px;
+  grid-template-columns: minmax(var(--layout-content-min-width), 1fr) var(--rail-width);
+  gap: var(--layout-gap);
+}
+body.has-conversations.has-nav .layout {
+  grid-template-columns:
+    var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(--layout-outline-width)
+    var(--rail-width);
+}
+/* The Rail's own box is the scroll container (not the document, which the sticky
+   position keeps it detached from), so a stack of Conversations taller than the
+   viewport stays reachable — the inner `.comment-rail` no longer needs its own
+   overflow, or every card past the fold would sit inside two nested scrollbars. */
+body.has-conversations #scholia-comments {
+  grid-column: auto;
+  position: sticky;
+  top: var(--topbar-height);
+  align-self: start;
+  max-height: calc(100vh - var(--topbar-height));
+  overflow-y: auto;
+}
 
 @media (max-width: 1000px) {
   body.has-nav .layout {
     grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr);
   }
-  /* The Outline goes before the rail does: the rail is the reason the reader is
+  /* The Outline goes before the Rail does: the Rail is the reason the reader is
      here, the Outline is a convenience. */
-  body.has-comments.has-nav .layout {
+  body.has-conversations.has-nav .layout {
     grid-template-columns: var(--layout-nav-width) minmax(var(--layout-content-min-width), 1fr) var(
         --rail-width
       );
@@ -277,14 +345,16 @@ body.has-comments.has-nav .layout {
   body.has-nav .layout {
     grid-template-columns: 1fr;
   }
-  /* Too narrow for a column beside the text: the rail stacks under the article
+  /* Too narrow for a column beside the text: the Rail stacks under the article
      and scrolls with it, rather than being hidden — Conversations are the point
      of the page, so they are never the thing that disappears. */
-  body.has-comments .layout,
-  body.has-comments.has-nav .layout {
+  body.has-conversations .layout,
+  body.has-conversations.has-nav .layout {
     grid-template-columns: 1fr;
   }
-  #scholia-comments {
+  body.has-nav #scholia-comments,
+  body.has-conversations #scholia-comments {
+    grid-column: 1;
     position: static;
     max-height: none;
     overflow-y: visible;
@@ -705,7 +775,7 @@ html.dark .markdown-alert-caution {
      covers the way out of the Page it is about.
 
      The article's centre is not the window's — the grid puts the Nav to its left
-     and the Outline and the rail to its right, so it sits off-centre by half the
+     and the Outline and the Rail to its right, so it sits off-centre by half the
      difference between the two sides. Each side declares the track it adds
      below, and the rules that drop a track at a breakpoint zero it again, so
      this stays true through every column arrangement `.layout` has. */
@@ -753,11 +823,11 @@ body.has-nav .content-changed-notice {
   --notice-nav: calc(var(--layout-nav-width) + var(--layout-gap));
   --notice-outline: calc(var(--layout-outline-width) + var(--layout-gap));
 }
-body.has-comments .content-changed-notice {
+body.has-conversations .content-changed-notice {
   --notice-rail: calc(var(--rail-width) + var(--layout-gap));
 }
 /* Mirrors `.layout`'s own breakpoints: the Outline column goes at 1000px, and
-   below 720px every column does — the Nav becomes an overlay drawer and the rail
+   below 720px every column does — the Nav becomes an overlay drawer and the Rail
    stacks under the article. */
 @media (max-width: 1000px) {
   body.has-nav .content-changed-notice {
