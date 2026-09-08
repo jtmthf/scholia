@@ -240,6 +240,17 @@ async function liveReloadSwap(): Promise<void> {
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
+    // The swap loop below replaces named elements only — it never touches
+    // `<body>` itself, so a class that lives there goes stale unless synced
+    // explicitly. `has-conversations` (ADR-0039, issue #158) is exactly the
+    // case that bites: an agent's first Comment on an open, un-commented Page
+    // changes this from false to true without anything else in the DOM
+    // saying so.
+    document.body.classList.toggle(
+      "has-conversations",
+      doc.body.classList.contains("has-conversations"),
+    );
+
     // `#scholia-comments` is deliberately not in this list: it is Preact's DOM,
     // and replacing it wholesale would tear the mounted layer out from under
     // itself. Its *data* is swapped instead, and `mountComments` re-renders the
@@ -256,6 +267,16 @@ async function liveReloadSwap(): Promise<void> {
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
     }
+
+    // Unlike the other swapped chrome, a Page navigation element can appear
+    // or disappear when a Nav change turns a single-Page Site into a
+    // multi-Page Site (or back). Keep it immediately after the article, where
+    // the server render puts it and before the Colophon.
+    const freshNavigation = doc.querySelector(".page-navigation");
+    const currentNavigation = document.querySelector(".page-navigation");
+    if (freshNavigation && currentNavigation) currentNavigation.replaceWith(freshNavigation);
+    else if (freshNavigation && current) current.insertAdjacentElement("afterend", freshNavigation);
+    else currentNavigation?.remove();
 
     // `<body>`'s classes are not in the swap list above — that list replaces
     // named elements, and `<body>` is not one of them — so the Rail's grid track

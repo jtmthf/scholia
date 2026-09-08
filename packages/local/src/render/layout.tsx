@@ -1,6 +1,6 @@
 import type { VNode } from "preact";
 import { render } from "preact-render-to-string";
-import type { Heading, NavNode, Provenance } from "@scholia/core";
+import { flattenNav, type Heading, type NavNode, type Provenance } from "@scholia/core";
 import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
 import { CHATS_NOTE, EMPTY_NOTE, OUTDATED_NOTE, PROMOTE_NOTE } from "./comment-copy.js";
 import { buildFormAction } from "./form-action.js";
@@ -212,6 +212,36 @@ function Colophon({ info }: { info: ColophonInfo | null }) {
   );
 }
 
+// CONTEXT "Nav": its flattened, depth-first order is the Site's reading
+// sequence. Keeping the flattening in @scholia/core means these links cannot
+// quietly acquire a second order of their own.
+function PageNavigation({ nav, currentPath }: Pick<LayoutOptions, "nav" | "currentPath">) {
+  const pages = flattenNav(nav);
+  const current = pages.findIndex((page) => page.urlPath === currentPath);
+  if (current === -1) return null;
+
+  const previous = pages[current - 1];
+  const next = pages[current + 1];
+  if (!previous && !next) return null;
+
+  return (
+    <nav class="page-navigation" aria-label="Page navigation">
+      {previous && (
+        <a class="page-navigation-link page-navigation-link--previous" href={previous.urlPath}>
+          <span class="page-navigation-direction">Previous</span>
+          <span class="page-navigation-title">{previous.title}</span>
+        </a>
+      )}
+      {next && (
+        <a class="page-navigation-link page-navigation-link--next" href={next.urlPath}>
+          <span class="page-navigation-direction">Next</span>
+          <span class="page-navigation-title">{next.title}</span>
+        </a>
+      )}
+    </nav>
+  );
+}
+
 // The comment layer's server render (ADR-0030's @scholia/ui, ADR-0011's SSR).
 //
 // The rail is chrome like the Nav and the Outline: it is in the first response,
@@ -343,13 +373,11 @@ function Document(opts: LayoutOptions) {
       <body
         class={[
           opts.showNav ? "has-nav" : "",
-          // The Rail's grid track, not the Rail itself (ADR-0039). The element
-          // below is unconditional on any Page that can be commented on —
-          // `comments` is null only for a render error — because it is the
-          // page's only hydration boundary (ADR-0031) and the element live
-          // reload writes an agent's first Comment into, and `replaceWith`
-          // cannot make an element appear. Only the column is conditional, so
-          // an un-commented Page gives the words back their width.
+          // Not `opts.comments`: that is non-null whenever the Page rendered
+          // at all, so it would put every Page one Conversation away from an
+          // unpaid-for column swap. The grid track is keyed on whether there
+          // is anything to show in it; `#scholia-comments` itself is mounted
+          // unconditionally below, comments or not (ADR-0039, issue #158).
           opts.comments && opts.comments.conversations.length > 0 ? "has-conversations" : "",
         ]
           .filter(Boolean)
@@ -439,6 +467,7 @@ function Document(opts: LayoutOptions) {
               data-content-hash={opts.comments?.contentHash}
               dangerouslySetInnerHTML={{ __html: opts.contentHtml }}
             />
+            <PageNavigation nav={opts.nav} currentPath={opts.currentPath} />
             <Colophon info={opts.colophon} />
           </main>
           <Outline headings={opts.headings} />
