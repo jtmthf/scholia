@@ -382,7 +382,10 @@ test("live reload swaps content in place without navigating", async ({ page }) =
 // Adding a Page is a structural change: the server rescans and the Nav pane —
 // not just the article — has to come back updated.
 test("live reload picks up a new Page in the Nav", async ({ page }) => {
-  await page.goto(`${preview.url}/`);
+  // Stay inside the directory the new Page lands in: a directory row only
+  // renders open for a current-Page ancestor, so watching from outside it
+  // would hide the new link behind a still-collapsed `<details>`.
+  await page.goto(`${preview.url}/guide/intro.md`);
   const nav = page.locator("nav.nav");
   await expect(nav.getByRole("link", { name: "Appendix" })).toHaveCount(0);
 
