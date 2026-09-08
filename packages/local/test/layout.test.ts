@@ -308,6 +308,57 @@ test("a Page with Conversations claims the Rail's column", () => {
   expect(renderPage(FULL)).toContain(`class="has-nav has-conversations"`);
 });
 
+test("Previous and Next follow flattened Nav order through directory boundaries", () => {
+  const nav: NavNode[] = [
+    navNode({ type: "file", title: "Home", urlPath: "/README.md" }),
+    navNode({
+      type: "dir",
+      title: "Docs",
+      urlPath: "/docs",
+      children: [
+        navNode({
+          type: "dir",
+          title: "ADR",
+          urlPath: "/docs/adr",
+          children: [
+            navNode({ type: "file", title: "Access", urlPath: "/docs/adr/0001-access.md" }),
+            navNode({ type: "file", title: "Anchors", urlPath: "/docs/adr/0002-anchors.md" }),
+          ],
+        }),
+        navNode({
+          type: "dir",
+          title: "Agents",
+          urlPath: "/docs/agents",
+          children: [
+            navNode({ type: "file", title: "Domain docs", urlPath: "/docs/agents/domain.md" }),
+          ],
+        }),
+      ],
+    }),
+  ];
+  const page = (currentPath: string) =>
+    renderPage({ ...MINIMAL, nav, currentPath, showNav: true, colophon: FULL.colophon });
+
+  const middle = page("/docs/adr/0002-anchors.md");
+  expect(middle).toContain('href="/docs/adr/0001-access.md"');
+  expect(middle).toContain(">Access<");
+  expect(middle).toContain('href="/docs/agents/domain.md"');
+  expect(middle).toContain(">Domain docs<");
+  expect(middle.indexOf("page-navigation")).toBeLessThan(middle.indexOf("colophon"));
+
+  const first = page("/README.md");
+  expect(first).not.toContain("page-navigation-link--previous");
+  expect(first).toContain("page-navigation-link--next");
+
+  const last = page("/docs/agents/domain.md");
+  expect(last).toContain("page-navigation-link--previous");
+  expect(last).not.toContain("page-navigation-link--next");
+
+  expect(
+    renderPage({ ...MINIMAL, nav: [nav[0]!], currentPath: "/README.md", showNav: true }),
+  ).not.toContain("page-navigation");
+});
+
 // The client hydrates the rail from this rather than fetching it back, so it has
 // to be the same values the server just rendered from — and JSON-escaped, so a
 // comment body can't end the script element early.

@@ -11,6 +11,7 @@ export { getHighlighter, SHIKI_THEMES, SHIKI_OPTIONS } from "./render/pipeline.j
 export { scanTree, type ScanResult } from "./nav/tree.js";
 // Hosted Nav + Entry Page from a stored manifest (pure — no filesystem).
 export { buildNav, pickEntryPath, type ManifestEntry } from "./nav/manifest.js";
+export { flattenNav, type NavPage } from "./nav/flatten.js";
 // Serve-time inter-Page link rewriting for hosted Markdown Pages.
 export { rewriteInterPageLinks, type RewriteLinkOptions } from "./ingest/links.js";
 

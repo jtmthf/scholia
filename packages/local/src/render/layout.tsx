@@ -1,6 +1,6 @@
 import type { VNode } from "preact";
 import { render } from "preact-render-to-string";
-import type { Heading, NavNode, Provenance } from "@scholia/core";
+import { flattenNav, type Heading, type NavNode, type Provenance } from "@scholia/core";
 import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
 import { CHATS_NOTE, EMPTY_NOTE, OUTDATED_NOTE, PROMOTE_NOTE } from "./comment-copy.js";
 import { buildFormAction } from "./form-action.js";
@@ -198,6 +198,36 @@ function Colophon({ info }: { info: ColophonInfo | null }) {
         <span class="colophon-sep">·</span>
       ))}
     </footer>
+  );
+}
+
+// CONTEXT "Nav": its flattened, depth-first order is the Site's reading
+// sequence. Keeping the flattening in @scholia/core means these links cannot
+// quietly acquire a second order of their own.
+function PageNavigation({ nav, currentPath }: Pick<LayoutOptions, "nav" | "currentPath">) {
+  const pages = flattenNav(nav);
+  const current = pages.findIndex((page) => page.urlPath === currentPath);
+  if (current === -1) return null;
+
+  const previous = pages[current - 1];
+  const next = pages[current + 1];
+  if (!previous && !next) return null;
+
+  return (
+    <nav class="page-navigation" aria-label="Page navigation">
+      {previous && (
+        <a class="page-navigation-link page-navigation-link--previous" href={previous.urlPath}>
+          <span class="page-navigation-direction">Previous</span>
+          <span class="page-navigation-title">{previous.title}</span>
+        </a>
+      )}
+      {next && (
+        <a class="page-navigation-link page-navigation-link--next" href={next.urlPath}>
+          <span class="page-navigation-direction">Next</span>
+          <span class="page-navigation-title">{next.title}</span>
+        </a>
+      )}
+    </nav>
   );
 }
 
@@ -428,6 +458,7 @@ function Document(opts: LayoutOptions) {
               data-content-hash={opts.comments?.contentHash}
               dangerouslySetInnerHTML={{ __html: opts.contentHtml }}
             />
+            <PageNavigation nav={opts.nav} currentPath={opts.currentPath} />
             <Colophon info={opts.colophon} />
           </main>
           <Outline headings={opts.headings} />

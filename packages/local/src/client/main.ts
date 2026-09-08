@@ -257,6 +257,16 @@ async function liveReloadSwap(): Promise<void> {
       if (next && prev) prev.replaceWith(next);
     }
 
+    // Unlike the other swapped chrome, a Page navigation element can appear
+    // or disappear when a Nav change turns a single-Page Site into a
+    // multi-Page Site (or back). Keep it immediately after the article, where
+    // the server render puts it and before the Colophon.
+    const freshNavigation = doc.querySelector(".page-navigation");
+    const currentNavigation = document.querySelector(".page-navigation");
+    if (freshNavigation && currentNavigation) currentNavigation.replaceWith(freshNavigation);
+    else if (freshNavigation && current) current.insertAdjacentElement("afterend", freshNavigation);
+    else currentNavigation?.remove();
+
     // `<body>`'s classes are not in the swap list above — that list replaces
     // named elements, and `<body>` is not one of them — so the Rail's grid track
     // has to be carried across by hand (ADR-0039). Without this the first
