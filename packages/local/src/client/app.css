@@ -417,14 +417,39 @@ body.has-conversations #scholia-comments {
   background: var(--color-accent);
   color: #fff;
 }
-.nav-dir-label {
-  display: block;
+.nav .nav-dir > summary {
+  cursor: pointer;
+  pointer-events: none;
+  padding: 8px 8px 2px;
+}
+.nav .nav-dir > summary::-webkit-details-marker {
+  display: none;
+}
+.nav .nav-disclosure {
+  display: inline-block;
+  margin-right: 4px;
+  pointer-events: auto;
+}
+.nav .nav-dir[open] > summary > .nav-disclosure {
+  transform: rotate(90deg);
+}
+.nav .nav-dir > summary > .nav-dir-link {
+  display: inline;
+  padding: 0;
+  pointer-events: auto;
   font-weight: 600;
   color: var(--color-muted);
-  padding: 8px 8px 2px;
   font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+.nav .nav-dir > summary > .nav-dir-link:hover {
+  background: none;
+  color: var(--color-ink);
+}
+.nav .nav-dir > summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 .nav-label {
   display: block;

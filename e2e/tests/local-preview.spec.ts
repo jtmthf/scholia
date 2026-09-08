@@ -43,6 +43,8 @@ const SEED = {
     "",
   ].join("\n"),
   "guide/advanced.md": "# Advanced\n\nAdvanced body text.\n",
+  "guide/deep/deeper.md": "# Deeper\n\nDeep body text.\n",
+  "reference/intro.md": "# Reference\n\nReference body text.\n",
   // Owned by the live-reload test, which rewrites it. It ships with a `##` so
   // the Outline is already on the page: live reload replaces the regions it
   // finds, and one that isn't rendered yet has nothing to replace.
@@ -86,7 +88,7 @@ test.describe("server-rendered chrome", () => {
     // Nav: the served root's tree, with the current Page marked active.
     const nav = page.locator("nav.nav");
     await expect(nav.getByRole("link", { name: "Home" })).toBeVisible();
-    await expect(nav.locator(".nav-dir-label")).toHaveText("Guide");
+    await expect(nav.locator(".nav-dir-link").filter({ hasText: "Guide" })).toHaveText("Guide");
     await expect(nav.locator("a.active .nav-label")).toHaveText("Intro");
 
     // Outline: h2/h3 only — the h4 is outside the window it shows.
@@ -121,12 +123,36 @@ test.describe("server-rendered chrome", () => {
     await expect(page.locator("#scholia-search-results")).toBeHidden();
   });
 
-  test("nav links navigate without JavaScript", async ({ page }) => {
+  test("directory labels navigate to their Entry Pages without JavaScript", async ({ page }) => {
     await page.goto(`${preview.url}/`);
-    await page.locator("nav.nav").getByRole("link", { name: "Advanced" }).click();
+    await page.locator("nav.nav").getByRole("link", { name: "Guide", exact: true }).click();
 
-    await expect(page).toHaveURL(`${preview.url}/guide/advanced.md`);
+    await expect(page).toHaveURL(`${preview.url}/guide`);
     await expect(page.locator("article.markdown-body")).toContainText("Advanced body text.");
+  });
+
+  test("directory rows disclose with the keyboard and open only current Page ancestors", async ({
+    page,
+  }) => {
+    const nav = page.locator("nav.nav");
+    const directory = (path: string) =>
+      nav.locator(`details.nav-dir:has(> summary > a.nav-dir-link[href="${path}"])`);
+
+    await page.goto(`${preview.url}/`);
+    const guide = directory("/guide");
+    await expect(guide).not.toHaveAttribute("open", "");
+
+    const guideSummary = guide.locator(":scope > summary");
+    await expect(guideSummary).toHaveAccessibleName("Toggle Guide");
+    await guideSummary.focus();
+    await page.keyboard.press("Space");
+    await expect(guide).toHaveAttribute("open", "");
+    await expect(guide.getByRole("link", { name: "Advanced" })).toBeVisible();
+
+    await page.goto(`${preview.url}/guide/deep/deeper.md`);
+    await expect(directory("/guide")).toHaveAttribute("open", "");
+    await expect(directory("/guide/deep")).toHaveAttribute("open", "");
+    await expect(directory("/reference")).not.toHaveAttribute("open", "");
   });
 
   // `/` resolves to the root's Entry Page (CONTEXT "Entry Page"), and the
