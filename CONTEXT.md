@@ -168,7 +168,7 @@ A link that embeds a token capability in the URL (Proof-style), used to onboard 
 _Avoid_: token link, write link
 
 **Agent Prompt**:
-The paste-ready instruction blob emitted by the Site's "copy agent prompt" button: the Agent URL + the verb set + a pointer to the Agent Docs. It is framed as the user's deliberate handoff to their own agent. The zero-install counterpart to the installed CLI/MCP path.
+The paste-ready instruction blob emitted by **Add Agent**, framed as the user's deliberate handoff to their own agent. Hosted it carries the Agent URL; locally it carries the Local Preview address, a pointer to its Agent Docs, and the instructions to establish Agent Presence and monitor Chats through the available CLI, MCP, or HTTP adapter.
 _Avoid_: copy prompt, onboarding prompt
 
 **Agent Docs**:
@@ -182,6 +182,10 @@ _Avoid_: user, account, commenter, reviewer
 **Identity**:
 The author of any Comment or Reaction: a **display name**, a **kind** (human | agent), and a **tier** (owner | viewer). Agents render with a distinct badge so human-vs-agent is never ambiguous, and are attributed on behalf of the human/tier they act for ("Owner's agent," "Reviewer Jane's agent"). Humans self-declare names (spoofable, per H1); agents are labeled in the Agent Prompt. One token can front several distinguishable agents via a per-call/per-session label, so identity is effectively `token + label`. Locally there are no tokens: the human's name comes from git config and an agent simply declares its own, which is the same spoofable-by-design posture applied to files you already own. An Identity also has a **source**: **native** (a Scholia Viewer/agent/Owner) or **github** (synthesized from an inbound GitHub comment author, rendered with their GitHub login/avatar). Comments Scholia mirrors outward to GitHub are authored by a single Scholia **bot** (GitHub App) with the real native Identity named in the body ("Reviewer Jane (via Scholia)").
 _Avoid_: author, persona
+
+**Agent Presence**:
+A transient, local-only signal that an agent has connected to a Local Preview, including its name, current status, and last-seen time. It makes the Agent Prompt handoff visible without creating a synthetic Conversation; it is never committed with the Sidecar and does not imply human presence or live collaborative editing.
+_Avoid_: participant, collaborator, online user
 
 **Actor tiers**:
 The three levels of capability on a Site: **Owner** (full write — see Owner/Agent URL) → **Viewer + Viewer's agent** (read + own Chats + create/post public Threads, no Owner powers) → **anonymous passerby** (read + public comment via the Share URL). Agents exist at the Owner tier (Owner-scoped Agent URL) and the Viewer tier (Viewer-scoped agent token). Locally the same tiers are held by **position** rather than by token: whoever holds the terminal (and their agents) is the Owner, because they hold the filesystem; Tunnel guests are Viewers.
@@ -197,6 +201,6 @@ _Avoid_: GitHub site, linked site, synced site
 The act and result of projecting a Public Thread's Comments onto native GitHub PR comments (outbound) and importing GitHub PR comments as Threads (inbound). A `github_comment_id ↔ comment_id` mapping dedupes the loop. GitHub's native "outdated" review comments and resolve state map onto Scholia's **Outdated** and **Resolved**.
 _Avoid_: sync (alone), replicate, copy
 
-_Future direction_: Scholia may grow from a read-and-comment tool (the source of truth stays in the repo; Scholia carries the feedback loop and edits are incorporated by the author or their agent) into a live WYSIWYG collaborative editor with presence and in-place edits (Proof-style). The architecture should not preclude this, but Scholia is read-and-comment only for now. Presence ("who's viewing now") is deferred to this future work.
+_Future direction_: Scholia may grow from a read-and-comment tool (the source of truth stays in the repo; Scholia carries the feedback loop and edits are incorporated by the author or their agent) into a live WYSIWYG collaborative editor with human presence and in-place edits (Proof-style). The architecture should not preclude this, but Scholia is read-and-comment only for now. Human presence ("who's viewing now") is deferred to this future work; the narrow local Agent Presence used to make an agent handoff visible is not that collaboration model.
 
 A second future direction is a `scholia build` command (inherited from mdttp's roadmap): an _export_ path that compiles a Site to static HTML for hosting elsewhere. It shares both its compile front-end and its output shape with `scholia share`, diverging only in destination — every Page Scholia emits is static HTML, because hosted Pages must stay non-executing and stably anchorable (ADR-0012) and an export gains nothing by being otherwise (ADR-0027). Build/export is now on the roadmap rather than hypothetical: it is how Scholia's own documentation ships (ADR-0023). An export has no backend, so Conversations on it are **read-only**: the Sidecar's Conversations are baked in at build time and can be read, followed and cited, but not added to.
