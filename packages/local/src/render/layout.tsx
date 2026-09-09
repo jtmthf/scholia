@@ -69,18 +69,29 @@ function NavSubtitle({ subtitle }: { subtitle: string | undefined }) {
   return subtitle ? <span class="nav-subtitle">{subtitle}</span> : null;
 }
 
+function isCurrentPageAncestor(dirPath: string, currentPath: string): boolean {
+  return currentPath.startsWith(`${dirPath}/`);
+}
+
 function Nav({ nodes, currentPath }: { nodes: NavNode[]; currentPath: string }) {
   if (nodes.length === 0) return null;
   return (
     <ul>
       {nodes.map((node) =>
         node.type === "dir" ? (
-          <li class="nav-dir" key={node.urlPath}>
-            <span class="nav-dir-label">
-              {node.title}
-              <NavSubtitle subtitle={node.subtitle} />
-            </span>
-            <Nav nodes={node.children ?? []} currentPath={currentPath} />
+          <li key={node.urlPath}>
+            <details class="nav-dir" open={isCurrentPageAncestor(node.urlPath, currentPath)}>
+              <summary aria-label={`Toggle ${node.title}`}>
+                <span class="nav-disclosure" aria-hidden="true">
+                  ▸
+                </span>
+                <a class="nav-dir-link" href={node.urlPath}>
+                  {node.title}
+                  <NavSubtitle subtitle={node.subtitle} />
+                </a>
+              </summary>
+              <Nav nodes={node.children ?? []} currentPath={currentPath} />
+            </details>
           </li>
         ) : (
           <li key={node.urlPath}>
