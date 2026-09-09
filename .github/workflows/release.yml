@@ -55,7 +55,7 @@ jobs:
           # `pnpm release` builds the CLI bundle (`packages/cli/dist`) and then
           # publishes — `dist` is gitignored, so the publish step needs the
           # build right before it.
-          version: pnpm release:version
+          version: pnpm changeset version
           publish: pnpm release
           commit: "chore(release): version packages"
           title: "chore(release): version packages"

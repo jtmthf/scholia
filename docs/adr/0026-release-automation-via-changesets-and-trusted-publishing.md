@@ -38,10 +38,10 @@ publishing (OIDC)** for the publish itself. No long-lived token in repo secrets.
 - The `release` workflow triggers on every push to `main` and uses
   `changesets/action@v1`:
   - pending changesets → the action opens/updates a `chore(release): version
-packages` PR that runs `pnpm release:version`, regenerates changelogs, bumps
-    package manifests, and commits. The wrapper adds a CLI patch changeset when
-    Changesets finds that one of the CLI's bundled private dependencies changed;
-    this bridges Changesets' intentional refusal to bump devDependents;
+packages` PR that runs `pnpm changeset version`, regenerates changelogs, bumps
+    package manifests, and commits. A `fixed` group ties the CLI to the private
+    packages it bundles, bridging Changesets' intentional refusal to bump
+    devDependents (ADR-0043);
   - no pending changesets → the action runs `pnpm release`, which builds
     `packages/cli/dist` and publishes to npm with `provenance`, then tags
     `v<version>` and creates a GitHub Release.

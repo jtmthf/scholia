@@ -40,9 +40,9 @@ without a changeset.
 The `release` workflow on `main` takes it from here:
 
 1. If pending changesets exist, `changesets/action` opens/updates a
-   `chore(release): version packages` PR that runs `pnpm release:version`,
-   regenerates changelogs, bumps affected private packages, and adds a CLI patch
-   when one of its bundled internal dependencies changed before committing.
+   `chore(release): version packages` PR that runs `pnpm changeset version`,
+   regenerates changelogs, and bumps affected private packages — including the
+   CLI, which shares a `fixed` version line with the packages it bundles.
 2. When that PR is merged with no further changesets pending, the action runs
    `pnpm release` — which builds the CLI bundle and publishes to npm via
    [trusted publishing](https://docs.npmjs.com/generating-provenance-statements#trusted-publishing-on-github-actions)

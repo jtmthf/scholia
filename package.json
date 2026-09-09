@@ -17,7 +17,6 @@
     "format:check": "oxfmt --check",
     "scholia": "turbo run scholia --",
     "changeset": "changeset",
-    "release:version": "node scripts/version-packages.mjs",
     "release": "pnpm build && pnpm changeset publish"
   },
   "devDependencies": {
