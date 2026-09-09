@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-26
 - Closes: issue #21
+- Amended by: ADR-0043
 
 ## Context
 
@@ -23,23 +24,24 @@ or unattended:
 Adopt **Changesets** for versioning and changelog generation, and **npm trusted
 publishing (OIDC)** for the publish itself. No long-lived token in repo secrets.
 
-- `.changeset/config.json` opts the private `@scholia/*` packages out of
-  versioning (`privatePackages: { version: false, tag: false }`). Only the
-  published `scholia` CLI is versioned; this matches the policy in
-  `CHANGELOG.md` ("Only the published package (`scholia`) is versioned") and
-  avoids bumping internal packages that ship only inside the CLI bundle.
+- `.changeset/config.json` versions private `@scholia/*` packages but does not
+  tag them (`privatePackages: { version: true, tag: false }`). Their versions
+  give Changesets the dependency edges it needs to propagate a bundled change
+  through private packages to the published `scholia` CLI; only publishable
+  packages are sent to npm.
 - `@changesets/changelog-github` generates the changelog from the commit/PR
   context, writing under `## [<version>](...)` headings. The existing `0.1.0`
   entry is preserved verbatim below the generated sections.
 - The `check` workflow grows a `changeset` job that runs
-  `pnpm changeset status --since=origin/main` on PRs. Because private packages
-  are opted out of versioning, only PRs touching the CLI need a changeset; a PR
-  confined to an internal package passes without one.
+  `pnpm changeset status --since=origin/main` on PRs. Runtime changes to private
+  packages need a changeset because they may alter the bundled CLI artifact.
 - The `release` workflow triggers on every push to `main` and uses
   `changesets/action@v1`:
   - pending changesets → the action opens/updates a `chore(release): version
-packages` PR that runs `changeset version`, regenerates `CHANGELOG.md`,
-    bumps `packages/cli/package.json`, and commits;
+packages` PR that runs `pnpm release:version`, regenerates changelogs, bumps
+    package manifests, and commits. The wrapper adds a CLI patch changeset when
+    Changesets finds that one of the CLI's bundled private dependencies changed;
+    this bridges Changesets' intentional refusal to bump devDependents;
   - no pending changesets → the action runs `pnpm release`, which builds
     `packages/cli/dist` and publishes to npm with `provenance`, then tags
     `v<version>` and creates a GitHub Release.
@@ -66,6 +68,10 @@ end-to-end verification, not the automation code.
 - **One release PR per cycle.** The `chore(release): version packages` PR is
   the merge gate for a release — squash-merging it is what publishes, which fits
   the existing linear-history convention in `CONTRIBUTING.md`.
+- **Private versions are dependency bookkeeping.** They are committed and get
+  changelogs, but remain untagged and unpublished. A private package bump can
+  cascade through `workspace:*` dependencies until the CLI receives the patch
+  bump users need to distinguish its changed artifact.
 - **Two OS-matrix `check` legs stay unchanged.** The release job is its own
   ubuntu-latest leg, so the 2-OS matrix in `check` is untouched.
 - **`dist` is rebuilt in CI.** `dist/` is gitignored (`.gitignore`), so the

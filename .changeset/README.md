@@ -12,12 +12,12 @@ is the escape hatch for changes that genuinely don't affect the release.
 ## Adding one
 
 `pnpm changeset` is interactive — **agents should write the file directly
-instead**. A changeset is one Markdown file under `.changeset/` with this exact
-shape:
+instead**. A changeset is one Markdown file under `.changeset/` naming the
+package whose runtime behavior changed:
 
 ```md
 ---
-"scholia": patch
+"@scholia/ui": patch
 ---
 
 One-line summary in the present tense. Markdown is allowed below the blank line;
@@ -26,10 +26,12 @@ the summary becomes the CHANGELOG entry.
 
 The version bump is `patch` (bug fix), `minor` (feature), or `major` (breaking).
 The filename is arbitrary (kebab-case, e.g. `.changeset/fix-port-cli-flag.md`);
-only one changeset per change.
+only one changeset per change. Name `scholia` when CLI code itself changed; for
+an internal change, name its `@scholia/*` package and let the release plan
+propagate the bump to packages that bundle it.
 
-Humans can run `pnpm changeset` and pick `scholia` → `patch` / `minor` / `major`
-interactively. Either way, the CI `changeset` job runs
+Humans can run `pnpm changeset`, pick the affected package, then choose `patch`
+/ `minor` / `major` interactively. Either way, the CI `changeset` job runs
 `pnpm changeset status --since=origin/main` and fails a PR that has code changes
 without a changeset.
 
@@ -38,8 +40,9 @@ without a changeset.
 The `release` workflow on `main` takes it from here:
 
 1. If pending changesets exist, `changesets/action` opens/updates a
-   `chore(release): version packages` PR that runs `changeset version`,
-   regenerates `CHANGELOG.md`, bumps `packages/cli/package.json`, and commits.
+   `chore(release): version packages` PR that runs `pnpm release:version`,
+   regenerates changelogs, bumps affected private packages, and adds a CLI patch
+   when one of its bundled internal dependencies changed before committing.
 2. When that PR is merged with no further changesets pending, the action runs
    `pnpm release` — which builds the CLI bundle and publishes to npm via
    [trusted publishing](https://docs.npmjs.com/generating-provenance-statements#trusted-publishing-on-github-actions)

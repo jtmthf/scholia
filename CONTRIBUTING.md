@@ -112,11 +112,11 @@ Releases are automated via Changesets and npm trusted publishing; see
 [ADR-0026](./docs/adr/0026-release-automation-via-changesets-and-trusted-publishing.md)
 for the why. The short version:
 
-- A PR that changes the published CLI (`packages/cli`, package name `scholia`)
-  **must include a changeset** — run `pnpm changeset`, pick `scholia`, and write
-  a one-line summary. CI's `changeset` job fails a PR that skips this. Internal
-  `@scholia/*` packages are private, so a change confined to them does not need
-  one.
+- A PR that changes runtime code bundled into the published CLI **must include
+  a changeset** — run `pnpm changeset`, pick the package that changed, and write
+  a one-line summary. This includes private `@scholia/*` packages: their version
+  bumps propagate through bundled dependencies to `scholia`. CI's `changeset`
+  job fails a PR that skips this. Pure tests, docs, and config do not need one.
 - Merging to `main` either opens a `chore(release): version packages` PR (when
   changesets are pending) or publishes (`pnpm release` → builds `dist`,
   publishes to npm via OIDC, tags `v<version>`, opens a GitHub Release). No
