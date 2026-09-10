@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
   "changelog": ["@changesets/changelog-github", { "repo": "jtmthf/scholia" }],
   "commit": false,
-  "fixed": [],
+  "fixed": [["scholia", "@scholia/client", "@scholia/core", "@scholia/local", "@scholia/sidecar"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

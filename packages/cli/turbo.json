@@ -1,0 +1,12 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.changeset/config.json",
+        "$TURBO_ROOT$/.github/workflows/release.yml"
+      ]
+    }
+  }
+}

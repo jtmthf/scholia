@@ -61,3 +61,7 @@ jobs:
           title: "chore(release): version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The action creates the version commit itself. Local pre-commit
+          # hooks assume workspace dist declarations already exist, which a
+          # fresh release checkout does not have yet.
+          LEFTHOOK: "0"

@@ -141,9 +141,9 @@ jobs:
             e2e/test-results
           retention-days: 7
 
-  # Enforces that PRs with user-facing CLI changes carry a changeset. Private
-  # `@scholia/*` packages are opted out of versioning in `.changeset/config.json`,
-  # so a PR touching only internal packages passes without one. Skipped on the
+  # Enforces that PRs with release-affecting changes carry a changeset. Private
+  # `@scholia/*` packages are versioned so their changes can cascade through
+  # bundled dependencies to the CLI. Skipped on the
   # bot's own version PR (`changeset-release/main`): it consumes pending
   # changesets and bumps package.json without adding a new one by design, so
   # this gate would otherwise always fail it.
