@@ -222,15 +222,26 @@ test.describe("ADR-0039: the Rail takes the Outline's track (issue #159)", () =>
     await expect(outline).toBeHidden();
     await expect(menuToggle).toBeVisible();
 
-    // < 1188: the Rail leaves the column — one track, and the rail's own box
-    // is no longer the sticky scroll container.
+    // < 1188: the Rail leaves the column entirely and becomes an overlay,
+    // closed by default (ADR-0039, issue #160) — fixed and off-canvas to the
+    // right rather than the sticky scroll container it was as a column. The
+    // topbar's `.rail-toggle` is the discoverable way to raise it; opening it
+    // is covered in local-comments.spec.ts, alongside the click-the-passage
+    // path.
     await page.setViewportSize({ width: 1000, height: 900 });
     expect(await trackCount(page)).toBe(1);
     await expect(rail).toBeVisible();
-    expect(await rail.evaluate((el) => getComputedStyle(el).position)).toBe("static");
+    expect(await rail.evaluate((el) => getComputedStyle(el).position)).toBe("fixed");
+    // Crossing the breakpoint on an already-loaded Page changes `transform`
+    // on the same element, which is what `transition: transform 0.2s ease`
+    // is for — so the off-canvas position is reached a moment after the
+    // resize, not synchronously with it.
+    await expect.poll(async () => (await rail.boundingBox())!.x).toBeGreaterThanOrEqual(1000);
+    await expect(page.locator(".rail-toggle")).toBeVisible();
 
     // < 720: existing mobile behaviour, unchanged — still one track, the
-    // toggle still reaches Nav, and the rail is still there to read.
+    // Nav toggle still reaches Nav, and the Rail overlay is still there,
+    // closed, to read once opened.
     await page.setViewportSize({ width: 480, height: 900 });
     expect(await trackCount(page)).toBe(1);
     await expect(menuToggle).toBeVisible();

@@ -10,6 +10,8 @@ html lang="en"
       "(function(){try{var t=localStorage.getItem('scholia-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();"
     link href="/__assets/katex/katex.min.css" rel="stylesheet"
     link href="/__assets/client.css" rel="stylesheet"
+    noscript
+      "<style>@media (max-width: 1187px) { #scholia-comments { position: static !important; inset: auto !important; width: auto !important; max-width: none !important; max-height: none !important; margin: 0 !important; transform: none !important; overflow-y: visible !important; border-left: none !important; border-top: 1px solid var(--color-rule); } .rail-toggle, .rail-backdrop { display: none !important; } }</style>"
   body class=""
     header class="topbar"
       div class="topbar-inner"
