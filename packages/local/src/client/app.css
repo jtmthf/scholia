@@ -108,6 +108,21 @@ a:hover {
   padding: 6px 10px;
   line-height: 1;
 }
+/* Hidden until the Rail leaves the flow (ADR-0039, issue #160) — shown by the
+   <1188px block below, `.menu-toggle`'s counterpart for the Rail rather than
+   the Nav. `margin-left: auto` above already pins `.theme-toggle` to the far
+   right, so this sits beside it without its own positioning. */
+.rail-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 6px 10px;
+  line-height: 1;
+}
 /* Which theme is on is decided in the browser, so which face shows is decided
    here rather than in the server render (issue #114). The hidden face is
    `display: none`, not merely invisible, so it is out of the accessibility tree
@@ -202,6 +217,16 @@ a:hover {
  * sits between .nav-pane and .content in the markup). Only shown, positioned
  * out of flow, under the narrow-viewport media query further down. */
 .nav-backdrop {
+  display: none;
+}
+
+/* The Rail's counterpart, same reasoning: hidden by default so it never
+ * becomes an implicit grid item beside the Rail's own column (a stray
+ * always-visible div here shifts every explicit column after it, which is
+ * exactly how this bug hid at wide viewports the first time — invisible for
+ * want of a background, but still occupying a track). Only shown, positioned
+ * out of flow, under the <1188px media query (ADR-0039, issue #160). */
+.rail-backdrop {
   display: none;
 }
 
@@ -358,12 +383,26 @@ body.has-conversations.has-nav .layout {
     background: rgba(0, 0, 0, 0.4);
   }
 }
-/* Below 1188 the Rail cannot be a column without breaking the measure. It
- * leaves the flow — for now by stacking under the article, the same shape
- * mobile already uses below 720, rather than the overlay ADR-0039
- * describes for this band; that overlay is a separate ticket. Conversations
- * are the reason the Page exists, so they are never the thing that
- * disappears, here or below. */
+/* Below 1188 the Rail cannot be a column without breaking the measure, so it
+ * leaves the flow and becomes an overlay — the pattern already in the
+ * codebase for narrow-viewport Nav (`.nav-backdrop`, `body.nav-open`) rather
+ * than a second one, because the next reader would otherwise see two
+ * mechanisms and assume one is legacy. A Rail covering the prose is a defeat
+ * when the reader was reading that prose, and correct when they tapped the
+ * passage to ask what is said about it (ADR-0039, issue #160) —
+ * Conversations are the reason the Page exists, so they stay reachable here,
+ * just not always in view.
+ *
+ * Opened by clicking an annotated passage (`use-content-anchors.ts` dispatches
+ * "scholia:rail-open" on a highlight hit; main.ts owns the chrome that reacts
+ * to it, same as every other delegated control) or by `.rail-toggle`, the
+ * discoverable fallback; dismissed by Esc, `.rail-backdrop`, or the toggle
+ * again. `#scholia-comments` is always the element hydration attaches to
+ * (ADR-0031) — only what CSS does with it changes here.
+ *
+ * A reader with no JavaScript has no click to raise `body.rail-open`, so
+ * `layout.tsx`'s `<noscript>` restores the pre-#160 stacked placement instead
+ * of leaving this permanently off-canvas. */
 @media (max-width: 1187px) {
   /* Both selectors: `.has-nav.has-conversations` is more specific than
      `.has-conversations` alone, so the 1439px block's 2-column value would
@@ -372,14 +411,51 @@ body.has-conversations.has-nav .layout {
   body.has-conversations.has-nav .layout {
     grid-template-columns: 1fr;
   }
+  .rail-toggle {
+    display: inline-flex;
+  }
   #scholia-comments {
-    position: static;
+    position: fixed;
+    top: var(--topbar-height);
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: 88%;
+    max-width: 400px;
     max-height: none;
-    overflow-y: visible;
+    margin: 0;
+    background: var(--color-surface);
+    border-left: 1px solid var(--color-rule);
+    padding: var(--space-4) var(--space-3);
+    overflow-y: auto;
+    /* The reader's own scroll, not the document's: a wheel/touch gesture that
+       reaches the end of the Rail's list must not bleed into scrolling the
+       page behind it. */
+    overscroll-behavior: contain;
+    /* A custom property rather than a `body.rail-open #scholia-comments`
+       override: esbuild's CSS minifier (tsup's bundler) was seen dropping
+       that compound selector's `body.rail-open` ancestor entirely, leaving
+       `#scholia-comments { transform: translateX(0) }` unscoped and the Rail
+       permanently on-screen — reproduced against the built `client.css`, not
+       just suspected. Inheriting a variable from `body` sidesteps writing
+       that selector shape at all. */
+    transform: translateX(var(--rail-shift, 100%));
+    transition: transform 0.2s ease;
+  }
+  /* The Rail is the only thing that scrolls while it covers the sheet. */
+  body.rail-open {
+    --rail-shift: 0%;
+    overflow: hidden;
   }
   #scholia-comments .comment-rail {
     border-left: none;
-    border-top: 1px solid var(--color-rule);
+  }
+  body.rail-open .rail-backdrop {
+    display: block;
+    position: fixed;
+    inset: var(--topbar-height) 0 0 0;
+    z-index: 25;
+    background: rgba(0, 0, 0, 0.4);
   }
 }
 /* Single column now, so the Rail's own width is out of the arithmetic:

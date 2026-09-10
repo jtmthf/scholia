@@ -59,6 +59,31 @@ export interface LayoutOptions {
 // avoid a flash of the wrong color scheme.
 const THEME_BOOT = `(function(){try{var t=localStorage.getItem('scholia-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
+// Undoes app.css's <1188px overlay rules for `#scholia-comments` (ADR-0039,
+// issue #160): only a click can raise `body.rail-open`, so with no JavaScript
+// the Rail restores to the pre-#160 stacked-under-the-article place in the
+// flow instead of sitting permanently off-canvas. `.rail-toggle` is a button
+// with no `formAction` — nothing it does without a click handler — so it is
+// hidden here rather than left as a dead control (ADR-0017's "no broken
+// buttons", ADR-0034's reasoning for local's inert controls).
+const NO_JS_RAIL_OVERRIDE = `@media (max-width: 1187px) {
+  #scholia-comments {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    transform: none !important;
+    overflow-y: visible !important;
+    border-left: none !important;
+    border-top: 1px solid var(--color-rule);
+  }
+  .rail-toggle, .rail-backdrop {
+    display: none !important;
+  }
+}`;
+
 // Interleave a separator between siblings without reusing one VNode instance
 // across slots — `separator` is a factory, not a node.
 function joinWith(items: VNode[], separator: () => VNode): VNode[] {
@@ -348,6 +373,15 @@ function HeadContent(opts: LayoutOptions) {
       <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       <link rel="stylesheet" href="/__assets/katex/katex.min.css" />
       <link rel="stylesheet" href="/__assets/client.css" />
+      {/* Below 1188px the Rail is an overlay raised by a click — main.ts's
+          "scholia:rail-open" and `.rail-toggle` (ADR-0039, issue #160) — so
+          with no JavaScript nothing ever raises `body.rail-open` and the
+          Rail would be unreachable. Restoring it to the flow here (the same
+          stacked-under-the-article shape mobile already uses) is the no-JS
+          answer instead: still not a column, but never hidden. */}
+      <noscript>
+        <style dangerouslySetInnerHTML={{ __html: NO_JS_RAIL_OVERRIDE }} />
+      </noscript>
     </>
   );
 }
@@ -434,6 +468,24 @@ function Document(opts: LayoutOptions) {
                 <span class="visually-hidden">Dark theme</span>
               </span>
             </button>
+            {/* Hidden until the Rail leaves the flow (ADR-0039, issue #160) —
+                `.rail-toggle`'s own CSS shows it only below 1188px, where
+                clicking an annotated passage is the primary opener and this
+                is the discoverable fallback. Rendered whenever the Page has a
+                rail at all, same as `#scholia-comments` itself, so the
+                affordance doesn't appear or disappear as Conversations are
+                added (ADR-0039, issue #158). */}
+            {opts.comments && (
+              <button
+                id="scholia-rail-toggle"
+                class="rail-toggle"
+                type="button"
+                aria-label="Toggle comments"
+                aria-expanded="false"
+              >
+                💬
+              </button>
+            )}
           </div>
         </header>
         <div class="layout">
@@ -471,7 +523,17 @@ function Document(opts: LayoutOptions) {
             <Colophon info={opts.colophon} />
           </main>
           <Outline headings={opts.headings} />
-          {opts.comments && <CommentRail comments={opts.comments} />}
+          {opts.comments && (
+            <>
+              {/* Mobile-only tap-to-close overlay, the Rail's counterpart to
+                  `.nav-backdrop` above (ADR-0039, issue #160) — hidden by
+                  default so it never becomes an implicit item in the
+                  `.layout` grid, shown and positioned out of flow only under
+                  the narrow-viewport media query in app.css. */}
+              <div class="rail-backdrop" />
+              <CommentRail comments={opts.comments} />
+            </>
+          )}
         </div>
         <SourceScript source={opts.sourceMarkdown} />
         {opts.comments && <CommentsScript comments={opts.comments} />}
