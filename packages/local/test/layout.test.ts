@@ -13,9 +13,12 @@ import { canonicalHtml } from "./helpers/canonical-html.js";
 // They were captured from the string-template `layout.ts` this file's subject
 // replaced (issue #25), *before* the Preact SSR rewrite, and survived it byte
 // for byte. Issue #28 is the first change that moved them on purpose: the comment
-// rail is server-rendered chrome now (ADR-0018, ADR-0030), so it is in the
+// Rail is server-rendered chrome now (ADR-0018, ADR-0030), so it is in the
 // goldens, and the article carries the Page path and content hash a Comment binds
-// to. Everything above the article is unchanged from that original capture.
+// to. Everything above the article is unchanged from that original capture —
+// except `<body>`'s class, which ADR-0039 moved on purpose: `has-comments` said
+// "a rail is mounted", `has-conversations` says "the rail has earned a column",
+// and the un-commented HTML Page golden loses the class while keeping the Rail.
 
 function navNode(partial: Partial<NavNode> & Pick<NavNode, "type" | "title" | "urlPath">): NavNode {
   return { fsPath: `/tmp${partial.urlPath}`, order: 0, ...partial };
@@ -272,11 +275,104 @@ test("the article carries the Page path and the content hash it was rendered fro
   expect(html).toContain(`data-content-hash="${"0".repeat(64)}"`);
 });
 
-test("a page with nothing to comment on renders no rail and no comment data", () => {
+test("a page with nothing to comment on renders no Rail and no comment data", () => {
   const html = renderPage(MINIMAL);
   expect(html).not.toContain(`id="scholia-comments"`);
   expect(html).not.toContain(`id="scholia-comments-data"`);
-  expect(html).not.toContain("has-comments");
+  expect(html).not.toContain("has-conversations");
+});
+
+// The class that keys the Rail's grid track (ADR-0039, issue #158) is not the
+// same question as whether the Page has anything to comment on at all: the
+// Rail *element* is unconditional on any Page that can be commented on — it is
+// the page's only hydration boundary (ADR-0031) and the element live reload
+// writes an agent's first Comment into, and `replaceWith` cannot make an
+// element appear. What an un-commented Page does not pay for is the grid
+// *track*, which is keyed on `has-conversations` — so the class is absent here
+// and the Rail is not.
+test("a Page with no Conversations still mounts the Rail, and claims no column", () => {
+  const html = renderPage(HTML_PAGE);
+  expect(html).toContain(`id="scholia-comments"`);
+  expect(html).toContain(`id="scholia-comments-data"`);
+  expect(html).not.toContain("has-conversations");
+});
+
+// Costing nothing is not the same as saying nothing: the empty Rail still tells
+// a reader that commenting exists, and still carries the no-JS Composer
+// (ADR-0034) that is the only way to write the first Comment without JavaScript.
+test("the empty Rail still says commenting exists", () => {
+  const html = renderPage(HTML_PAGE);
+  expect(html).toContain("No Conversations yet");
+  expect(html).toContain("Comment on this page…");
+});
+
+test("a Page with Conversations claims the Rail's column", () => {
+  expect(renderPage(FULL)).toContain(`class="has-nav has-conversations"`);
+});
+
+test("the Nav opens only the current Page's directory ancestors, whose labels link to Entry Pages", () => {
+  const html = renderPage(FULL);
+
+  expect(html).toContain(
+    `<details class="nav-dir" open><summary aria-label="Toggle Guide &amp; Reference"><span class="nav-disclosure" aria-hidden="true">▸</span><a class="nav-dir-link" href="/guide">`,
+  );
+  expect(html).toContain(
+    `<details class="nav-dir" open><summary aria-label="Toggle Deep"><span class="nav-disclosure" aria-hidden="true">▸</span><a class="nav-dir-link" href="/guide/deep">`,
+  );
+  expect(html).toContain(
+    `<details class="nav-dir"><summary aria-label="Toggle Empty"><span class="nav-disclosure" aria-hidden="true">▸</span><a class="nav-dir-link" href="/empty">`,
+  );
+});
+
+test("Previous and Next follow flattened Nav order through directory boundaries", () => {
+  const nav: NavNode[] = [
+    navNode({ type: "file", title: "Home", urlPath: "/README.md" }),
+    navNode({
+      type: "dir",
+      title: "Docs",
+      urlPath: "/docs",
+      children: [
+        navNode({
+          type: "dir",
+          title: "ADR",
+          urlPath: "/docs/adr",
+          children: [
+            navNode({ type: "file", title: "Access", urlPath: "/docs/adr/0001-access.md" }),
+            navNode({ type: "file", title: "Anchors", urlPath: "/docs/adr/0002-anchors.md" }),
+          ],
+        }),
+        navNode({
+          type: "dir",
+          title: "Agents",
+          urlPath: "/docs/agents",
+          children: [
+            navNode({ type: "file", title: "Domain docs", urlPath: "/docs/agents/domain.md" }),
+          ],
+        }),
+      ],
+    }),
+  ];
+  const page = (currentPath: string) =>
+    renderPage({ ...MINIMAL, nav, currentPath, showNav: true, colophon: FULL.colophon });
+
+  const middle = page("/docs/adr/0002-anchors.md");
+  expect(middle).toContain('href="/docs/adr/0001-access.md"');
+  expect(middle).toContain(">Access<");
+  expect(middle).toContain('href="/docs/agents/domain.md"');
+  expect(middle).toContain(">Domain docs<");
+  expect(middle.indexOf("page-navigation")).toBeLessThan(middle.indexOf("colophon"));
+
+  const first = page("/README.md");
+  expect(first).not.toContain("page-navigation-link--previous");
+  expect(first).toContain("page-navigation-link--next");
+
+  const last = page("/docs/agents/domain.md");
+  expect(last).toContain("page-navigation-link--previous");
+  expect(last).not.toContain("page-navigation-link--next");
+
+  expect(
+    renderPage({ ...MINIMAL, nav: [nav[0]!], currentPath: "/README.md", showNav: true }),
+  ).not.toContain("page-navigation");
 });
 
 // The client hydrates the rail from this rather than fetching it back, so it has

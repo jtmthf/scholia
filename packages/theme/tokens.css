@@ -11,6 +11,12 @@
  * decision table — do not adjust without revisiting the ADR. Values marked
  * "derived" support those pins (e.g. body text ink, the backdrop behind the
  * paper sheet) but were not themselves measured; adjust freely.
+ *
+ * `--layout-measure` is the one exception inside the "pinned" layout group:
+ * per ADR-0039, it is the pin and `--layout-content-width` is derived from
+ * it (measure + 2x sheet inline padding), not the other way around — the
+ * sheet's text width is what ADR-0016 actually specified, and enforcing that
+ * number directly is what keeps it from drifting unnoticed (issue #112).
  */
 
 :root {
@@ -81,14 +87,28 @@
   --space-9: 64px;
 
   /* ---- Layout (pinned) ---- */
-  /* "Sheet on desk": Nav / content / Outline three-column grid. */
+  /* "Sheet on desk": Nav / content / Outline three-column grid, plus the
+     Rail (ADR-0039). --layout-measure is the pin: it fixes the article's
+     text width directly. --layout-content-width used to carry the pin
+     instead, but nothing read it — the width that actually rendered came
+     from subtracting the sheet's inline padding back out of it, which only
+     coincidentally landed on the same 668px (issue #157). See "Layout
+     (derived)" below for the inversion. */
   --layout-nav-width: 260px;
-  --layout-content-width: 780px;
   --layout-outline-width: 220px;
+  /* Not `--layout-*`: it names a fact about the comment rail (@scholia/ui,
+     ADR-0030), which this file's other names don't. Every ADR-0039 threshold
+     is a function of it; consumers of @scholia/ui supply it from here. */
+  --rail-width: 320px;
   --layout-gap: 40px;
   --layout-sheet-padding-block: 64px;
   --layout-sheet-padding-inline: 56px;
-  --layout-measure: 668px; /* article text measure, ~68ch */
+  --layout-measure: 668px; /* article text measure, ~68ch — the pin (ADR-0039) */
+
+  /* Derived: the sheet's text width plus its own inline padding on both
+     sides. "Honour the measure" is exactly "this is >= 780px" — ADR-0016's
+     pinned figure still holds, it is just no longer the number set directly. */
+  --layout-content-width: calc(var(--layout-measure) + 2 * var(--layout-sheet-padding-inline));
 
   /* Derived, not pinned by ADR-0016 (issue #112): 464px ≈ 58ch — the
      reading column never narrower than this. */

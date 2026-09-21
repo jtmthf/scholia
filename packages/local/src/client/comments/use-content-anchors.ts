@@ -139,13 +139,36 @@ export function useContentAnchors(opts: {
   // neither an Anchor nor the rail itself clears the active card instead of
   // leaving a stale `thread-card--active` behind (issue #109) — the rail is
   // excluded because a card click already sets the active id itself via
-  // `activate`, in the same document this listener also observes.
+  // `activate`, in the same document this listener also observes. The
+  // backdrop is excluded too: `hitTest` is coordinate-based (it reads the
+  // painted highlight's own rects, not `elementFromPoint`), so a backdrop
+  // drawn over an annotated passage would otherwise still register as a hit
+  // on the passage underneath it.
+  //
+  // Below 1188px the Rail is an overlay, and clicking the annotated passage
+  // is its primary opener (ADR-0039, issue #160). This hook is the only place
+  // that knows whether a click actually hit a highlight, so a plain DOM event
+  // reports that fact upward rather than this hook reaching for
+  // `document.body` itself — main.ts owns the chrome that reacts to it, the
+  // same delegation every other control in this file's sibling uses. The
+  // event fires regardless of viewport width; `app.css` only looks at
+  // `body.rail-open` below 1188px, so above it this is inert.
   useEffect(() => {
     const onClick = (e: MouseEvent): void => {
       const target = e.target;
-      if (target instanceof Element && target.closest(".comment-rail")) return;
+      if (
+        target instanceof Element &&
+        (target.closest(".comment-rail") || target.closest(".rail-backdrop"))
+      ) {
+        return;
+      }
       const id = highlightsRef.current?.hitTest(e.clientX, e.clientY) ?? null;
       setActive(id);
+      if (id) {
+        document.dispatchEvent(
+          new CustomEvent("scholia:rail-open", { detail: { opener: e.target } }),
+        );
+      }
     };
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);

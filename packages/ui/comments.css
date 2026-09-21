@@ -34,8 +34,6 @@
    ============================================================ */
 
 :root {
-  --rail-width: 320px;
-
   /* ---- The contract, read once ---- */
   --sc-bg: var(--scholia-comment-bg, var(--color-paper));
   --sc-fg: var(--scholia-comment-fg, var(--color-ink));
@@ -74,6 +72,10 @@
 
 /* ── Rail ──────────────────────────────────────────────────── */
 
+/* `--rail-width` is not declared here (ADR-0039): it is a layout fact about
+   two different consumers, which is exactly what ADR-0030 keeps this package
+   free of. The consumer supplies it — @scholia/theme's `--rail-width`
+   locally, the hosted viewer's own `styles.css` otherwise. */
 .comment-rail {
   width: var(--rail-width);
   flex: 0 0 var(--rail-width);

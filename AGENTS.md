@@ -106,6 +106,16 @@ not 5432** (avoids clashing with a host-managed Postgres), and use
 **`127.0.0.1`, not `localhost`** (sidesteps IPv6 `::1`). Getting this wrong is
 the most common failure in this repo.
 
+`pnpm --filter <package> test -- <file> -t "<name>"` does not reliably
+propagate vitest's exit code: a genuinely failing test can report passing
+through this form. This silently corrupts pass/fail loops over a single test
+— measuring a flaky test's reproduction rate, or confirming a red→green
+transition on a regression test — because **the exit code is the entire
+signal**. The root `pnpm test` (full suite via turbo) propagates failures
+correctly; the trap is specific to the filtered single-test form. Work
+around it by changing into the package directory and running
+`npx vitest run <file> -t "<name>"` directly, then **check `$?` explicitly**.
+
 `pnpm --filter @scholia/e2e e2e` needs the same stack plus two things CI sets
 for you (`check.yml`, job `e2e`) and a local shell doesn't:
 

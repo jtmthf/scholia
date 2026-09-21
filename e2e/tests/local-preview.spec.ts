@@ -43,14 +43,19 @@ const SEED = {
     "",
   ].join("\n"),
   "guide/advanced.md": "# Advanced\n\nAdvanced body text.\n",
+  "guide/deep/deeper.md": "# Deeper\n\nDeep body text.\n",
+  "reference/intro.md": "# Reference\n\nReference body text.\n",
   // Owned by the live-reload test, which rewrites it. It ships with a `##` so
   // the Outline is already on the page: live reload replaces the regions it
   // finds, and one that isn't rendered yet has nothing to replace.
   "live.md": "# Live\n\nOriginal body text.\n\n## Original Section\n\nSection body.\n",
-  // Owned by the article-floor test (issue #112). Has a heading so the
-  // Outline column renders, and the test seeds a Page-level Conversation to
-  // bring the comment rail's fourth column in.
+  // Owned by the ADR-0039 describe block (issue #159). Has a heading so the
+  // Outline is in play, and the block's `beforeAll` seeds a page-level
+  // Conversation to bring the Rail's column in.
   "layout.md": "# Layout\n\nA Page measured at narrow widths.\n\n## Section\n\nBody.\n",
+  // Owned by the zero-to-one live-reload test (issue #158): starts with
+  // nothing to comment on.
+  "zero-to-one.md": "# Zero To One\n\nNothing has been said about this yet.\n",
 };
 
 let preview: LocalPreview;
@@ -86,7 +91,7 @@ test.describe("server-rendered chrome", () => {
     // Nav: the served root's tree, with the current Page marked active.
     const nav = page.locator("nav.nav");
     await expect(nav.getByRole("link", { name: "Home" })).toBeVisible();
-    await expect(nav.locator(".nav-dir-label")).toHaveText("Guide");
+    await expect(nav.locator(".nav-dir-link").filter({ hasText: "Guide" })).toHaveText("Guide");
     await expect(nav.locator("a.active .nav-label")).toHaveText("Intro");
 
     // Outline: h2/h3 only — the h4 is outside the window it shows.
@@ -121,12 +126,36 @@ test.describe("server-rendered chrome", () => {
     await expect(page.locator("#scholia-search-results")).toBeHidden();
   });
 
-  test("nav links navigate without JavaScript", async ({ page }) => {
+  test("directory labels navigate to their Entry Pages without JavaScript", async ({ page }) => {
     await page.goto(`${preview.url}/`);
-    await page.locator("nav.nav").getByRole("link", { name: "Advanced" }).click();
+    await page.locator("nav.nav").getByRole("link", { name: "Guide", exact: true }).click();
 
-    await expect(page).toHaveURL(`${preview.url}/guide/advanced.md`);
+    await expect(page).toHaveURL(`${preview.url}/guide`);
     await expect(page.locator("article.markdown-body")).toContainText("Advanced body text.");
+  });
+
+  test("directory rows disclose with the keyboard and open only current Page ancestors", async ({
+    page,
+  }) => {
+    const nav = page.locator("nav.nav");
+    const directory = (path: string) =>
+      nav.locator(`details.nav-dir:has(> summary > a.nav-dir-link[href="${path}"])`);
+
+    await page.goto(`${preview.url}/`);
+    const guide = directory("/guide");
+    await expect(guide).not.toHaveAttribute("open", "");
+
+    const guideSummary = guide.locator(":scope > summary");
+    await expect(guideSummary).toHaveAccessibleName("Toggle Guide");
+    await guideSummary.focus();
+    await page.keyboard.press("Space");
+    await expect(guide).toHaveAttribute("open", "");
+    await expect(guide.getByRole("link", { name: "Advanced" })).toBeVisible();
+
+    await page.goto(`${preview.url}/guide/deep/deeper.md`);
+    await expect(directory("/guide")).toHaveAttribute("open", "");
+    await expect(directory("/guide/deep")).toHaveAttribute("open", "");
+    await expect(directory("/reference")).not.toHaveAttribute("open", "");
   });
 
   // `/` resolves to the root's Entry Page (CONTEXT "Entry Page"), and the
@@ -144,10 +173,10 @@ test.describe("server-rendered chrome", () => {
   });
 });
 
-test.describe("the article column's floor (issue #112)", () => {
-  // The four-column grid only appears when the Page has both Nav (always) and
-  // the comment rail (only when a Conversation exists). Seed a page-level
-  // Comment so layout.md renders `body.has-nav.has-comments`.
+test.describe("ADR-0039: the Rail takes the Outline's track (issue #159)", () => {
+  // The four/three/two-column grids only appear when the Page has a
+  // Conversation (`body.has-conversations`, issue #158) — seed a page-level
+  // Comment so layout.md renders the full arrangement.
   test.beforeAll(async ({ request }) => {
     const res = await request.post(`${preview.url}/__conversations`, {
       headers: { "Sec-Fetch-Site": "same-origin" },
@@ -156,37 +185,117 @@ test.describe("the article column's floor (issue #112)", () => {
     expect(res.status()).toBe(200);
   });
 
-  test("Nav, Outline and rail never starve the article below its floor", async ({ page }) => {
+  // Split a computed `grid-template-columns` (e.g. "260px 780px 220px 320px")
+  // into its tracks, so the arrangement is verified from what the grid
+  // actually computed rather than from the source that produced it.
+  async function trackCount(page: Page): Promise<number> {
+    const value = await page
+      .locator(".layout")
+      .evaluate((el) => getComputedStyle(el).gridTemplateColumns);
+    return value.trim().split(/\s+/).filter(Boolean).length;
+  }
+
+  test("the arrangement at every width matches the ADR-0039 table, verified from computed grid tracks", async ({
+    page,
+  }) => {
+    await page.goto(`${preview.url}/layout.md`);
+    const outline = page.locator("nav.outline");
+    const rail = page.locator("#scholia-comments");
+    const menuToggle = page.locator(".menu-toggle");
+
+    // >= 1748: Nav + sheet + Outline + Rail — four tracks.
+    await page.setViewportSize({ width: 1800, height: 900 });
+    expect(await trackCount(page)).toBe(4);
+    await expect(outline).toBeVisible();
+    await expect(menuToggle).toBeHidden();
+
+    // 1440 - 1748: Nav + sheet + Rail — Outline yields first.
+    await page.setViewportSize({ width: 1600, height: 900 });
+    expect(await trackCount(page)).toBe(3);
+    await expect(outline).toBeHidden();
+    await expect(menuToggle).toBeHidden();
+
+    // 1188 - 1440: sheet + Rail — Nav yields next, but stays reachable
+    // behind the same toggle narrow viewports already use.
+    await page.setViewportSize({ width: 1300, height: 900 });
+    expect(await trackCount(page)).toBe(2);
+    await expect(outline).toBeHidden();
+    await expect(menuToggle).toBeVisible();
+
+    // < 1188: the Rail leaves the column entirely and becomes an overlay,
+    // closed by default (ADR-0039, issue #160) — fixed and off-canvas to the
+    // right rather than the sticky scroll container it was as a column. The
+    // topbar's `.rail-toggle` is the discoverable way to raise it; opening it
+    // is covered in local-comments.spec.ts, alongside the click-the-passage
+    // path.
+    await page.setViewportSize({ width: 1000, height: 900 });
+    expect(await trackCount(page)).toBe(1);
+    await expect(rail).toBeVisible();
+    expect(await rail.evaluate((el) => getComputedStyle(el).position)).toBe("fixed");
+    // Crossing the breakpoint on an already-loaded Page changes `transform`
+    // on the same element, which is what `transition: transform 0.2s ease`
+    // is for — so the off-canvas position is reached a moment after the
+    // resize, not synchronously with it.
+    await expect.poll(async () => (await rail.boundingBox())!.x).toBeGreaterThanOrEqual(1000);
+    await expect(page.locator(".rail-toggle")).toBeVisible();
+
+    // < 720: existing mobile behaviour, unchanged — still one track, the
+    // Nav toggle still reaches Nav, and the Rail overlay is still there,
+    // closed, to read once opened.
+    await page.setViewportSize({ width: 480, height: 900 });
+    expect(await trackCount(page)).toBe(1);
+    await expect(menuToggle).toBeVisible();
+    await expect(rail).toBeVisible();
+  });
+
+  // The promise, not the breakpoint numbers (CLAUDE.md, ADR-0039): asserted
+  // just above and below every threshold in the table, plus a representative
+  // width inside each band, so a token change that moves a number is free to
+  // move this test's numbers with it and still be caught if it breaks the
+  // promise itself.
+  test("the reading measure never breaks, above the mobile breakpoint", async ({ page }) => {
     await page.goto(`${preview.url}/layout.md`);
     const article = page.locator("article.markdown-body");
-    await expect(article).toBeVisible();
 
-    // Four-column layout at 1100px: the article is the only track allowed to
-    // shrink, so without a floor it collapses to ~132px. The issue decides that
-    // a 132px reading column is a defect; the accepted cost past the 464px
-    // floor is that the grid overflows horizontally instead.
-    await page.setViewportSize({ width: 1100, height: 800 });
-    const desktopBox = await article.boundingBox();
-    expect(desktopBox).not.toBeNull();
-    expect(desktopBox!.width).toBeGreaterThanOrEqual(464);
+    const widths = [
+      1920, 1749, 1748, 1747, 1600, 1489, 1488, 1487, 1441, 1440, 1439, 1300, 1189, 1188, 1187,
+      1000, 828, 780,
+    ];
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 900 });
+      const box = await article.boundingBox();
+      expect(box, `width ${width}`).not.toBeNull();
+      expect(box!.width, `width ${width}`).toBeGreaterThanOrEqual(778);
 
-    await expect(page.locator("nav.nav")).toBeVisible();
-    await expect(page.locator("nav.outline")).toBeVisible();
-    await expect(page.locator("#scholia-comments")).toBeVisible();
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(scrollWidth, `width ${width}`).toBeLessThanOrEqual(width);
+    }
+  });
 
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(scrollWidth).toBeGreaterThan(1100);
+  test("the Rail is never clipped mid-word", async ({ page }) => {
+    await page.goto(`${preview.url}/layout.md`);
+    for (const width of [1800, 1600, 1300]) {
+      await page.setViewportSize({ width, height: 900 });
+      const box = await page.locator(".comment-rail").boundingBox();
+      expect(box, `width ${width}`).not.toBeNull();
+      expect(box!.width, `width ${width}`).toBeGreaterThanOrEqual(318);
+    }
+  });
 
-    // Single-column mobile layout: the floor only applies to the multi-column
-    // grid rules, so a 480px viewport still gives the article ~432px and no
-    // forced horizontal scroll.
-    await page.setViewportSize({ width: 480, height: 800 });
-    const mobileBox = await article.boundingBox();
-    expect(mobileBox).not.toBeNull();
-    expect(mobileBox!.width).toBeGreaterThanOrEqual(320);
+  test("a pane taken away by a width change comes back on its own, without the reader re-asking", async ({
+    page,
+  }) => {
+    await page.goto(`${preview.url}/layout.md`);
+    const outline = page.locator("nav.outline");
 
-    const mobileScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(mobileScrollWidth).toBeLessThanOrEqual(480);
+    await page.setViewportSize({ width: 1800, height: 900 });
+    await expect(outline).toBeVisible();
+
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await expect(outline).toBeHidden();
+
+    await page.setViewportSize({ width: 1800, height: 900 });
+    await expect(outline).toBeVisible();
   });
 });
 
@@ -284,11 +393,42 @@ test("live reload swaps content in place without navigating", async ({ page }) =
 // Adding a Page is a structural change: the server rescans and the Nav pane —
 // not just the article — has to come back updated.
 test("live reload picks up a new Page in the Nav", async ({ page }) => {
-  await page.goto(`${preview.url}/`);
+  // Stay inside the directory the new Page lands in: a directory row only
+  // renders open for a current-Page ancestor, so watching from outside it
+  // would hide the new link behind a still-collapsed `<details>`.
+  await page.goto(`${preview.url}/guide/intro.md`);
   const nav = page.locator("nav.nav");
   await expect(nav.getByRole("link", { name: "Appendix" })).toHaveCount(0);
 
   await preview.write("guide/appendix.md", "# Appendix\n\nAdded while the preview was running.\n");
 
   await expect(nav.getByRole("link", { name: "Appendix" })).toBeVisible();
+});
+
+// `body.has-conversations` (ADR-0039, issue #158) is exactly the class the
+// swap loop's named-element replacement doesn't reach — `<body>` is never one
+// of the elements it swaps — so this is the one class main.ts syncs by hand.
+// An agent commenting on a Page nobody else has touched (the Sidecar's own
+// files live under the watched tree, so this is a live-reload notification
+// like any other) has to see the Rail's column arrive with no manual reload.
+test("an agent's first Comment on an open, un-commented Page brings the Rail's column in over live reload", async ({
+  page,
+  request,
+}) => {
+  await page.goto(`${preview.url}/zero-to-one.md`);
+  await expect(page.locator("#scholia-comments")).toBeVisible();
+  expect(await page.evaluate(() => document.body.classList.contains("has-conversations"))).toBe(
+    false,
+  );
+
+  const res = await request.post(`${preview.url}/__conversations`, {
+    headers: { "Sec-Fetch-Site": "same-origin" },
+    data: { page: "zero-to-one.md", body: "First word on this Page." },
+  });
+  expect(res.status()).toBe(200);
+
+  await expect(page.locator(".thread-card")).toContainText("First word on this Page.");
+  expect(await page.evaluate(() => document.body.classList.contains("has-conversations"))).toBe(
+    true,
+  );
 });

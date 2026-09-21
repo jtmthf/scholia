@@ -1,6 +1,6 @@
 import type { VNode } from "preact";
 import { render } from "preact-render-to-string";
-import type { Heading, NavNode, Provenance } from "@scholia/core";
+import { flattenNav, type Heading, type NavNode, type Provenance } from "@scholia/core";
 import { CommentsProvider, Rail, type CommentsPort, type ConversationDTO } from "@scholia/ui";
 import { CHATS_NOTE, EMPTY_NOTE, OUTDATED_NOTE, PROMOTE_NOTE } from "./comment-copy.js";
 import { buildFormAction } from "./form-action.js";
@@ -59,6 +59,31 @@ export interface LayoutOptions {
 // avoid a flash of the wrong color scheme.
 const THEME_BOOT = `(function(){try{var t=localStorage.getItem('scholia-theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
+// Undoes app.css's <1188px overlay rules for `#scholia-comments` (ADR-0039,
+// issue #160): only a click can raise `body.rail-open`, so with no JavaScript
+// the Rail restores to the pre-#160 stacked-under-the-article place in the
+// flow instead of sitting permanently off-canvas. `.rail-toggle` is a button
+// with no `formAction` — nothing it does without a click handler — so it is
+// hidden here rather than left as a dead control (ADR-0017's "no broken
+// buttons", ADR-0034's reasoning for local's inert controls).
+const NO_JS_RAIL_OVERRIDE = `@media (max-width: 1187px) {
+  #scholia-comments {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    transform: none !important;
+    overflow-y: visible !important;
+    border-left: none !important;
+    border-top: 1px solid var(--color-rule);
+  }
+  .rail-toggle, .rail-backdrop {
+    display: none !important;
+  }
+}`;
+
 // Interleave a separator between siblings without reusing one VNode instance
 // across slots — `separator` is a factory, not a node.
 function joinWith(items: VNode[], separator: () => VNode): VNode[] {
@@ -69,18 +94,29 @@ function NavSubtitle({ subtitle }: { subtitle: string | undefined }) {
   return subtitle ? <span class="nav-subtitle">{subtitle}</span> : null;
 }
 
+function isCurrentPageAncestor(dirPath: string, currentPath: string): boolean {
+  return currentPath.startsWith(`${dirPath}/`);
+}
+
 function Nav({ nodes, currentPath }: { nodes: NavNode[]; currentPath: string }) {
   if (nodes.length === 0) return null;
   return (
     <ul>
       {nodes.map((node) =>
         node.type === "dir" ? (
-          <li class="nav-dir" key={node.urlPath}>
-            <span class="nav-dir-label">
-              {node.title}
-              <NavSubtitle subtitle={node.subtitle} />
-            </span>
-            <Nav nodes={node.children ?? []} currentPath={currentPath} />
+          <li key={node.urlPath}>
+            <details class="nav-dir" open={isCurrentPageAncestor(node.urlPath, currentPath)}>
+              <summary aria-label={`Toggle ${node.title}`}>
+                <span class="nav-disclosure" aria-hidden="true">
+                  ▸
+                </span>
+                <a class="nav-dir-link" href={node.urlPath}>
+                  {node.title}
+                  <NavSubtitle subtitle={node.subtitle} />
+                </a>
+              </summary>
+              <Nav nodes={node.children ?? []} currentPath={currentPath} />
+            </details>
           </li>
         ) : (
           <li key={node.urlPath}>
@@ -201,6 +237,36 @@ function Colophon({ info }: { info: ColophonInfo | null }) {
   );
 }
 
+// CONTEXT "Nav": its flattened, depth-first order is the Site's reading
+// sequence. Keeping the flattening in @scholia/core means these links cannot
+// quietly acquire a second order of their own.
+function PageNavigation({ nav, currentPath }: Pick<LayoutOptions, "nav" | "currentPath">) {
+  const pages = flattenNav(nav);
+  const current = pages.findIndex((page) => page.urlPath === currentPath);
+  if (current === -1) return null;
+
+  const previous = pages[current - 1];
+  const next = pages[current + 1];
+  if (!previous && !next) return null;
+
+  return (
+    <nav class="page-navigation" aria-label="Page navigation">
+      {previous && (
+        <a class="page-navigation-link page-navigation-link--previous" href={previous.urlPath}>
+          <span class="page-navigation-direction">Previous</span>
+          <span class="page-navigation-title">{previous.title}</span>
+        </a>
+      )}
+      {next && (
+        <a class="page-navigation-link page-navigation-link--next" href={next.urlPath}>
+          <span class="page-navigation-direction">Next</span>
+          <span class="page-navigation-title">{next.title}</span>
+        </a>
+      )}
+    </nav>
+  );
+}
+
 // The comment layer's server render (ADR-0030's @scholia/ui, ADR-0011's SSR).
 //
 // The rail is chrome like the Nav and the Outline: it is in the first response,
@@ -307,6 +373,15 @@ function HeadContent(opts: LayoutOptions) {
       <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       <link rel="stylesheet" href="/__assets/katex/katex.min.css" />
       <link rel="stylesheet" href="/__assets/client.css" />
+      {/* Below 1188px the Rail is an overlay raised by a click — main.ts's
+          "scholia:rail-open" and `.rail-toggle` (ADR-0039, issue #160) — so
+          with no JavaScript nothing ever raises `body.rail-open` and the
+          Rail would be unreachable. Restoring it to the flow here (the same
+          stacked-under-the-article shape mobile already uses) is the no-JS
+          answer instead: still not a column, but never hidden. */}
+      <noscript>
+        <style dangerouslySetInnerHTML={{ __html: NO_JS_RAIL_OVERRIDE }} />
+      </noscript>
     </>
   );
 }
@@ -330,7 +405,15 @@ function Document(opts: LayoutOptions) {
     <html lang="en">
       <head dangerouslySetInnerHTML={{ __html: head }} />
       <body
-        class={[opts.showNav ? "has-nav" : "", opts.comments ? "has-comments" : ""]
+        class={[
+          opts.showNav ? "has-nav" : "",
+          // Not `opts.comments`: that is non-null whenever the Page rendered
+          // at all, so it would put every Page one Conversation away from an
+          // unpaid-for column swap. The grid track is keyed on whether there
+          // is anything to show in it; `#scholia-comments` itself is mounted
+          // unconditionally below, comments or not (ADR-0039, issue #158).
+          opts.comments && opts.comments.conversations.length > 0 ? "has-conversations" : "",
+        ]
           .filter(Boolean)
           .join(" ")}
       >
@@ -385,6 +468,24 @@ function Document(opts: LayoutOptions) {
                 <span class="visually-hidden">Dark theme</span>
               </span>
             </button>
+            {/* Hidden until the Rail leaves the flow (ADR-0039, issue #160) —
+                `.rail-toggle`'s own CSS shows it only below 1188px, where
+                clicking an annotated passage is the primary opener and this
+                is the discoverable fallback. Rendered whenever the Page has a
+                rail at all, same as `#scholia-comments` itself, so the
+                affordance doesn't appear or disappear as Conversations are
+                added (ADR-0039, issue #158). */}
+            {opts.comments && (
+              <button
+                id="scholia-rail-toggle"
+                class="rail-toggle"
+                type="button"
+                aria-label="Toggle comments"
+                aria-expanded="false"
+              >
+                💬
+              </button>
+            )}
           </div>
         </header>
         <div class="layout">
@@ -418,10 +519,21 @@ function Document(opts: LayoutOptions) {
               data-content-hash={opts.comments?.contentHash}
               dangerouslySetInnerHTML={{ __html: opts.contentHtml }}
             />
+            <PageNavigation nav={opts.nav} currentPath={opts.currentPath} />
             <Colophon info={opts.colophon} />
           </main>
           <Outline headings={opts.headings} />
-          {opts.comments && <CommentRail comments={opts.comments} />}
+          {opts.comments && (
+            <>
+              {/* Mobile-only tap-to-close overlay, the Rail's counterpart to
+                  `.nav-backdrop` above (ADR-0039, issue #160) — hidden by
+                  default so it never becomes an implicit item in the
+                  `.layout` grid, shown and positioned out of flow only under
+                  the narrow-viewport media query in app.css. */}
+              <div class="rail-backdrop" />
+              <CommentRail comments={opts.comments} />
+            </>
+          )}
         </div>
         <SourceScript source={opts.sourceMarkdown} />
         {opts.comments && <CommentsScript comments={opts.comments} />}

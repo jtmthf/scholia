@@ -198,6 +198,113 @@ function initNav(): void {
   });
 }
 
+// ---- Comment rail overlay (ADR-0039, issue #160) ----
+//
+// Below 1188px `app.css` takes `#scholia-comments` out of the grid and turns
+// it into a fixed overlay, shown only while `body.rail-open`. That class is
+// this function's alone to own: `#scholia-comments` is the comment layer's
+// hydration boundary (ADR-0031), so the open/close chrome around it is wired
+// here by delegation, the same as the Nav drawer, rather than living inside
+// the Preact island.
+//
+// Its primary opener is clicking an annotated passage, which is decided
+// inside `use-content-anchors.ts` (it alone knows whether a click actually
+// hit a highlight) and reported here as a plain DOM event rather than a prop,
+// since that hook has no reason to know it is running narrower than 1188px —
+// the event is harmless noise above that width, where CSS never looks at
+// `body.rail-open` at all.
+function initRailOverlay(): void {
+  const toggle = document.getElementById("scholia-rail-toggle");
+  // Who to return focus to on dismiss (CONTEXT-adjacent: the opener, not
+  // necessarily the toggle — a passage click opens this too).
+  let openedBy: HTMLElement | null = null;
+
+  function focusable(container: Element): HTMLElement[] {
+    return Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input:not([type="hidden"]), select, [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null);
+  }
+
+  // Tab is trapped inside the rail while it is open, and Esc is the keyboard
+  // half of dismissal (backdrop-click and the toggle are the pointer halves).
+  function onKeydown(e: KeyboardEvent): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const rail = document.getElementById("scholia-comments");
+    if (!rail) return;
+    const items = focusable(rail);
+    if (items.length === 0) return;
+    const first = items[0]!;
+    const last = items[items.length - 1]!;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  function open(opener: HTMLElement | null): void {
+    if (document.body.classList.contains("rail-open")) return;
+    openedBy = opener ?? (document.activeElement as HTMLElement | null);
+    document.body.classList.add("rail-open");
+    toggle?.setAttribute("aria-expanded", "true");
+    const rail = document.getElementById("scholia-comments");
+    // Move focus into the rail so a screen reader / keyboard user lands
+    // somewhere inside the surface that just covered the sheet, rather than
+    // leaving it on an opener now sitting behind a backdrop.
+    (rail && focusable(rail)[0])?.focus();
+    document.addEventListener("keydown", onKeydown);
+  }
+
+  // The `.rail-toggle` button is always focusable; a passage's opener rarely
+  // is (a click lands on a `<mark>` or a plain text run, neither in the tab
+  // order), so `.focus()` on it would silently do nothing and leave focus
+  // wherever the mousedown put it. Restoring focus needs an opener that can
+  // actually take it.
+  function canFocus(el: Element): boolean {
+    return el.matches(
+      'a[href], button:not([disabled]), textarea, input:not([type="hidden"]), select, [tabindex]',
+    );
+  }
+
+  function close(): void {
+    if (!document.body.classList.contains("rail-open")) return;
+    document.body.classList.remove("rail-open");
+    toggle?.setAttribute("aria-expanded", "false");
+    document.removeEventListener("keydown", onKeydown);
+    // The opener may also be gone outright (a live reload swapped the
+    // content it was in) — either way, the toggle is chrome and always
+    // there, so it is the fallback rather than leaving focus stranded.
+    const returnTo = openedBy && openedBy.isConnected && canFocus(openedBy) ? openedBy : toggle;
+    returnTo?.focus();
+    openedBy = null;
+  }
+
+  toggle?.addEventListener("click", () => {
+    if (document.body.classList.contains("rail-open")) close();
+    else open(toggle);
+  });
+
+  // Delegated so it survives the rail's own re-renders.
+  document.addEventListener("click", (e) => {
+    if (!(e.target instanceof Element)) return;
+    if (e.target.closest(".rail-backdrop")) close();
+  });
+
+  document.addEventListener("scholia:rail-open", ((e: CustomEvent<{ opener: unknown }>) => {
+    const opener = e.detail?.opener;
+    open(opener instanceof HTMLElement ? opener : null);
+  }) as EventListener);
+}
+
 function setTheme(dark: boolean): void {
   document.documentElement.classList.toggle("dark", dark);
   try {
@@ -240,6 +347,17 @@ async function liveReloadSwap(): Promise<void> {
     current.innerHTML = fresh.innerHTML;
     document.title = doc.title;
 
+    // The swap loop below replaces named elements only — it never touches
+    // `<body>` itself, so a class that lives there goes stale unless synced
+    // explicitly. `has-conversations` (ADR-0039, issue #158) is exactly the
+    // case that bites: an agent's first Comment on an open, un-commented Page
+    // changes this from false to true without anything else in the DOM
+    // saying so.
+    document.body.classList.toggle(
+      "has-conversations",
+      doc.body.classList.contains("has-conversations"),
+    );
+
     // `#scholia-comments` is deliberately not in this list: it is Preact's DOM,
     // and replacing it wholesale would tear the mounted layer out from under
     // itself. Its *data* is swapped instead, and `mountComments` re-renders the
@@ -256,6 +374,31 @@ async function liveReloadSwap(): Promise<void> {
       const prev = document.querySelector(sel);
       if (next && prev) prev.replaceWith(next);
     }
+
+    // Unlike the other swapped chrome, a Page navigation element can appear
+    // or disappear when a Nav change turns a single-Page Site into a
+    // multi-Page Site (or back). Keep it immediately after the article, where
+    // the server render puts it and before the Colophon.
+    const freshNavigation = doc.querySelector(".page-navigation");
+    const currentNavigation = document.querySelector(".page-navigation");
+    if (freshNavigation && currentNavigation) currentNavigation.replaceWith(freshNavigation);
+    else if (freshNavigation && current) current.insertAdjacentElement("afterend", freshNavigation);
+    else currentNavigation?.remove();
+
+    // `<body>`'s classes are not in the swap list above — that list replaces
+    // named elements, and `<body>` is not one of them — so the Rail's grid track
+    // has to be carried across by hand (ADR-0039). Without this the first
+    // Comment on an open Page arrives in a Rail that still has no column. The
+    // Rail *element* is never touched either way.
+    //
+    // Navigate-by-swap (ADR-0028) is not written yet; when it is, it shares this
+    // function, so a navigation between Pages with different Conversation counts
+    // will land the right track for free rather than keeping the previous
+    // Page's.
+    document.body.classList.toggle(
+      "has-conversations",
+      doc.body.classList.contains("has-conversations"),
+    );
 
     // The article's `data-content-hash` names the bytes now on screen, so a
     // Comment started after a reload binds to what the reader can actually see.
@@ -431,6 +574,7 @@ function initSearch(): void {
 connectLiveReload();
 initTheme();
 initNav();
+initRailOverlay();
 initSearch();
 initOpenInEditor();
 initCopyPath();

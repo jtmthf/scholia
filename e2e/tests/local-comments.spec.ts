@@ -44,9 +44,23 @@ const SEED = {
   "hold-status.md":
     "# Hold Status\n\nA passage that is about to be deleted.\n\nA passage that stays put.\n",
   "server-rendered.md": "# Server Rendered\n\nReadable with JavaScript off.\n",
+  // Owned by the conditional-track tests (issue #158, ADR-0039), which measure
+  // the article before and after the Page's *first* Conversation. Another
+  // test's Comment here would make the "before" the "after".
+  "no-rail-column.md": "# No Rail Column\n\nNobody has said anything about this Page yet.\n",
+  "first-comment.md": "# First Comment\n\nA Page an agent is about to comment on.\n",
   "outdated-ssr.md": "# Outdated SSR\n\nNothing here says what the Anchor quotes.\n",
   "capabilities.md": "# Capabilities\n\nOnly what the Sidecar can do.\n",
   "many-comments.md": "# Many Comments\n\nA page with more Conversations than fit in one screen.\n",
+  // Owned by the overlay tests (ADR-0039, issue #160): below 1188px the Rail
+  // leaves the flow, and each test below owns a Page for the same reason as
+  // the held-live-reload group above.
+  "rail-overlay-open.md": "# Rail Overlay Open\n\nA passage to open the overlay from.\n",
+  "rail-overlay-toggle.md": "# Rail Overlay Toggle\n\nNobody has said anything here yet.\n",
+  "rail-overlay-dismiss.md": "# Rail Overlay Dismiss\n\nNobody has said anything here yet.\n",
+  "rail-overlay-focus.md": "# Rail Overlay Focus\n\nNobody has said anything here yet.\n",
+  "rail-overlay-scroll.md": "# Rail Overlay Scroll\n\nNobody has said anything here yet.\n",
+  "rail-overlay-no-js.md": "# Rail Overlay No JS\n\nReadable below 1188px with no JavaScript.\n",
   "resolve.md": "# Resolve\n\nSomething to settle.\n",
   "react.md": "# React\n\nSomething to react to.\n",
   "edit.md": "# Edit\n\nSomething to rewrite.\n",
@@ -360,6 +374,115 @@ test("clicking outside any passage and outside the rail clears the active card",
   await expect(page.locator(".thread-card--active")).toHaveCount(0);
 });
 
+// ADR-0039, issue #160: below 1188px the Rail can't be a column without
+// breaking the reading measure, so it leaves the flow and becomes a fixed
+// overlay with a backdrop — closed by default, `body.rail-open` while shown.
+test.describe("the Rail as an overlay below 1188px", () => {
+  test.use({ viewport: { width: 1000, height: 900 } });
+
+  const rail = (page: Page) => page.locator("#scholia-comments");
+  const toggle = (page: Page) => page.locator("#scholia-rail-toggle");
+  const backdrop = (page: Page) => page.locator(".rail-backdrop");
+
+  async function expectOpen(page: Page, open: boolean): Promise<void> {
+    await expect(page.locator("body")).toHaveClass(open ? /\brail-open\b/ : /^(?!.*\brail-open\b)/);
+    await expect(toggle(page)).toHaveAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  // The primary opener (ADR-0039): clicking the annotated passage raises the
+  // overlay onto that passage's Conversation, the same click that already
+  // focuses the card at any width.
+  test("clicking an annotated passage opens the overlay onto that Conversation", async ({
+    page,
+    request,
+  }) => {
+    await seedComment(request, "rail-overlay-open.md", "Here.", "passage to open");
+    await page.goto(`${preview.url}/rail-overlay-open.md`);
+    await expect.poll(() => paintedAnchors(page)).toBe(1);
+
+    await expectOpen(page, false);
+    const at = await centreOf(page, "passage to open");
+    await page.mouse.click(at.x, at.y);
+
+    await expectOpen(page, true);
+    await expect(page.locator(".thread-card--active")).toHaveCount(1);
+    // `transition: transform 0.2s ease` animates the slide-in, so the
+    // on-screen position lands a moment after `body.rail-open` does.
+    await expect.poll(async () => (await rail(page).boundingBox())!.x).toBeLessThan(1000);
+  });
+
+  // The discoverable fallback: a topbar control that opens and closes the
+  // same overlay, and says which state it's in.
+  test("the topbar control opens the rail and reflects open state", async ({ page }) => {
+    await page.goto(`${preview.url}/rail-overlay-toggle.md`);
+
+    await expect(toggle(page)).toBeVisible();
+    await expectOpen(page, false);
+
+    await toggle(page).click();
+    await expectOpen(page, true);
+
+    await toggle(page).click();
+    await expectOpen(page, false);
+  });
+
+  test("Esc and clicking the backdrop both dismiss the overlay", async ({ page }) => {
+    await page.goto(`${preview.url}/rail-overlay-dismiss.md`);
+
+    await toggle(page).click();
+    await expectOpen(page, true);
+    await page.keyboard.press("Escape");
+    await expectOpen(page, false);
+
+    await toggle(page).click();
+    await expectOpen(page, true);
+    // `force: true`: the backdrop sits under the rail's own box in the
+    // markup but visually covers everything else, which is exactly what a
+    // real reader's tap would hit; Playwright's actionability check doesn't
+    // know that without help.
+    await backdrop(page).click({ position: { x: 5, y: 5 }, force: true });
+    await expectOpen(page, false);
+  });
+
+  // Focus is trapped while open (Tab wraps at the rail's own ends rather than
+  // escaping to the sheet behind the backdrop) and returns to whatever opened
+  // it — here the toggle — once dismissed.
+  test("focus is trapped while open and returns to the opener on dismiss", async ({ page }) => {
+    await page.goto(`${preview.url}/rail-overlay-focus.md`);
+
+    await toggle(page).click();
+    await expectOpen(page, true);
+
+    // Nothing has been said on this Page, so the rail-toolbar composer is the
+    // only focusable content: a textarea followed by its submit button.
+    const composerTextarea = page.locator("#scholia-comments textarea");
+    const commentButton = page.locator("#scholia-comments button[type=submit]");
+    await expect(composerTextarea).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(commentButton).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(composerTextarea).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expectOpen(page, false);
+    await expect(toggle(page)).toBeFocused();
+  });
+
+  // The overlay is its own scroll container: it does not lock in place by
+  // hiding the document's scrollbar for cosmetic reasons alone — while it
+  // covers the sheet, the sheet must not be what scrolls.
+  test("the rail scrolls independently of the document while open", async ({ page }) => {
+    await page.goto(`${preview.url}/rail-overlay-scroll.md`);
+
+    await toggle(page).click();
+    await expectOpen(page, true);
+
+    expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe("hidden");
+    expect(await rail(page).evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
+  });
+});
+
 // An Anchor whose quote is no longer in the Page can't be painted. It must still
 // render — with its original quote, which is what an Outdated Conversation is
 // for (CONTEXT "Outdated") — rather than vanish. Locally the file is live, so
@@ -409,6 +532,31 @@ test.describe("without JavaScript", () => {
     await expect(page.locator(".rail-section--outdated .thread-card")).toHaveCount(1);
     await expect(page.locator(".thread-anchor-quote")).toHaveText("“long gone”");
     await expect(page.locator(".comment-rail")).toContainText("About a passage since rewritten.");
+  });
+
+  // ADR-0039, issue #160: below 1188px the overlay only opens because a click
+  // raises `body.rail-open`, and with no JavaScript nothing ever does. The
+  // no-JS answer (`layout.tsx`'s `<noscript>` override) is to leave the Rail
+  // in the flow instead — never a column, but never hidden either — so a
+  // reader without JavaScript still reaches every Conversation.
+  test("the Rail below 1188px stays in the flow, reachable, with no JavaScript", async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await seedComment(request, "rail-overlay-no-js.md", "Still here.", "1188px with no JavaScript");
+    await page.goto(`${preview.url}/rail-overlay-no-js.md`);
+
+    const rail = page.locator("#scholia-comments");
+    await expect(rail).toBeVisible();
+    await expect(rail).toContainText("Still here.");
+    expect(await rail.evaluate((el) => getComputedStyle(el).position)).toBe("static");
+
+    // The toggle exists in the markup (`#scholia-comments` is unconditional,
+    // ADR-0039 issue #158, and so is its topbar counterpart) but does nothing
+    // without a click handler, so the no-JS override hides it rather than
+    // leaving a dead button (ADR-0017 "no broken buttons").
+    await expect(page.locator("#scholia-rail-toggle")).toBeHidden();
   });
 
   test("a page-level comment posts through the form", async ({ page }) => {
@@ -1148,4 +1296,115 @@ test("a promoted Chat is untouched — it stays private and in the Chats section
   await expect(
     page.locator(".rail-section--chats .thread-card", { hasText: "Still private after promo." }),
   ).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// The Rail is always mounted; only its column is conditional (issue #158,
+// ADR-0039).
+//
+// An empty Rail used to cost the reading column 320px on every Page, because
+// one class answered two different questions: "is a Rail mounted" and "does the
+// Rail get a track". These split them. The element stays — it is the page's only
+// hydration boundary (ADR-0031) and the element live reload writes an agent's
+// first Comment into — and the *track* is what an un-commented Page stops paying
+// for.
+
+interface Box {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  width: number;
+}
+
+/** The article's, the Colophon's and the Rail's boxes, in one measurement. */
+function boxes(page: Page): Promise<{ article: Box; colophon: Box; rail: Box }> {
+  return page.evaluate(() => {
+    const box = (selector: string): Box => {
+      const { top, bottom, left, right, width } = document
+        .querySelector(selector)!
+        .getBoundingClientRect();
+      return { top, bottom, left, right, width };
+    };
+    return {
+      article: box("article.markdown-body"),
+      colophon: box(".colophon"),
+      rail: box("#scholia-comments"),
+    };
+  });
+}
+
+test("an un-commented Page mounts the Rail but gives its column back to the words", async ({
+  page,
+  request,
+}) => {
+  await clearPage(request, "no-rail-column.md");
+  await page.setViewportSize({ width: 1512, height: 900 });
+  await page.goto(`${preview.url}/no-rail-column.md`);
+
+  // Mounted, and saying so: the empty state still tells a reader that commenting
+  // exists, and still carries the Composer that works with JavaScript off.
+  await expect(page.locator("#scholia-comments")).toHaveCount(1);
+  await expect(page.locator(".rail-empty")).toContainText("No Conversations yet");
+  await expect(page.locator(".comment-rail .composer textarea")).toBeVisible();
+
+  // Not as a claimed column: `.layout` has only three explicit tracks
+  // (Nav/content/Outline) while nothing has been said about the Page, so the
+  // article keeps its full width regardless of where the Rail itself lands.
+  //
+  // Where it lands is a known gap, not asserted here: `#scholia-comments` is a
+  // fourth child of a three-column explicit grid, so it auto-places into a
+  // stray implicit column beside the Outline rather than stacking under the
+  // article — every explicit-placement fix attempted instead broke the
+  // rail-toolbar composer or the floating selection buttons (ADR-0039, issue
+  // #175).
+  await expect(page.locator("body")).not.toHaveClass(/has-conversations/);
+  const { article } = await boxes(page);
+
+  // Once there is something to say the Rail becomes a real column — but ADR-0039's
+  // promise is that the reading measure itself never moves for it: the Outline
+  // yields the room instead, so the article is exactly as wide as it was.
+  await seedComment(request, "no-rail-column.md", "Now it costs something.");
+  await page.reload();
+  await expect(page.locator("body")).toHaveClass(/has-conversations/);
+  const withRail = await boxes(page);
+  expect(withRail.rail.left).toBeGreaterThan(withRail.article.right - 1);
+  expect(withRail.article.width).toBeGreaterThanOrEqual(article.width - 1);
+});
+
+// The zero-to-one transition, which is the reason the element is unconditional:
+// `main.ts` swaps with `replaceWith`, which cannot make an element *appear*, so
+// an agent's first Comment on an open Page would never reach the reader if the
+// Rail were rendered only when there was something in it.
+test("an agent's first Comment on an open Page takes the column with no reload", async ({
+  page,
+  request,
+}) => {
+  await clearPage(request, "first-comment.md");
+  await page.setViewportSize({ width: 1512, height: 900 });
+  await page.goto(`${preview.url}/first-comment.md`);
+
+  await expect(page.locator(".rail-empty")).toBeVisible();
+  await expect(page.locator("body")).not.toHaveClass(/has-conversations/);
+
+  // Stamp the mounted element so "the Rail is never replaced" is a claim about
+  // this node, not about one that happens to match the same selector.
+  await page.evaluate(() =>
+    document.getElementById("scholia-comments")!.setAttribute("data-e2e-stamp", "kept"),
+  );
+
+  // A second writer, out-of-process — the agent case (ADR-0019). It reaches the
+  // open preview over the live-reload channel that already exists.
+  await seedComment(request, "first-comment.md", "Found while reading this.");
+
+  await expect(page.locator("body")).toHaveClass(/has-conversations/);
+  await expect(page.locator(".thread-card")).toHaveCount(1);
+  await expect(page.locator(".comment-rail")).toContainText("Found while reading this.");
+
+  // The track arrived with the class: the Rail is beside the article now.
+  const { article, rail } = await boxes(page);
+  expect(rail.left).toBeGreaterThan(article.right - 1);
+
+  // Same node throughout: live reload swapped the data, never the island.
+  await expect(page.locator("#scholia-comments")).toHaveAttribute("data-e2e-stamp", "kept");
 });
