@@ -180,9 +180,13 @@ function listen(
   fetch: Parameters<typeof serve>[0]["fetch"],
   port: number,
   hostname: string,
-): Promise<ServerType> {
+): Promise<{ server: ServerType; port: number }> {
   return new Promise((resolve, reject) => {
-    const srv = serve({ fetch, port, hostname }, () => resolve(srv));
+    const srv = serve({ fetch, port, hostname }, () => {
+      const addr = srv.address();
+      const actualPort = typeof addr === "object" && addr ? addr.port : port;
+      resolve({ server: srv, port: actualPort });
+    });
     // Stays attached after resolution on purpose: an 'error' with no listener
     // is an uncaught exception, and this server outlives the promise.
     srv.once("error", reject);
@@ -970,28 +974,35 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   });
 
   const hosts = await resolveBindHosts(opts.host);
+
   const port = await findPort(opts.port, hosts, opts.strictPort ?? false);
 
   // One listener per address. The first has to succeed; a later one failing
   // (something grabbed the port between probe and bind) leaves the preview
   // working on the address that did bind instead of killing startup.
   const servers: ServerType[] = [];
+  let actualPort = port;
   for (const hostname of hosts) {
     try {
-      servers.push(await listen(app.fetch, port, hostname));
+      const { server, port: boundPort } = await listen(app.fetch, actualPort, hostname);
+      servers.push(server);
+      // When the caller asked for port 0 (OS-assigned), pin subsequent
+      // binds to the port the first listener received — dual-stack must
+      // share one port.
+      if (actualPort === 0) actualPort = boundPort;
     } catch (err) {
       if (servers.length === 0) throw err;
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[scholia] could not also bind ${hostname}:${port} — ${message}`);
+      console.warn(`[scholia] could not also bind ${hostname}:${actualPort} — ${message}`);
     }
   }
 
   const displayHost = opts.host === "0.0.0.0" ? "localhost" : opts.host;
-  const url = `http://${displayHost}:${port}`;
+  const url = `http://${displayHost}:${actualPort}`;
 
   return {
     url,
-    port,
+    port: actualPort,
     close: async () => {
       await watcher.close();
       await pendingJob;

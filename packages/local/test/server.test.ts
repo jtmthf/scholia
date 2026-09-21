@@ -20,19 +20,17 @@ async function waitUntilAccepting(url: string, attempts = 100): Promise<void> {
 
 // Extends the temp-dir fixture with a launcher that tracks every server it
 // starts and closes them all on teardown (stopping the chokidar watcher too).
-// Each launch gets its own port range so back-to-back tests can't collide while
-// a previous server is still releasing its socket.
+// Passing port 0 lets the OS assign an open port, so parallel test files can't
+// collide on a hardcoded range.
 const test = tmpTest.extend<{
   serve: (overrides?: Partial<StartOptions>) => Promise<RunningServer>;
 }>({
   serve: async ({ tmp }, use) => {
     const servers: RunningServer[] = [];
-    let basePort = 38000;
     const launch = async (overrides: Partial<StartOptions> = {}) => {
-      basePort += 50; // findPort scans 25 ports up; 50 keeps ranges disjoint
       const server = await startServer({
         rootDir: tmp.root,
-        port: basePort,
+        port: 0,
         host: "localhost",
         mdxEnabled: true,
         open: false,
