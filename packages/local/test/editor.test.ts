@@ -1,3 +1,5 @@
+import { chmod, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect } from "vitest";
 import { test } from "./helpers/tmp.js";
 import { checkEditorOverride, openInEditor, resolveEditor } from "../src/editor.js";
@@ -305,6 +307,39 @@ describe("openInEditor", () => {
     openInEditor({ command: "scholia-no-such-editor", args: [], source: "path" }, file);
     // The failure arrives asynchronously; an unhandled one fails this run.
     await new Promise((resolve) => setTimeout(resolve, 250));
+  });
+
+  // Every character here that a filename may legally hold and cmd.exe treats
+  // specially: on Windows the editor is a `.cmd` shim (like `code.cmd`), and a
+  // shim re-parses its `%*`, so the path passes through cmd twice. Each one has
+  // to reach the editor verbatim — the file opened must be the file clicked.
+  test("hands the editor the path verbatim, through a .cmd shim on Windows", async ({ tmp }) => {
+    const file = await tmp.write("a b&c^d%PATH%(e)!f,g;h's.md", "# Home\n");
+    const argvOut = join(tmp.root, "argv.json");
+    const recorder = await tmp.write(
+      "recorder.mjs",
+      `import { writeFileSync } from "node:fs";\n` +
+        `writeFileSync(${JSON.stringify(argvOut)}, JSON.stringify(process.argv.slice(2)));\n`,
+    );
+    // In a directory with a space, as `C:\Program Files\...` would be.
+    const editor =
+      process.platform === "win32"
+        ? await tmp.write(
+            "My Editor/fake-editor.cmd",
+            `@"${process.execPath}" "${recorder}" %*\r\n`,
+          )
+        : await tmp.write(
+            "My Editor/fake-editor",
+            `#!/bin/sh\nexec "${process.execPath}" "${recorder}" "$@"\n`,
+          );
+    await chmod(editor, 0o755);
+
+    openInEditor({ command: editor, args: ["--reuse-window"], source: "override" }, file);
+
+    await expect
+      .poll(() => readFile(argvOut, "utf8").catch(() => null), { timeout: 10_000 })
+      .not.toBeNull();
+    expect(JSON.parse(await readFile(argvOut, "utf8"))).toEqual(["--reuse-window", file]);
   });
 });
 

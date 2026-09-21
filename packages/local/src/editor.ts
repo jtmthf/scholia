@@ -5,7 +5,8 @@
 // Resolution is environment-first (ADR-0017 Amendments). A fixed PATH probe
 // answers "which editor is installed?"; the question is "which editor is the
 // user in?" — and the terminal Scholia was launched from answers it exactly.
-import { execFile as execFileCb, spawn } from "node:child_process";
+import { execFile as execFileCb } from "node:child_process";
+import spawn from "cross-spawn";
 import { promisify } from "node:util";
 import { stat } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -280,10 +281,20 @@ export async function resolveEditor(opts: ResolveEditorOptions): Promise<Resolve
 // Detached and unreferenced: Local Preview does not wait on the child or
 // pipe its output back (ADR-0017) — a hung or crashing editor must not hang
 // or crash the preview server.
+//
+// Through cross-spawn rather than node:child_process because of Windows
+// (ADR-0017 Amendments): there the editor CLIs are `.cmd` shims, which
+// CreateProcess can't find without PATHEXT and Node refuses to spawn without a
+// shell. cross-spawn resolves the real file and goes through cmd.exe only for a
+// `.cmd`/`.bat`, escaping every argument for it; an `.exe`, and every other
+// platform, is still spawned with no shell.
 export function openInEditor(editor: ResolvedEditor, filePath: string): void {
   const child = spawn(editor.command, [...editor.args, filePath], {
     detached: true,
     stdio: "ignore",
+    // A detached child on Windows gets a console of its own; for cmd.exe
+    // running a shim that is a window flashing up behind the editor.
+    windowsHide: true,
   });
   // A spawn failure (the binary vanished since the startup probe) arrives as
   // an 'error' event, and an 'error' with no listener is an uncaught exception
