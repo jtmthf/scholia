@@ -65,3 +65,26 @@ guessed wrong for you. The "render no button rather than a broken one" rule is u
 **The endpoint is loopback-only, unconditionally** (see ADR-0022). The guard list above
 rests on the server binding loopback, which a Tunnel invalidates — the "random tab"
 this ADR guards against becomes a random person. Tunnelled requests are refused.
+
+**On Windows the no-shell rule bends for `.cmd` shims, and only for them** (issue #46).
+The editor CLIs there — `code.cmd`, `cursor.cmd`, `windsurf.cmd`, the JetBrains
+launchers — are batch files. `CreateProcess` does not apply `PATHEXT`, so a bare
+`code` is `ENOENT`, and since CVE-2024-27980 Node refuses to spawn a `.cmd` or `.bat`
+without a shell at all. There is no shell-free way to run them.
+
+The spawn goes through [`cross-spawn`](https://github.com/moxystudio/node-cross-spawn),
+not hand-written quoting. It resolves the command the way `where` does, runs an `.exe`
+directly, and uses `cmd.exe /d /s /c` only for a batch file — quoting each argument and
+caret-escaping every cmd metacharacter, with the command line handed to Node verbatim so
+it isn't re-quoted. The argument reaches the shim still quoted, so its `%*` passes it on
+intact. Getting that escaping right is the library's whole job; a first attempt at our
+own got three rules wrong (`%` expands inside quotes, `^` doesn't escape inside them, and
+Node re-quotes a `/c` argument unless told not to), which is the argument for not owning
+it.
+
+The blast-radius argument above still holds: the path is still bounded by
+`resolveWithinRoot`, and the only input that reaches the shell is the name of a file inside
+the previewed directory. Off Windows, `cross-spawn` passes straight through to
+`child_process.spawn` with no shell, so the guard there is unchanged. A test drives a real
+`.cmd` shim with a filename carrying cmd's metacharacters and asserts the editor receives it
+verbatim; CI runs it on `windows-latest`.

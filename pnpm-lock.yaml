@@ -320,6 +320,9 @@ importers:
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
+      cross-spawn:
+        specifier: ^7.0.6
+        version: 7.0.6
       hono:
         specifier: ^4.12.26
         version: 4.12.27
@@ -342,6 +345,9 @@ importers:
       '@scholia/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@types/cross-spawn':
+        specifier: ^6.0.6
+        version: 6.0.6
       parse5:
         specifier: ^7.2.1
         version: 7.3.0
@@ -2421,6 +2427,9 @@ packages:
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
+
+  '@types/cross-spawn@6.0.6':
+    resolution: {integrity: sha512-fXRhhUkG4H3TQk5dBhQ7m/JDdSNHKwR2BBia62lhwEIq9xGiQKLxd6LymNhn47SjXhsUEPmxi+PKw2OkW4LLjA==}
 
   '@types/d3-array@3.2.2':
     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
@@ -6571,6 +6580,10 @@ snapshots:
     dependencies:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
+
+  '@types/cross-spawn@6.0.6':
+    dependencies:
+      '@types/node': 22.20.0
 
   '@types/d3-array@3.2.2': {}
 
