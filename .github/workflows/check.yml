@@ -32,7 +32,13 @@ jobs:
       # runs in the test-hosted job below on Linux. Both legs run everything
       # else here — Windows stays useful because path handling is what
       # diverges across platforms.
-      - run: pnpm exec turbo run test --filter='!@scholia/db' --filter='!@scholia/server'
+      #
+      # On Windows, one package at a time: each package's Vitest already sizes
+      # its worker pool to the runner's cores, so turbo's default of ten tasks
+      # at once oversubscribes a 4-vCPU runner several times over, and process
+      # spawns — the bulk of a Local Preview test there — slow to the point
+      # that tests with no bug in them cross the 20s timeout (#56).
+      - run: pnpm exec turbo run test --filter='!@scholia/db' --filter='!@scholia/server' ${{ matrix.os == 'windows-latest' && '--concurrency=1' || '' }}
 
   # The hosted path (server/db integration tests) used to be excluded from CI
   # entirely, which let hosted-path regressions hide behind silent
