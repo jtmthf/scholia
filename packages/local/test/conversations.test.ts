@@ -44,12 +44,10 @@ const test = tmpTest.extend<{
 }>({
   serve: async ({ tmp }, use) => {
     const servers: RunningServer[] = [];
-    let basePort = 39000;
     const launch = async (overrides: Partial<StartOptions> = {}) => {
-      basePort += 50;
       const server = await startServer({
         rootDir: tmp.root,
-        port: basePort,
+        port: 0,
         host: "localhost",
         mdxEnabled: true,
         open: false,
