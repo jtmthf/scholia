@@ -152,12 +152,13 @@ interface Detection {
   exists: (bin: string) => Promise<boolean>;
 }
 
-// Returns the first of `candidates` that is installed, or null.
+// Returns the first of `candidates` that is installed, or null. Probed all at
+// once: each probe is a process spawn, slow enough on Windows that running
+// them one after another put seconds on every startup (#56). "First" is still
+// the candidate order, not whichever probe answers soonest.
 async function firstAvailable(d: Detection, candidates: string[]): Promise<string | null> {
-  for (const bin of candidates) {
-    if (await d.exists(bin)) return bin;
-  }
-  return null;
+  const found = await Promise.all(candidates.map((bin) => d.exists(bin)));
+  return candidates[found.indexOf(true)] ?? null;
 }
 
 // Reads the fork out of the application path VS Code exports into its

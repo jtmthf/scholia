@@ -251,6 +251,31 @@ describe("resolveEditor: $VISUAL / $EDITOR and the PATH probe (step 3)", () => {
     expect(editor).toEqual({ command: "subl", args: [], source: "path" });
   });
 
+  // Each probe is a process spawn, which on Windows costs hundreds of
+  // milliseconds; five of them in a row made startup pay for all five (#56).
+  // Running them at once must not change which one wins: priority is the
+  // candidate order, never whichever probe happens to answer first.
+  test("probes the PATH candidates at once, and still answers in priority order", async ({
+    tmp,
+  }) => {
+    let inFlight = 0;
+    let peak = 0;
+    const editor = await resolveEditor({
+      rootDir: tmp.root,
+      env: {},
+      commandExists: async (bin) => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        // zed outranks subl but answers last.
+        await new Promise((r) => setTimeout(r, bin === "zed" ? 30 : 5));
+        inFlight--;
+        return bin === "zed" || bin === "subl";
+      },
+    });
+    expect(editor).toEqual({ command: "zed", args: [], source: "path" });
+    expect(peak).toBeGreaterThan(1);
+  });
+
   test("resolves nothing when no editor is installed, so no button is rendered", async ({
     tmp,
   }) => {
